@@ -1,0 +1,7 @@
+# Environments
+.env*
+__pycache__/
+*.pyc
+
+# Docker
+docker-compose.override.yml
