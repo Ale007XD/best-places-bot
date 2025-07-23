@@ -1,22 +1,82 @@
-# ... (начало файла)
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Deploy to VPS
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-        script: |
-          set -e  # <-- ДОБАВИТЬ ЭТУ СТРОКУ!
+# Название рабочего процесса, которое будет отображаться в GitHub Actions
+name: Deploy Telegram Bot to VPS
 
-          cd /home/deployer/best-places-bot
-          git pull origin main
+# Триггер: этот процесс будет запускаться автоматически
+# при каждом пуше в ветку 'main'
+on:
+  push:
+    branches: [ main ]
+
+# Задачи (jobs), которые будут выполняться
+jobs:
+  # Название единственной задачи в нашем процессе
+  deploy:
+    # Указываем, что задача должна выполняться на виртуальной машине
+    # с последней версией Ubuntu
+    runs-on: ubuntu-latest
+
+    # Шаги (steps), из которых состоит задача
+    steps:
+      # Шаг 1: Подключение к VPS и выполнение команд по SSH
+      # Мы используем готовый Action от 'appleboy', который упрощает работу с SSH
+      - name: Connect to VPS and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        
+        # Параметры для подключения и выполнения скрипта
+        with:
+          # IP-адрес вашего сервера, берется из секретов репозитория
+          host: ${{ secrets.VPS_HOST }}
           
-          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
-          echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+          # Имя пользователя для подключения, берется из секретов
+          username: ${{ secrets.VPS_USERNAME }}
           
-          docker-compose up --build -d
-          docker image prune -f
+          # Приватный SSH-ключ для аутентификации, берется из секретов
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          
+          # Скрипт, который будет последовательно выполнен на вашем сервере
+          script: |
+            # --- БЕЗОПАСНЫЙ РЕЖИМ ---
+            # Эта команда гарантирует, что скрипт немедленно прервется,
+            # если любая из последующих команд завершится с ошибкой.
+            set -e
+
+            # --- ПОДГОТОВКА ---
+            # Задаем переменную с путем к проекту для удобства
+            PROJECT_DIR="/home/deployer/best-places-bot"
+
+            # --- ОБНОВЛЕНИЕ ИЛИ ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА КОДА ---
+            # Проверяем, существует ли папка проекта на сервере
+            if [ -d "$PROJECT_DIR" ]; then
+              # Если папка существует, это обновление.
+              echo ">>> Project directory exists. Pulling latest changes..."
+              cd $PROJECT_DIR
+              git pull origin main
+            else
+              # Если папки нет, это первое развертывание.
+              echo ">>> Project directory does not exist. Cloning repository..."
+              cd /home/deployer # Переходим в домашнюю папку пользователя
+              # ВНИМАНИЕ: Замените 'ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ' на реальный путь
+              git clone https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ.git best-places-bot
+              cd $PROJECT_DIR
+            fi
+
+            # --- СОЗДАНИЕ .env ФАЙЛА ---
+            # Создаем (или перезаписываем) файл .env с актуальными ключами из GitHub Secrets.
+            # Это самый безопасный способ передачи секретов в приложение.
+            echo ">>> Creating .env file..."
+            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+            echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+
+            # --- ЗАПУСК БОТА ЧЕРЕЗ DOCKER COMPOSE ---
+            # Пересобираем образ (если были изменения в коде или Dockerfile)
+            # и запускаем контейнер в фоновом режиме (-d).
+            echo ">>> Building and starting Docker container..."
+            docker-compose up --build -d
+
+            # --- ОЧИСТКА ---
+            # (Опционально, но рекомендуется)
+            # Удаляем старые и неиспользуемые Docker-образы, чтобы не занимать место на диске.
+            echo ">>> Pruning old Docker images..."
+            docker image prune -f
+
+            echo ">>> Deployment successful!"
