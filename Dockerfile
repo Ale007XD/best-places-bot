@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./bot ./bot
 
 # Указываем команду для запуска бота при старте контейнера
-CMD ["python", "bot/main.py"]
+CMD ["python", "-m", "bot.main"]
