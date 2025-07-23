@@ -71,7 +71,7 @@ jobs:
             # Пересобираем образ (если были изменения в коде или Dockerfile)
             # и запускаем контейнер в фоновом режиме (-d).
             echo ">>> Building and starting Docker container..."
-            docker-compose up --build -d
+            docker compose up --build -d
 
             # --- ОЧИСТКА ---
             # (Опционально, но рекомендуется)
