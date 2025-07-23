@@ -1,0 +1,46 @@
+# Название нашего Workflow, которое будет отображаться в GitHub
+name: Deploy Telegram Bot
+
+# Триггер: запускать этот workflow при каждом пуше в ветку 'main'
+on:
+  push:
+    branches: [ main ]
+
+# Задачи, которые будут выполняться
+jobs:
+  deploy:
+    # Запускать на последней версии Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+    # Шаг 1: Клонирование репозитория
+    # Это стандартное действие, которое загружает ваш код в runner
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Шаг 2: Подключение к VPS и развертывание
+    # Мы используем готовый Action для удобной работы с SSH
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}             # IP-адрес сервера из секретов
+        username: ${{ secrets.VPS_USERNAME }}     # Имя пользователя из секретов
+        key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}   # Приватный SSH-ключ из секретов
+        
+        # Скрипт, который будет выполнен на сервере
+        script: |
+          # Переходим в директорию проекта (убедитесь, что имя совпадает)
+          cd ~/best-places-bot
+          
+          # Загружаем последние изменения из ветки main
+          git pull origin main
+          
+          # Создаем .env файл "на лету", используя секреты GitHub
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+          echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+          
+          # Пересобираем и запускаем Docker-контейнеры в фоновом режиме
+          docker-compose up --build -d
+          
+          # (Опционально) Очищаем старые, неиспользуемые образы Docker, чтобы не засорять диск
+          docker image prune -f
