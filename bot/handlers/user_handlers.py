@@ -101,11 +101,14 @@ async def get_rating_and_search(callback: types.CallbackQuery, state: FSMContext
                 f"<b>Рейтинг:</b> ⭐️ {place['rating']}\n"
                 f"<b>Адрес:</b> {place['address']}"
             )
-            await callback.message.answer(
-                text,
-                parse_mode="HTML",
-                reply_markup=inline_keyboards.get_google_maps_link_button(place['place_id'])
+        await callback.message.answer(
+            text,
+            parse_mode="HTML",
+            reply_markup=inline_keyboards.get_google_maps_link_button(
+                place_id=place['place_id'], 
+                place_name=place['name']
             )
+        )
         await callback.message.answer("Хотите выполнить новый поиск? /start")
 
     await callback.answer()
