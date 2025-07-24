@@ -58,8 +58,8 @@ class Analytics:
             "active_users": results[0],
             "searches": int(results[1] or 0),
             "empty_results": int(results[2] or 0),
-            "shares": int(results[3] or 0),
-            "feedback": int(results[4] or 0),
-            "radius_usage": results[5],
-            "rating_usage": results[6],
+            # "shares": int(results[3] or 0),
+            "feedback": int(results[3] or 0),
+            "radius_usage": results[4],
+            "rating_usage": results[5],
         }
