@@ -49,6 +49,7 @@ def get_google_maps_link_button(place: dict, distance: int, direction: str) -> I
         [InlineKeyboardButton(text="📍 Открыть в Google Картах", url=google_maps_url)],
         # Вставляем наш отформатированный текст в switch_inline_query
         [InlineKeyboardButton(text="🚀 Поделиться находкой!", switch_inline_query=share_text)],
+        callback_data=f"share_click_{place['place_id']}"
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
