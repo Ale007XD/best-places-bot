@@ -1,10 +1,12 @@
 import httpx
 import asyncio
+import logging # <-- ДОБАВЛЯЕМ ИМПОРТ
 from typing import List, Dict, Any
 
 async def fetch_places_by_type(
     client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str
 ) -> List[Dict[str, Any]]:
+    # ... (эта вспомогательная функция остается без изменений)
     results_for_type = []
     url = (
         f"https://maps.googleapis.com/maps/api/place/nearbysearch/json"
@@ -27,7 +29,7 @@ async def fetch_places_by_type(
             else:
                 break
         except httpx.RequestError as e:
-            print(f"Ошибка при запросе типа '{place_type}': {e}")
+            logging.error(f"Ошибка при запросе типа '{place_type}': {e}")
             break
     return results_for_type
 
@@ -49,21 +51,20 @@ async def find_places(
         for sublist in list_of_results:
             all_places.extend(sublist)
 
-    # --- ДИАГНОСТИЧЕСКИЙ БЛОК ---
-    # Мы выведем в лог все, что получили от Google, ДО нашей фильтрации.
-    print("\n\n--- НАЧАЛО ДИАГНОСТИКИ ---")
-    print(f"Параметры поиска: Радиус={radius}м, Мин. рейтинг={min_rating}+")
-    print(f"Всего получено уникальных мест от Google API (до фильтрации): {len(all_places)}")
-    print("СПИСОК ПОЛУЧЕННЫХ МЕСТ:")
+    # --- НАДЕЖНЫЙ ДИАГНОСТИЧЕСКИЙ БЛОК С LOGGING ---
+    logging.info("\n\n--- НАЧАЛО ДИАГНОСТИКИ ---")
+    logging.info(f"Параметры поиска: Радиус={radius}м, Мин. рейтинг={min_rating}+")
+    logging.info(f"Всего получено уникальных мест от Google API (до фильтрации): {len(all_places)}")
+    logging.info("СПИСОК ПОЛУЧЕННЫХ МЕСТ:")
     if not all_places:
-        print("Google API не вернул ни одного заведения.")
+        logging.info("Google API не вернул ни одного заведения.")
     else:
         for i, place in enumerate(all_places):
             place_name = place.get('name', 'БЕЗ ИМЕНИ')
             place_rating = place.get('rating', 'НЕТ РЕЙТИНГА')
             place_types = place.get('types', ['НЕТ ТИПОВ'])
-            print(f"  {i+1:02d}. {place_name} | Рейтинг в API: {place_rating} | Типы: {place_types}")
-    print("--- КОНЕЦ ДИАГНОСТИКИ ---\n\n")
+            logging.info(f"  {i+1:02d}. {place_name} | Рейтинг в API: {place_rating} | Типы: {place_types}")
+    logging.info("--- КОНЕЦ ДИАГНОСТИКИ ---\n\n")
     # --- КОНЕЦ ДИАГНОСТИЧЕСКОГО БЛОКА ---
 
     filtered_places = []
