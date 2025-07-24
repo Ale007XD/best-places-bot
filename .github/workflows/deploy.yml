@@ -66,6 +66,7 @@ jobs:
             echo ">>> Creating .env file..."
             echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
             echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+            echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
 
             # --- ЗАПУСК БОТА ЧЕРЕЗ DOCKER COMPOSE ---
             # Пересобираем образ (если были изменения в коде или Dockerfile)
