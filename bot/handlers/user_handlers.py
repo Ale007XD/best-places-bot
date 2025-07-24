@@ -100,12 +100,6 @@ async def new_search_callback(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await cmd_start(callback.message, state)
 
-@router.callback_query(F.data.startswith("share_click_"))
-async def share_button_handler(callback: types.CallbackQuery):
-    await analytics.track_share_button_click()
-    # Просто даем пользователю подсказку, основная магия в switch_inline_query
-    await callback.answer("Теперь выберите чат для отправки", show_alert=True)
-
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext):
     await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
