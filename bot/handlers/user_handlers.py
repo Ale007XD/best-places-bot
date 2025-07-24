@@ -68,6 +68,9 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
             direction = bearing_to_direction(bearing)
             text = (f"<b>{i}. {place['name']}</b>\n🍽️ {place['main_type']}\n⭐️ Рейтинг: {place['rating']}\n📍 {distance} м {direction} от вас\n🗺️ Адрес: {place['address']}")
             await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(place, distance, direction))
+            # Если у заведения есть саммари от Google, добавляем его
+        if place.get('summary'):
+            text += f"\n\n💬 *От Google:* «{place['summary']}»"
         await bot.send_message(chat_id, "Хотите выполнить новый поиск?", reply_markup=inline_keyboards.get_new_search_keyboard())
 
 
