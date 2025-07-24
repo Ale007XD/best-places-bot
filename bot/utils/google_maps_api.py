@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 
 # ... функция fetch_places_by_type остается без изменений ...
 async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str) -> List[Dict[str, Any]]:
+    # ... (код этой функции не меняется)
     results_for_type = []
     url = (f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius}&type={place_type}&language=ru&key={api_key}")
     for _ in range(2):
@@ -23,6 +24,20 @@ async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: flo
             break
     return results_for_type
 
+
+def get_primary_type(place_types: list) -> str:
+    """Определяет главный, самый понятный тип заведения из списка."""
+    type_map = {
+        'restaurant': 'Ресторан',
+        'cafe': 'Кафе',
+        'bar': 'Бар',
+        'meal_takeaway': 'Еда на вынос',
+        'bakery': 'Пекарня',
+    }
+    for t in place_types:
+        if t in type_map:
+            return type_map[t]
+    return 'Еда' # Значение по умолчанию
 
 async def find_places(
     api_key: str,
@@ -46,15 +61,18 @@ async def find_places(
         place_id = place.get('place_id')
         rating = place.get('rating')
         if place_id and place_id not in seen_place_ids and rating and float(rating) >= min_rating:
+            # --- НОВОЕ: ИЗВЛЕКАЕМ БОЛЬШЕ ДАННЫХ ---
+            location = place.get('geometry', {}).get('location', {})
             filtered_places.append({
                 "name": place.get('name', 'Название не указано'),
                 "rating": float(rating),
                 "address": place.get('vicinity', 'Адрес не указан'),
-                "place_id": place_id
+                "place_id": place_id,
+                "lat": location.get('lat'),
+                "lng": location.get('lng'),
+                "main_type": get_primary_type(place.get('types', []))
             })
             seen_place_ids.add(place_id)
 
     sorted_places = sorted(filtered_places, key=lambda p: p['rating'], reverse=True)
-    
-    # Возвращаем ВСЕХ отсортированных кандидатов, а не только топ-3
     return sorted_places
