@@ -46,7 +46,7 @@ class Analytics:
         pipe.scard(f"stats:users:daily:{today}")         # Уникальные юзеры
         pipe.get(f"stats:searches:daily:{today}")        # Поисковые запросы
         pipe.get(f"stats:empty_results:daily:{today}")   # Пустые результаты
-        pipe.get(f"stats:shares:daily:{today}")          # Нажатия "Поделиться"
+        # pipe.get(f"stats:shares:daily:{today}")          # Нажатия "Поделиться"
         pipe.get(f"stats:feedback:daily:{today}")        # Запросы фидбэка
         pipe.hgetall(f"stats:features:radius:{today}")   # Использование радиусов
         pipe.hgetall(f"stats:features:rating:{today}")   # Использование рейтинга
