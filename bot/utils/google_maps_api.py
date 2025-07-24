@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 
+# ... функция fetch_places_by_type остается без изменений ...
 async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str) -> List[Dict[str, Any]]:
     results_for_type = []
     url = (f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius}&type={place_type}&language=ru&key={api_key}")
@@ -22,7 +23,14 @@ async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: flo
             break
     return results_for_type
 
-async def find_places(api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]:
+
+async def find_places(
+    api_key: str,
+    lat: float,
+    lon: float,
+    radius: int,
+    min_rating: float
+) -> List[Dict[str, Any]]:
     all_places = []
     async with httpx.AsyncClient() as client:
         tasks = [
@@ -47,4 +55,6 @@ async def find_places(api_key: str, lat: float, lon: float, radius: int, min_rat
             seen_place_ids.add(place_id)
 
     sorted_places = sorted(filtered_places, key=lambda p: p['rating'], reverse=True)
-    return sorted_places[:3]
+    
+    # Возвращаем ВСЕХ отсортированных кандидатов, а не только топ-3
+    return sorted_places
