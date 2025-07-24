@@ -21,9 +21,7 @@ class SearchSteps(StatesGroup):
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
-# --- ПЕРЕРАБОТАННАЯ ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ---
-# Теперь она принимает chat_id и bot, чтобы самой отправлять сообщения,
-# а не отвечать на существующие. Это надежнее.
+
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float):
     user_data = await state.get_data()
     await state.clear()
@@ -39,9 +37,12 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
 
     if not final_places:
-        await bot.send_message(chat_id,
+        await bot.send_message(
+            chat_id,
             "К сожалению, в этом диапазоне ничего не найдено. 🙁\n"
-            "Попробуйте выбрать другой диапазон. Для нового поиска введите /start"
+            "Попробуйте выбрать другой диапазон.",
+            # --- ИЗМЕНЕНИЕ №1: Добавляем кнопку "Новый поиск" и сюда ---
+            reply_markup=inline_keyboards.get_new_search_keyboard()
         )
     else:
         await bot.send_message(chat_id, "Вот что удалось найти:")
@@ -56,7 +57,6 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
                 f"📍 {distance} м {direction} от вас\n"
                 f"🗺️ Адрес: {place['address']}"
             )
-            # Отправляем сообщение напрямую в чат
             await bot.send_message(
                 chat_id=chat_id,
                 text=text,
@@ -67,13 +67,16 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
                     direction=direction
                 )
             )
-        await bot.send_message(chat_id, "Хотите выполнить новый поиск? /start")
+        # --- ИЗМЕНЕНИЕ №2: Заменяем текст на сообщение с кнопкой ---
+        await bot.send_message(
+            chat_id,
+            "Хотите выполнить новый поиск?",
+            reply_markup=inline_keyboards.get_new_search_keyboard()
+        )
 
-# --- Основные обработчики ---
-
+# ... обработчики cmd_start и feedback без изменений ...
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    # ... без изменений ...
     await state.clear()
     location_button = KeyboardButton(text="📍 Отправить геопозицию", request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
@@ -82,20 +85,31 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(Command(commands=['feedback']))
 async def cmd_feedback(message: Message, state: FSMContext):
-    # ... без изменений ...
     await state.set_state(FeedbackState.waiting_for_feedback)
     await message.answer("Поделитесь вашими мыслями!..")
 
 @router.message(FeedbackState.waiting_for_feedback)
 async def process_feedback(message: Message, state: FSMContext, bot: Bot):
-    # ... без изменений ...
     await bot.forward_message(chat_id=settings.ADMIN_ID, from_chat_id=message.chat.id, message_id=message.message_id)
     await message.answer("Спасибо! Ваше сообщение отправлено...")
     await state.clear()
 
+
+# --- НОВЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ "НОВЫЙ ПОИСК" ---
+@router.callback_query(F.data == "new_search")
+async def new_search_callback(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Ловит нажатие на кнопку 'Новый поиск' и перезапускает диалог,
+    вызывая обработчик команды /start.
+    """
+    await callback.answer() # Убираем "часики"
+    await callback.message.delete() # Удаляем сообщение с кнопкой для чистоты
+    await cmd_start(callback.message, state)
+
+
+# ... остальные обработчики без изменений ...
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext):
-    # ... без изменений ...
     await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
     await message.answer("Спасибо!", reply_markup=ReplyKeyboardRemove())
     await message.answer("Теперь выберите радиус поиска:", reply_markup=inline_keyboards.get_radius_keyboard())
@@ -103,14 +117,11 @@ async def get_location(message: Message, state: FSMContext):
 
 @router.callback_query(SearchSteps.waiting_for_radius, F.data.startswith('radius_'))
 async def get_radius(callback: types.CallbackQuery, state: FSMContext):
-    # ... без изменений ...
     radius = int(callback.data.split('_')[1])
     await state.update_data(radius=radius)
     await callback.message.edit_text("Отлично. Какой диапазон рейтинга вас интересует?", reply_markup=inline_keyboards.get_rating_keyboard())
     await state.set_state(SearchSteps.waiting_for_rating)
     await callback.answer()
-
-# --- ИСПРАВЛЕННЫЕ ОБРАБОТЧИКИ РЕЙТИНГА ---
 
 @router.callback_query(SearchSteps.waiting_for_rating, F.data.startswith('rating_'))
 async def get_rating_from_button(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
@@ -121,14 +132,12 @@ async def get_rating_from_button(callback: types.CallbackQuery, state: FSMContex
 
 @router.callback_query(SearchSteps.waiting_for_radius, F.data == 'manual_radius_input')
 async def ask_for_manual_radius(callback: types.CallbackQuery, state: FSMContext):
-    # ... без изменений ...
     await callback.message.edit_text("Введите желаемый радиус в метрах...")
     await state.set_state(SearchSteps.waiting_for_manual_radius)
     await callback.answer()
 
 @router.message(SearchSteps.waiting_for_manual_radius)
 async def get_manual_radius(message: Message, state: FSMContext):
-    # ... без изменений ...
     try:
         radius = int(message.text)
         if not 1 <= radius <= 5000: raise ValueError("Радиус вне диапазона.")
@@ -140,7 +149,6 @@ async def get_manual_radius(message: Message, state: FSMContext):
 
 @router.callback_query(SearchSteps.waiting_for_rating, F.data == 'manual_rating_input')
 async def ask_for_manual_rating(callback: types.CallbackQuery, state: FSMContext):
-    # ... без изменений ...
     await callback.message.edit_text("Введите минимальный желаемый рейтинг...")
     await state.set_state(SearchSteps.waiting_for_manual_rating)
     await callback.answer()
@@ -150,16 +158,12 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot):
     try:
         min_rating = float(message.text.replace(',', '.'))
         if not 1.0 <= min_rating <= 5.0: raise ValueError("Рейтинг вне диапазона.")
-        
-        # Отправляем сообщение о поиске и сразу его удаляем
         loading_message = await message.answer("Ищу лучшие заведения для вас... 🕵️‍♂️")
         await process_and_send_results(message.chat.id, bot, state, min_rating, 5.0)
         await loading_message.delete()
-        
     except (ValueError, TypeError):
         await message.answer("Неверный формат...")
 
 @router.message(SearchSteps.waiting_for_location)
 async def incorrect_location(message: Message):
-    # ... без изменений ...
     await message.answer("Пожалуйста, нажмите на кнопку '📍 Отправить геопозицию'...")
