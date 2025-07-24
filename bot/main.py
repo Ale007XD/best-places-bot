@@ -11,6 +11,7 @@ async def main():
     """Основная функция для запуска бота."""
     # Настройка логирования
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    logging.info(f"Загруженный ID администратора: {settings.ADMIN_ID}")
 
     # Инициализация бота и диспетчера
     bot = Bot(token=settings.BOT_TOKEN)
