@@ -70,6 +70,8 @@ async def find_places(
                 "place_id": place_id,
                 "lat": location.get('lat'),
                 "lng": location.get('lng'),
+                "summary": place.get('editorial_summary', {}).get('overview') # правка саммари тут
+            })
                 "main_type": get_primary_type(place.get('types', []))
             })
             seen_place_ids.add(place_id)
