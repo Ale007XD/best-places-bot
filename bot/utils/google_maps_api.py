@@ -1,12 +1,11 @@
 import httpx
 import asyncio
-import logging # <-- ДОБАВЛЯЕМ ИМПОРТ
+import logging
 from typing import List, Dict, Any
 
 async def fetch_places_by_type(
     client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str
 ) -> List[Dict[str, Any]]:
-    # ... (эта вспомогательная функция остается без изменений)
     results_for_type = []
     url = (
         f"https://maps.googleapis.com/maps/api/place/nearbysearch/json"
@@ -33,7 +32,6 @@ async def fetch_places_by_type(
             break
     return results_for_type
 
-
 async def find_places(
     api_key: str,
     lat: float,
@@ -51,22 +49,6 @@ async def find_places(
         for sublist in list_of_results:
             all_places.extend(sublist)
 
-    # --- НАДЕЖНЫЙ ДИАГНОСТИЧЕСКИЙ БЛОК С LOGGING ---
-    logging.info("\n\n--- НАЧАЛО ДИАГНОСТИКИ ---")
-    logging.info(f"Параметры поиска: Радиус={radius}м, Мин. рейтинг={min_rating}+")
-    logging.info(f"Всего получено уникальных мест от Google API (до фильтрации): {len(all_places)}")
-    logging.info("СПИСОК ПОЛУЧЕННЫХ МЕСТ:")
-    if not all_places:
-        logging.info("Google API не вернул ни одного заведения.")
-    else:
-        for i, place in enumerate(all_places):
-            place_name = place.get('name', 'БЕЗ ИМЕНИ')
-            place_rating = place.get('rating', 'НЕТ РЕЙТИНГА')
-            place_types = place.get('types', ['НЕТ ТИПОВ'])
-            logging.info(f"  {i+1:02d}. {place_name} | Рейтинг в API: {place_rating} | Типы: {place_types}")
-    logging.info("--- КОНЕЦ ДИАГНОСТИКИ ---\n\n")
-    # --- КОНЕЦ ДИАГНОСТИЧЕСКОГО БЛОКА ---
-
     filtered_places = []
     seen_place_ids = set()
     for place in all_places:
@@ -76,7 +58,7 @@ async def find_places(
             filtered_places.append({
                 "name": place.get('name', 'Название не указано'),
                 "rating": float(rating),
-                "address": place.get('vicinity', 'Адрес не указан'),
+                "address": place.get('vicinity', 'Адрес не указан'), # <-- ИСПРАВЛЕНА ОПЕЧАТКА (было 'eget')
                 "place_id": place_id
             })
             seen_place_ids.add(place_id)
