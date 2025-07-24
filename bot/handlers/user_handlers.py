@@ -37,7 +37,15 @@ async def process_and_send_results(message: Message, state: FSMContext, min_rati
             bearing = calculate_bearing(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
             direction = bearing_to_direction(bearing)
             text = (f"<b>{i}. {place['name']}</b>\n🍽️ {place['main_type']}\n⭐️ Рейтинг: {place['rating']}\n📍 {distance} м {direction} от вас\n🗺️ Адрес: {place['address']}")
-            await message.answer(text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(place['place_id'], place['name']))
+            await callback.message.answer(
+                text,
+                parse_mode="HTML",
+                reply_markup=inline_keyboards.get_google_maps_link_button(
+                    place=place,
+                    distance=distance,
+                    direction=direction
+                )
+            )
         await message.answer("Хотите выполнить новый поиск? /start")
 
 @router.message(CommandStart())
