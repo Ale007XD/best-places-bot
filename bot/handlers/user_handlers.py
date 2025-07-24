@@ -4,15 +4,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-# Импортируем наши модули
 from bot.keyboards import inline_keyboards
 from bot.utils.google_maps_api import find_places
 from bot.config import settings
 
-# Создаем роутер, который будет обрабатывать все команды и сообщения от пользователя
 router = Router()
 
-# Определяем состояния для машины состояний (FSM), чтобы вести пользователя по шагам
 class SearchSteps(StatesGroup):
     waiting_for_location = State()
     waiting_for_radius = State()
@@ -21,100 +18,85 @@ class SearchSteps(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """
-    Обработчик команды /start.
-    Сбрасывает предыдущее состояние, приветствует пользователя и запрашивает геолокацию.
-    """
+    # ... этот обработчик без изменений ...
     await state.clear()
-    
-    # Создаем reply-кнопку для удобного запроса геолокации
     location_button = KeyboardButton(text="📍 Отправить геопозицию", request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
-    
     await message.answer(
         'Привет! Я "Гид по заведениям". Помогу найти лучшие кафе и рестораны рядом с вами.\n\n'
         'Чтобы начать, пожалуйста, отправьте вашу геолокацию.',
         reply_markup=keyboard
     )
-    # Переводим бота в состояние ожидания геолокации
     await state.set_state(SearchSteps.waiting_for_location)
 
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext):
-    """
-    Ловит сообщение с геолокацией, сохраняет координаты в FSM,
-    убирает reply-клавиатуру и запрашивает радиус поиска.
-    """
-    await state.update_data(
-        latitude=message.location.latitude,
-        longitude=message.location.longitude
-    )
-    
-    # Убираем клавиатуру с кнопкой геолокации, она больше не нужна
+    # ... этот обработчик без изменений ...
+    await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
     await message.answer("Спасибо!", reply_markup=ReplyKeyboardRemove())
-    
-    await message.answer(
-        "Теперь выберите радиус поиска:",
-        reply_markup=inline_keyboards.get_radius_keyboard()
-    )
-    # Переводим бота в состояние ожидания радиуса
+    await message.answer("Теперь выберите радиус поиска:", reply_markup=inline_keyboards.get_radius_keyboard())
     await state.set_state(SearchSteps.waiting_for_radius)
 
 
 @router.callback_query(SearchSteps.waiting_for_radius, F.data.startswith('radius_'))
 async def get_radius(callback: types.CallbackQuery, state: FSMContext):
-    """
-    Ловит нажатие на инлайн-кнопку с радиусом, сохраняет его
-    и запрашивает минимальный рейтинг.
-    """
+    # ... этот обработчик без изменений ...
     radius = int(callback.data.split('_')[1])
     await state.update_data(radius=radius)
-    
-    # Редактируем предыдущее сообщение, заменяя клавиатуру
     await callback.message.edit_text(
-        "Отлично. Какой минимальный рейтинг вас интересует?",
+        "Отлично. Какой диапазон рейтинга вас интересует?",
         reply_markup=inline_keyboards.get_rating_keyboard()
     )
-    # Переводим бота в состояние ожидания рейтинга
     await state.set_state(SearchSteps.waiting_for_rating)
-    await callback.answer() # Отвечаем на колбэк, чтобы убрать "часики"
+    await callback.answer()
 
 
 @router.callback_query(SearchSteps.waiting_for_rating, F.data.startswith('rating_'))
 async def get_rating_and_search(callback: types.CallbackQuery, state: FSMContext):
     """
-    Ловит нажатие на кнопку с рейтингом, запускает поиск,
-    обрабатывает результаты и отправляет их пользователю.
+    Ловит нажатие на кнопку с ДИАПАЗОНОМ рейтинга, применяет фильтр и отправляет результат.
     """
-    min_rating = float(callback.data.split('_')[1])
+    # --- НОВАЯ ЛОГИКА ПАРСИНГА ДИАПАЗОНА ---
+    parts = callback.data.split('_')
+    min_rating = float(parts[1])
+    max_rating = float(parts[2])
+    # --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+
     user_data = await state.get_data()
-    await state.clear() # Завершаем FSM, так как все данные собраны
+    await state.clear()
     
     await callback.message.edit_text("Ищу лучшие заведения для вас... 🕵️‍♂️")
     
-    # Вызываем нашу основную функцию поиска
-    places = await find_places(
+    # Получаем ВСЕХ кандидатов с рейтингом ВЫШЕ нашего минимального
+    all_candidates = await find_places(
         api_key=settings.GOOGLE_MAPS_API_KEY,
         lat=user_data['latitude'],
         lon=user_data['longitude'],
         radius=user_data['radius'],
-        min_rating=min_rating
+        min_rating=min_rating # Передаем только нижнюю границу
     )
     
-    await callback.message.delete() # Удаляем сообщение "Ищу..." для чистоты диалога
+    # --- НОВАЯ ЛОГИКА ФИЛЬТРАЦИИ ПО ВЕРХНЕЙ ГРАНИЦЕ ---
+    final_places = []
+    for place in all_candidates:
+        if place['rating'] <= max_rating:
+            final_places.append(place)
+    # --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+
+    await callback.message.delete()
     
-    if not places:
+    # Теперь мы работаем с нашим финальным, отфильтрованным списком
+    if not final_places:
         await callback.message.answer(
-            "К сожалению, по вашему запросу ничего не найдено. 🙁\n"
-            "Попробуйте увеличить радиус или выбрать рейтинг пониже. Для нового поиска введите /start"
+            "К сожалению, в этом диапазоне ничего не найдено. 🙁\n"
+            "Попробуйте выбрать другой диапазон. Для нового поиска введите /start"
         )
     else:
         await callback.message.answer("Вот что удалось найти:")
         
-        # --- КЛЮЧЕВОЙ МОМЕНТ ---
-        # Итерируемся по списку найденных мест и отправляем отдельное сообщение для каждого.
-        for place in places:
+        # Берем до 3-х лучших из отфильтрованного списка
+        for place in final_places[:3]:
             text = (
                 f"<b>Название:</b> {place['name']}\n"
                 f"<b>Рейтинг:</b> ⭐️ {place['rating']}\n"
@@ -136,8 +118,5 @@ async def get_rating_and_search(callback: types.CallbackQuery, state: FSMContext
 
 @router.message(SearchSteps.waiting_for_location)
 async def incorrect_location(message: Message):
-    """
-    Обрабатывает некорректный ввод на шаге ожидания геолокации
-    (например, если пользователь прислал текст).
-    """
+    # ... этот обработчик без изменений ...
     await message.answer("Пожалуйста, нажмите на кнопку '📍 Отправить геопозицию', чтобы поделиться вашим местоположением.")
