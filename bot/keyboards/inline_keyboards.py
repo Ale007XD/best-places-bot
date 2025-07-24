@@ -51,3 +51,8 @@ def get_google_maps_link_button(place: dict, distance: int, direction: str) -> I
         [InlineKeyboardButton(text="🚀 Поделиться находкой!", switch_inline_query=share_text)],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_new_search_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру с одной кнопкой 'Новый поиск'."""
+    button = InlineKeyboardButton(text="🔄 Новый поиск", callback_data="new_search")
+    return InlineKeyboardMarkup(inline_keyboard=[[button]])
