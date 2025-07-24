@@ -2,12 +2,16 @@ version: '3.8'
 
 services:
   telegram-bot:
-    # Собираем образ из Dockerfile в текущей директории
     build: .
-    # Имя контейнера для удобства
     container_name: best_places_bot
-    # Перезапускать контейнер всегда, если он упал
     restart: always
-    # Подключаем .env файл для передачи секретов в контейнер
     env_file:
       - .env
+    # Указываем, что бот зависит от Redis
+    depends_on:
+      - redis
+
+  redis:
+    image: "redis:alpine"
+    container_name: best_places_redis
+    restart: always
