@@ -75,6 +75,7 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await analytics.track_user(message.from_user.id)
+    logging.info(f"Получена команда /start от пользователя ID: {message.from_user.id} ({message.from_user.full_name})") # лог статистики
     await state.clear()
     location_button = KeyboardButton(text="📍 Отправить геопозицию", request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
