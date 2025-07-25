@@ -9,10 +9,11 @@ from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_
 from bot.keyboards import inline_keyboards
 from bot.utils.google_maps_api import find_places
 from bot.config import settings
-from bot.services.translator import get_string
+from bot.services.translator import get_string, DEFAULT_LANG, SUPPORTED_LANGUAGES
 
 router = Router()
 
+# --- Определяем все состояния FSM ---
 class SearchSteps(StatesGroup):
     waiting_for_language = State()
     waiting_for_location = State()
@@ -24,14 +25,20 @@ class SearchSteps(StatesGroup):
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
+# --- Вспомогательная функция для поиска и отправки результатов ---
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
     await state.clear()
+    
     all_candidates = await find_places(_, lang_code, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
 
     if not final_places:
-        await bot.send_message(chat_id, _("no_results") + "\n" + _("try_another_range"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
+        await bot.send_message(
+            chat_id,
+            _("no_results") + "\n" + _("try_another_range"),
+            reply_markup=inline_keyboards.get_new_search_keyboard(_)
+        )
     else:
         await bot.send_message(chat_id, _("found_results"))
         for i, place in enumerate(final_places[:3], 1):
@@ -39,26 +46,51 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
             distance = calculate_distance(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
             distance_str = _("distance_template", distance=distance, direction=direction)
             text = _("card_template", i=i, place_name=place['name'], main_type=place['main_type'], rating=place['rating'], distance_str=distance_str, address=place['address'])
-            await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(_, place, distance, direction))
+            await bot.send_message(
+                chat_id,
+                text,
+                parse_mode="HTML",
+                reply_markup=inline_keyboards.get_google_maps_link_button(_, place, distance, direction)
+            )
         await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
+
+# --- Обработчики команд и основного сценария ---
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, _: callable):
+async def cmd_start(message: Message, state: FSMContext):
+    """
+    Обработчик /start, который определяет язык пользователя
+    и приветствует его на этом языке перед явным выбором.
+    """
     await state.clear()
+
+    user_lang = message.from_user.language_code
+    if user_lang and user_lang.startswith('zh'):
+        user_lang = 'zh'
+    if user_lang not in SUPPORTED_LANGUAGES:
+        user_lang = DEFAULT_LANG
+
+    _ = lambda key, **kwargs: get_string(key, user_lang).format(**kwargs)
+
     await message.answer(_("welcome_message"))
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
 
 @router.message(Command(commands=['language']))
 async def cmd_language(message: Message, _: callable):
+    """Позволяет пользователю сменить язык в любой момент."""
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
 
 @router.callback_query(F.data.startswith("lang_"))
 async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
+    """Сохраняет выбор языка и продолжает диалог."""
     lang_code = callback.data.split("_")[1]
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
+    
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
+    
     await callback.message.edit_text(_("language_selected"))
+    
     location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
     await callback.message.answer(_("request_location"), reply_markup=keyboard)
@@ -73,14 +105,14 @@ async def cmd_feedback(message: Message, state: FSMContext, _: callable):
 @router.message(FeedbackState.waiting_for_feedback)
 async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: callable):
     await bot.forward_message(chat_id=settings.ADMIN_ID, from_chat_id=message.chat.id, message_id=message.message_id)
-    await message.answer(_("feedback_thanks") + "\n" + _("new_search_prompt", command="/start"))
+    await message.answer(_("feedback_thanks"))
     await state.clear()
 
 @router.callback_query(F.data == "new_search")
-async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
+async def new_search_callback(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.delete()
-    await cmd_start(callback.message, state, _)
+    await cmd_start(callback.message, state)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
@@ -137,4 +169,7 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: ca
         await loading_message.delete()
     except (ValueError, TypeError):
         await message.answer(_("manual_rating_error"))
-# Я убрал админ-панель и аналитику из `user_handlers`, так как они не были частью запроса на i18n, чтобы не усложнять код. Их можно вернуть, добавив `analytics` и обработчик `/stats` по аналогии с прошлыми версиями.
+
+@router.message(SearchSteps.waiting_for_location)
+async def incorrect_location(message: Message, _: callable):
+    await message.answer(_("send_location_btn"))
