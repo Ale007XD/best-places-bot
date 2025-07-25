@@ -15,14 +15,14 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     )
 
-    # --- Инициализация Redis ---
     redis_conn = redis.Redis(host='redis', port=6379, decode_responses=True)
     
     bot = Bot(token=settings.BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # --- РЕГИСТРАЦИЯ MIDDLEWARE ---
+    # Регистрируем Middleware для интернационализации.
+    # Он будет срабатывать на КАЖДОЕ обновление (сообщение, колбэк и т.д.)
     dp.update.middleware(I18nMiddleware(redis_conn))
 
     dp.include_router(user_handlers.router)
