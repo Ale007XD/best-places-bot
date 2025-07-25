@@ -136,5 +136,5 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: ca
         await process_and_send_results(message.chat.id, bot, state, min_rating, 5.0, _, lang_code)
         await loading_message.delete()
     except (ValueError, TypeError):
-        await message.answer(_("manual_rating_error"))```
+        await message.answer(_("manual_rating_error"))
 # Я убрал админ-панель и аналитику из `user_handlers`, так как они не были частью запроса на i18n, чтобы не усложнять код. Их можно вернуть, добавив `analytics` и обработчик `/stats` по аналогии с прошлыми версиями.
