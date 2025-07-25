@@ -24,21 +24,21 @@ async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: flo
             break
     return results_for_type
 
-def get_primary_type(place_types: list) -> str:
+def get_primary_type(_, place_types: list) -> str: # <--- ПРИНИМАЕТ ПЕРЕВОДЧИК
     """Определяет главный, самый понятный тип заведения из списка."""
     type_map = {
-        'restaurant': 'Ресторан',
-        'cafe': 'Кафе',
-        'bar': 'Бар',
-        'meal_takeaway': 'Еда на вынос',
-        'bakery': 'Пекарня',
+        'restaurant': _("type_restaurant"),
+        'cafe': _("type_cafe"),
+        'bar': _("type_bar"),
+        'meal_takeaway': _("type_food"),
+        'bakery': _("type_food"),
     }
     for t in place_types:
         if t in type_map:
             return type_map[t]
-    return 'Еда'
+    return _("type_food")
 
-async def find_places(api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]:
+async def find_places(_, api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]: # <--- ПРИНИМАЕТ ПЕРЕВОДЧИК
     """Параллельно ищет рестораны и кафе, объединяет и фильтрует результаты."""
     all_places = []
     async with httpx.AsyncClient() as client:
@@ -65,7 +65,7 @@ async def find_places(api_key: str, lat: float, lon: float, radius: int, min_rat
                 "place_id": place_id,
                 "lat": location.get('lat'),
                 "lng": location.get('lng'),
-                "main_type": get_primary_type(place.get('types', []))
+                "main_type": get_primary_type(_, place.get('types', []))
             })
             # --- КОНЕЦ БЛОКА ---
             seen_place_ids.add(place_id)
