@@ -1,4 +1,4 @@
-import logging
+import redis.asyncio as redis
 from aiogram import Router, F, types, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
@@ -8,162 +8,68 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKey
 from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_to_direction
 from bot.keyboards import inline_keyboards
 from bot.utils.google_maps_api import find_places
-from bot.utils.analytics import Analytics # <-- Импорт аналитики
 from bot.config import settings
 
 router = Router()
-analytics = Analytics() # <-- Создаем экземпляр для сбора статистики
+# Убираем экземпляр аналитики, так как он теперь не используется в этом файле
+# analytics = Analytics()
 
 # --- Определяем все состояния FSM ---
 class SearchSteps(StatesGroup):
+    waiting_for_language = State() # Новое состояние для первого выбора языка
     waiting_for_location = State()
-    waiting_for_radius = State()
-    waiting_for_manual_radius = State()
-    waiting_for_rating = State()
-    waiting_for_manual_rating = State()
+    # ... остальные состояния
 
-class FeedbackState(StatesGroup):
-    waiting_for_feedback = State()
+# ... (остальные классы FSM)
 
+# --- ОБНОВЛЕННЫЙ `process_and_send_results` ---
+async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable):
+    # ...
+    # Передаем `_` во все внутренние вызовы
+    distance_str = _("distance_template", distance=distance, direction=direction)
+    text = _("card_template", i=i, place_name=place['name'], main_type=place['main_type'], rating=place['rating'], distance_str=distance_str, address=place['address'])
+    # ...
+    await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
-# --- Админ-панель для статистики ---
-@router.message(Command(commands=['stats']), F.from_user.id == settings.ADMIN_ID)
-async def cmd_stats(message: Message):
-    """Отправляет администратору отчет по статистике за сегодня."""
-    stats = await analytics.get_today_stats()
-    
-    radius_stats = "\n".join([f"  - {k} м: {v} раз" for k, v in stats['radius_usage'].items()]) or "  - нет данных"
-    rating_stats = "\n".join([f"  - {k.replace('_', ' - ')}: {v} раз" for k, v in stats['rating_usage'].items()]) or "  - нет данных"
-
-    text = (
-        f"📊 *Статистика за сегодня:*\n\n"
-        f"👤 *Активных пользователей:* {stats['active_users']}\n"
-        f"🔍 *Всего поисков:* {stats['searches']}\n"
-        f"🤷 *'Ничего не найдено':* {stats['empty_results']}\n"
-        f"💡 *Запросов фидбэка:* {stats['feedback']}\n\n"
-        f"*Использование фич:*\n"
-        f"Радиусы:\n{radius_stats}\n\n"
-        f"Рейтинги:\n{rating_stats}"
-    )
-    await message.answer(text, parse_mode="Markdown")
-
-
-# --- Вспомогательная функция для поиска и отправки ---
-async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float):
-    user_data = await state.get_data()
-    await state.clear()
-    
-    all_candidates = await find_places(settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
-    final_places = [p for p in all_candidates if p['rating'] <= max_rating]
-
-    if not final_places:
-        await analytics.track_empty_result()
-        await bot.send_message(chat_id, "К сожалению, в этом диапазоне ничего не найдено. 🙁", reply_markup=inline_keyboards.get_new_search_keyboard())
-    else:
-        await analytics.track_search_request()
-        await bot.send_message(chat_id, "Вот что удалось найти:")
-        for i, place in enumerate(final_places[:3], 1):
-            distance = calculate_distance(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
-            bearing = calculate_bearing(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
-            direction = bearing_to_direction(bearing)
-            text = (f"<b>{i}. {place['name']}</b>\n🍽️ {place['main_type']}\n⭐️ Рейтинг: {place['rating']}\n📍 {distance} м {direction} от вас\n🗺️ Адрес: {place['address']}")
-            await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(place, distance, direction))
-            # Если у заведения есть саммари от Google, добавляем его
-        if place.get('summary'):
-            text += f"\n\n💬 *От Google:* «{place['summary']}»"
-        await bot.send_message(chat_id, "Хотите выполнить новый поиск?", reply_markup=inline_keyboards.get_new_search_keyboard())
-
-
-# --- Обработчики основного сценария ---
+# --- ОБНОВЛЕННЫЙ `cmd_start` ---
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
-    await analytics.track_user(message.from_user.id)
-    logging.info(f"Получена команда /start от пользователя ID: {message.from_user.id} ({message.from_user.full_name})") # лог статистики
+async def cmd_start(message: Message, state: FSMContext, _: callable):
     await state.clear()
-    location_button = KeyboardButton(text="📍 Отправить геопозицию", request_location=True)
-    keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
-    await message.answer('Привет! Я "Гид по заведениям". Помогу найти лучшие кафе и рестораны рядом с вами.\n\nЧтобы начать, пожалуйста, отправьте вашу геолокацию.', reply_markup=keyboard)
-    await state.set_state(SearchSteps.waiting_for_location)
+    await message.answer(_("welcome_message"))
+    await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
+    await state.set_state(SearchSteps.waiting_for_language)
 
-@router.message(Command(commands=['feedback']))
-async def cmd_feedback(message: Message, state: FSMContext):
-    await analytics.track_feedback_request()
-    await state.set_state(FeedbackState.waiting_for_feedback)
-    await message.answer("Поделитесь вашими мыслями! Что вам нравится, что можно улучшить, или, может, вы нашли ошибку? Просто отправьте ваше сообщение, и я передам его разработчику.")
+# --- НОВЫЕ ОБРАБОТЧИКИ ЯЗЫКА ---
+@router.message(Command(commands=['language']))
+async def cmd_language(message: Message, _: callable):
+    await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
 
-@router.message(FeedbackState.waiting_for_feedback)
-async def process_feedback(message: Message, state: FSMContext, bot: Bot):
-    await bot.forward_message(chat_id=settings.ADMIN_ID, from_chat_id=message.chat.id, message_id=message.message_id)
-    await message.answer("Спасибо! Ваше сообщение отправлено. Вы очень помогаете сделать бота лучше! 👍\nДля нового поиска введите /start")
-    await state.clear()
-
-@router.callback_query(F.data == "new_search")
-async def new_search_callback(callback: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("lang_"))
+async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
+    lang_code = callback.data.split("_")[1]
+    await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
+    
+    # Отвечаем на новом языке
+    _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
+    
+    await callback.message.edit_text(_("language_selected"))
+    
+    # Если мы были в состоянии выбора языка, продолжаем диалог
+    current_state = await state.get_state()
+    if current_state == SearchSteps.waiting_for_language:
+        location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
+        keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
+        await callback.message.answer(_("request_location"), reply_markup=keyboard)
+        await state.set_state(SearchSteps.waiting_for_location)
+    
     await callback.answer()
-    await callback.message.delete()
-    await cmd_start(callback.message, state)
 
+# --- ВСЕ ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ---
+# Теперь они все должны принимать `_` и использовать его для текстов
+# Пример:
 @router.message(SearchSteps.waiting_for_location, F.location)
-async def get_location(message: Message, state: FSMContext):
-    await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
-    await message.answer("Спасибо!", reply_markup=ReplyKeyboardRemove())
-    await message.answer("Теперь выберите радиус поиска:", reply_markup=inline_keyboards.get_radius_keyboard())
-    await state.set_state(SearchSteps.waiting_for_radius)
-
-@router.callback_query(SearchSteps.waiting_for_radius, F.data.startswith('radius_'))
-async def get_radius(callback: types.CallbackQuery, state: FSMContext):
-    radius = int(callback.data.split('_')[1])
-    await analytics.track_feature_use("radius", radius)
-    await state.update_data(radius=radius)
-    await callback.message.edit_text("Отлично. Какой диапазон рейтинга вас интересует?", reply_markup=inline_keyboards.get_rating_keyboard())
-    await state.set_state(SearchSteps.waiting_for_rating)
-    await callback.answer()
-
-@router.callback_query(SearchSteps.waiting_for_rating, F.data.startswith('rating_'))
-async def get_rating_from_button(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-    await callback.message.edit_text("Ищу лучшие заведения для вас... 🕵️‍♂️")
-    parts = callback.data.split('_')
-    rating_range = f"{parts[1]}_{parts[2]}"
-    await analytics.track_feature_use("rating", rating_range)
-    await process_and_send_results(callback.message.chat.id, bot, state, float(parts[1]), float(parts[2]))
-    await callback.answer()
-
-@router.callback_query(SearchSteps.waiting_for_radius, F.data == 'manual_radius_input')
-async def ask_for_manual_radius(callback: types.CallbackQuery, state: FSMContext):
-    await analytics.track_feature_use("radius", "manual")
-    await callback.message.edit_text("Введите желаемый радиус в метрах (например: 350, макс. 5000).")
-    await state.set_state(SearchSteps.waiting_for_manual_radius)
-    await callback.answer()
-
-@router.message(SearchSteps.waiting_for_manual_radius)
-async def get_manual_radius(message: Message, state: FSMContext):
-    try:
-        radius = int(message.text)
-        if not 1 <= radius <= 5000: raise ValueError("Радиус вне диапазона.")
-        await state.update_data(radius=radius)
-        await message.answer("Отлично. Какой диапазон рейтинга вас интересует?", reply_markup=inline_keyboards.get_rating_keyboard())
-        await state.set_state(SearchSteps.waiting_for_rating)
-    except (ValueError, TypeError):
-        await message.answer("Неверный формат. Пожалуйста, введите целое число от 1 до 5000.")
-
-@router.callback_query(SearchSteps.waiting_for_rating, F.data == 'manual_rating_input')
-async def ask_for_manual_rating(callback: types.CallbackQuery, state: FSMContext):
-    await analytics.track_feature_use("rating", "manual")
-    await callback.message.edit_text("Введите минимальный желаемый рейтинг (например: 3.2 или 4).")
-    await state.set_state(SearchSteps.waiting_for_manual_rating)
-    await callback.answer()
-
-@router.message(SearchSteps.waiting_for_manual_rating)
-async def get_manual_rating(message: Message, state: FSMContext, bot: Bot):
-    try:
-        min_rating = float(message.text.replace(',', '.'))
-        if not 1.0 <= min_rating <= 5.0: raise ValueError("Рейтинг вне диапазона.")
-        loading_message = await message.answer("Ищу лучшие заведения для вас... 🕵️‍♂️")
-        await process_and_send_results(message.chat.id, bot, state, min_rating, 5.0)
-        await loading_message.delete()
-    except (ValueError, TypeError):
-        await message.answer("Неверный формат. Пожалуйста, введите число от 1.0 до 5.0.")
-
-@router.message(SearchSteps.waiting_for_location)
-async def incorrect_location(message: Message):
-    await message.answer("Пожалуйста, нажмите на кнопку '📍 Отправить геопозицию'...")
+async def get_location(message: Message, state: FSMContext, _: callable):
+    # ...
+    await message.answer(_("thanks"), reply_markup=ReplyKeyboardRemove())
+    await message.answer(_("select_radius"), reply_markup=inline_keyboards.get_radius_keyboard(_))
+    # ...
