@@ -3,10 +3,9 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 
-async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str) -> List[Dict[str, Any]]:
-    """Вспомогательная функция для поиска мест по ОДНОМУ типу с пагинацией."""
+async def fetch_places_by_type(_, client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str, lang_code: str) -> List[Dict[str, Any]]:
     results_for_type = []
-    url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius}&type={place_type}&language=ru&key={api_key}"
+    url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius}&type={place_type}&language={lang_code}&key={api_key}"
     for _ in range(2):
         try:
             response = await client.get(url, timeout=10.0)
@@ -17,38 +16,27 @@ async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: flo
             if next_page_token:
                 await asyncio.sleep(2)
                 url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken={next_page_token}&key={api_key}"
-            else:
-                break
+            else: break
         except httpx.RequestError as e:
             logging.error(f"Ошибка при запросе типа '{place_type}': {e}")
             break
     return results_for_type
 
-def get_primary_type(_, place_types: list) -> str: # <--- ПРИНИМАЕТ ПЕРЕВОДЧИК
-    """Определяет главный, самый понятный тип заведения из списка."""
-    type_map = {
-        'restaurant': _("type_restaurant"),
-        'cafe': _("type_cafe"),
-        'bar': _("type_bar"),
-        'meal_takeaway': _("type_food"),
-        'bakery': _("type_food"),
-    }
+def get_primary_type(_, place_types: list) -> str:
+    type_map = {'restaurant': _("type_restaurant"), 'cafe': _("type_cafe"), 'bar': _("type_bar")}
     for t in place_types:
-        if t in type_map:
-            return type_map[t]
+        if t in type_map: return type_map[t]
     return _("type_food")
 
-async def find_places(_, api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]: # <--- ПРИНИМАЕТ ПЕРЕВОДЧИК
-    """Параллельно ищет рестораны и кафе, объединяет и фильтрует результаты."""
+async def find_places(_, lang_code: str, api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]:
     all_places = []
     async with httpx.AsyncClient() as client:
         tasks = [
-            fetch_places_by_type(client, api_key, lat, lon, radius, "restaurant"),
-            fetch_places_by_type(client, api_key, lat, lon, radius, "cafe"),
+            fetch_places_by_type(_, client, api_key, lat, lon, radius, "restaurant", lang_code),
+            fetch_places_by_type(_, client, api_key, lat, lon, radius, "cafe", lang_code),
         ]
         list_of_results = await asyncio.gather(*tasks)
-        for sublist in list_of_results:
-            all_places.extend(sublist)
+        for sublist in list_of_results: all_places.extend(sublist)
 
     filtered_places = []
     seen_place_ids = set()
@@ -57,7 +45,6 @@ async def find_places(_, api_key: str, lat: float, lon: float, radius: int, min_
         rating = place.get('rating')
         if place_id and place_id not in seen_place_ids and rating and float(rating) >= min_rating:
             location = place.get('geometry', {}).get('location', {})
-            # --- БЛОК С ИСПРАВЛЕННЫМИ ОТСТУПАМИ ---
             filtered_places.append({
                 "name": place.get('name', 'Название не указано'),
                 "rating": float(rating),
@@ -67,7 +54,5 @@ async def find_places(_, api_key: str, lat: float, lon: float, radius: int, min_
                 "lng": location.get('lng'),
                 "main_type": get_primary_type(_, place.get('types', []))
             })
-            # --- КОНЕЦ БЛОКА ---
             seen_place_ids.add(place_id)
-
     return sorted(filtered_places, key=lambda p: p['rating'], reverse=True)
