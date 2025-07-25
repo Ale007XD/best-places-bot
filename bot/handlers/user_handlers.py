@@ -9,7 +9,7 @@ from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_
 from bot.keyboards import inline_keyboards
 from bot.utils.google_maps_api import find_places
 from bot.config import settings
-from bot.middlewares.i18n import get_string # Импортируем для локального использования
+from bot.services.translator import get_string
 
 router = Router()
 
