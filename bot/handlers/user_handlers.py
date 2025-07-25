@@ -54,13 +54,12 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
             )
         await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
-
 # --- Обработчики команд и основного сценария ---
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     """
-    Обработчик /start, который определяет язык пользователя
-    и приветствует его на этом языке перед явным выбором.
+    Обработчик /start, который определяет язык пользователя,
+    отправляет полное, локализованное описание и предлагает выбрать язык.
     """
     await state.clear()
 
@@ -72,7 +71,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
     _ = lambda key, **kwargs: get_string(key, user_lang).format(**kwargs)
 
-    await message.answer(_("welcome_message"))
+    await message.answer(_("start_onboarding_message"), parse_mode="HTML")
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
 
