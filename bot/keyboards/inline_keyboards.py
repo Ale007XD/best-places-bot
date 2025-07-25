@@ -1,7 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from urllib.parse import quote_plus
 
-# --- НОВАЯ КЛАВИАТУРА ДЛЯ ВЫБОРА ЯЗЫКА ---
 def get_language_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text="🇬🇧 English", callback_data="lang_en")],
@@ -10,7 +9,6 @@ def get_language_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# --- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ ТЕПЕРЬ ПРИНИМАЮТ ПЕРЕВОДЧИК `_` ---
 def get_radius_keyboard(_) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text="50 м", callback_data="radius_50")],
@@ -36,12 +34,9 @@ def get_new_search_keyboard(_) -> InlineKeyboardMarkup:
 def get_google_maps_link_button(_, place: dict, distance: int, direction: str) -> InlineKeyboardMarkup:
     place_name = place['name']
     place_id = place['place_id']
-    
     encoded_name = quote_plus(place_name)
     google_maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}&query_place_id={place_id}"
-
     share_text = _("share_text_template", place_name=place_name, main_type=place['main_type'], rating=place['rating'], distance=distance, direction=direction, google_maps_url=google_maps_url)
-
     buttons = [
         [InlineKeyboardButton(text=_("open_in_maps_btn"), url=google_maps_url)],
         [InlineKeyboardButton(text=_("share_find_btn"), switch_inline_query=share_text)],
