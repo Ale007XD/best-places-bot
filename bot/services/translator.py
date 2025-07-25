@@ -17,6 +17,8 @@ def load_translations():
 TRANSLATIONS = load_translations()
 DEFAULT_LANG = "ru"
 
+SUPPORTED_LANGUAGES = list(TRANSLATIONS.keys()) # ["ru", "en", "zh"]
+
 def get_string(key: str, lang: str = DEFAULT_LANG) -> str:
     """
     Получает строку перевода по ключу и языку.
