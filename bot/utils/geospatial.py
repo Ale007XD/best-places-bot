@@ -28,13 +28,12 @@ def calculate_bearing(lat1, lon1, lat2, lon2) -> float:
     bearing = math.atan2(y, x)
     return (math.degrees(bearing) + 360) % 360
 
-def bearing_to_direction(bearing: float) -> str:
-    """
-    Преобразует градусы азимута в текстовое описание направления.
-    """
+def bearing_to_direction(_, bearing: float) -> str: # <--- ПРИНИМАЕТ ПЕРЕВОДЧИК
+    """Преобразует градусы азимута в текстовое описание направления."""
     val = int((bearing / 45) + 0.5)
-    directions = [
-        "на север", "на северо-восток", "на восток", "на юго-восток",
-        "на юг", "на юго-запад", "на запад", "на северо-запад"
+    # Используем ключи для перевода
+    direction_keys = [
+        "direction_north", "direction_northeast", "direction_east", "direction_southeast",
+        "direction_south", "direction_southwest", "direction_west", "direction_northwest"
     ]
-    return directions[val % 8]
+    return _(direction_keys[val % 8])
