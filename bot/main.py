@@ -1,31 +1,35 @@
 import asyncio
 import logging
-
+import redis.asyncio as redis
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import settings
 from bot.handlers import user_handlers
+from bot.middlewares.i18n import I18nMiddleware
 
 async def main():
-    """Основная функция для запуска бота."""
-    # Настройка логирования
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
-    # logging.info(f"Загруженный ID администратора: {settings.ADMIN_ID}") # Лог статистики
+    """Основная функция для настройки и запуска бота."""
+    logging.basicConfig(
+        level=logging.INFO, 
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+    )
 
-    # Инициализация бота и диспетчера
+    # --- Инициализация Redis ---
+    redis_conn = redis.Redis(host='redis', port=6379, decode_responses=True)
+    
     bot = Bot(token=settings.BOT_TOKEN)
-    # Используем MemoryStorage для хранения состояний FSM (для простых случаев)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Регистрация роутеров
+    # --- РЕГИСТРАЦИЯ MIDDLEWARE ---
+    dp.update.middleware(I18nMiddleware(redis_conn))
+
     dp.include_router(user_handlers.router)
 
-    # Удаление вебхука перед запуском (если он был установлен)
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # Запуск поллинга
+    logging.info("Запуск бота...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
