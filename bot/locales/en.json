@@ -1,5 +1,6 @@
 {
   "welcome_message": "Hello! I'm the \"Establishment Guide\". I'll help you find the best cafes and restaurants nearby.",
+  "start_onboarding_message": "Tired of compromises and bad reviews? I'm your pocket ninja guide to the best establishments! 🥷\n\n<b>My Jutsu:</b>\n📍 <b>Instant Search:</b> Send your location — I'll show you the top 3 places nearby.\n⭐️ <b>Precise Choice:</b> Specify the desired rating range (from 4.5 to 5.0).\n🧭 <b>Full Picture:</b> Find out the distance, direction, and type of each place.\n\nStop guessing, it's time to eat well! Press /start to begin the mission.\n\nGot ideas for improvement? The /feedback command is waiting for you.",
   "select_language": "Please select your language:",
   "language_selected": "✅ Language set to English.",
   "request_location": "To get started, please send your location.",
