@@ -25,17 +25,23 @@ class SearchSteps(StatesGroup):
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
-# --- Вспомогательная функция для запроса геолокации ---
-async def request_location(message_or_callback: types.Message | types.CallbackQuery, state: FSMContext, _: callable):
-    """Отправляет сообщение с запросом геолокации, кнопкой и пояснением о приватности."""
-    target_message = message_or_callback if isinstance(message_or_callback, Message) else message_or_callback.message
+# --- Вспомогательные функции ---
+
+async def start_dialog(message: Message, state: FSMContext, _: callable):
+    """Единая и надежная функция для начала или перезапуска диалога."""
+    await state.clear()
+    await message.answer(_("start_onboarding_message"), parse_mode="HTML")
+    await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
+    await state.set_state(SearchSteps.waiting_for_language)
+
+async def request_location(message: Message, state: FSMContext, _: callable):
+    """Отправляет унифицированный запрос геолокации."""
     location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
     full_text = _("request_location") + "\n\n" + _("location_privacy_info")
-    await target_message.answer(full_text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(full_text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SearchSteps.waiting_for_location)
 
-# --- Вспомогательная функция для поиска и отправки результатов ---
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
     await state.clear()
@@ -55,28 +61,23 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
         await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
 # --- Обработчики команд и основного сценария ---
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, _: callable):
-    """Обработчик /start. Приветствует и предлагает выбрать язык."""
-    await state.clear()
-    await message.answer(_("start_onboarding_message"), parse_mode="HTML")
-    await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
-    await state.set_state(SearchSteps.waiting_for_language)
+    await start_dialog(message, state, _)
 
 @router.message(Command(commands=['language']))
-async def cmd_language(message: Message, _: callable):
-    """Позволяет пользователю сменить язык в любой момент."""
+async def cmd_language(message: Message, state: FSMContext, _: callable):
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
 
 @router.callback_query(F.data.startswith("lang_"))
 async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
-    """Сохраняет выбор языка и переходит к запросу геолокации."""
     lang_code = callback.data.split("_")[1]
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
     await callback.message.edit_text(_("language_selected"))
-    await request_location(callback, state, _)
+    await request_location(callback.message, state, _)
     await callback.answer()
 
 @router.message(Command(commands=['feedback']))
@@ -86,18 +87,15 @@ async def cmd_feedback(message: Message, state: FSMContext, _: callable):
 
 @router.message(FeedbackState.waiting_for_feedback)
 async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: callable):
-    await bot.forward_message(chat_id=settings.ADMIN_ID, from_chat_id=message.chat.id, message_id=message.message.id)
+    await bot.forward_message(chat_id=settings.ADMIN_ID, from_chat_id=message.chat.id, message_id=message.message_id)
     await message.answer(_("feedback_thanks"))
     await state.clear()
 
 @router.callback_query(F.data == "new_search")
 async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
-    """Обработчик кнопки 'Новый поиск', перезапускает диалог."""
     await callback.answer()
-    # Удаляем сообщение с кнопкой, чтобы не засорять чат
     await callback.message.delete()
-    # Перезапускаем диалог, начиная с запроса геолокации
-    await request_location(callback, state, _)
+    await start_dialog(callback.message, state, _)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
@@ -157,5 +155,4 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: ca
 
 @router.message(SearchSteps.waiting_for_location)
 async def incorrect_location(message: Message, state: FSMContext, _: callable):
-    """Обрабатывает некорректный ввод на шаге ожидания геолокации."""
     await request_location(message, state, _)
