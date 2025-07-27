@@ -13,7 +13,7 @@ from bot.services.translator import get_string, DEFAULT_LANG, SUPPORTED_LANGUAGE
 
 router = Router()
 
-# --- Определяем все состояния FSM ---
+# ... (Определение классов FSM без изменений) ...
 class SearchSteps(StatesGroup):
     waiting_for_language = State()
     waiting_for_location = State()
@@ -25,20 +25,28 @@ class SearchSteps(StatesGroup):
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
-# --- Вспомогательная функция для поиска и отправки результатов ---
+# --- Вспомогательная функция для запроса геолокации ---
+async def request_location_with_privacy_info(message: Message, state: FSMContext, _: callable):
+    """
+    Отправляет сообщение с запросом геолокации, кнопкой и пояснением о приватности.
+    """
+    location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
+    keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
+    
+    # Собираем основной текст и пояснение в одно сообщение
+    full_text = _("request_location") + "\n\n" + _("location_privacy_info")
+    
+    await message.answer(full_text, reply_markup=keyboard, parse_mode="HTML")
+    await state.set_state(SearchSteps.waiting_for_location)
+
+# ... (process_and_send_results без изменений) ...
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
     await state.clear()
-    
     all_candidates = await find_places(_, lang_code, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
-
     if not final_places:
-        await bot.send_message(
-            chat_id,
-            _("no_results") + "\n" + _("try_another_range"),
-            reply_markup=inline_keyboards.get_new_search_keyboard(_)
-        )
+        await bot.send_message(chat_id, _("no_results") + "\n" + _("try_another_range"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
     else:
         await bot.send_message(chat_id, _("found_results"))
         for i, place in enumerate(final_places[:3], 1):
@@ -46,18 +54,17 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
             distance = calculate_distance(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
             distance_str = _("distance_template", distance=distance, direction=direction)
             text = _("card_template", i=i, place_name=place['name'], main_type=place['main_type'], rating=place['rating'], distance_str=distance_str, address=place['address'])
-            await bot.send_message(
-                chat_id,
-                text,
-                parse_mode="HTML",
-                reply_markup=inline_keyboards.get_google_maps_link_button(_, place, distance, direction)
-            )
+            await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(_, place, distance, direction))
         await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
 # --- Обработчики команд и основного сценария ---
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, _: callable):
+async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    user_lang = message.from_user.language_code
+    if user_lang and user_lang.startswith('zh'): user_lang = 'zh'
+    if user_lang not in SUPPORTED_LANGUAGES: user_lang = DEFAULT_LANG
+    _ = lambda key, **kwargs: get_string(key, user_lang).format(**kwargs)
     await message.answer(_("start_onboarding_message"), parse_mode="HTML")
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
@@ -72,10 +79,8 @@ async def select_language(callback: types.CallbackQuery, state: FSMContext, redi
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
     await callback.message.edit_text(_("language_selected"))
-    location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
-    keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
-    await callback.message.answer(_("request_location"), reply_markup=keyboard)
-    await state.set_state(SearchSteps.waiting_for_location)
+    # --- ИЗМЕНЕНИЕ: Используем новую вспомогательную функцию ---
+    await request_location_with_privacy_info(callback.message, state, _)
     await callback.answer()
 
 @router.message(Command(commands=['feedback']))
@@ -93,7 +98,14 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: cal
 async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
     await callback.answer()
     await callback.message.delete()
-    await cmd_start(callback.message, state, _)
+    # Мы не можем просто вызвать cmd_start, так как у него нет `_`
+    # Вместо этого, дублируем логику приветствия.
+    user_lang = callback.from_user.language_code
+    if user_lang and user_lang.startswith('zh'): user_lang = 'zh'
+    if user_lang not in SUPPORTED_LANGUAGES: user_lang = DEFAULT_LANG
+    _ = lambda key, **kwargs: get_string(key, user_lang).format(**kwargs)
+
+    await request_location_with_privacy_info(callback.message, state, _)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
@@ -152,11 +164,9 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: ca
         await message.answer(_("manual_rating_error"))
 
 @router.message(SearchSteps.waiting_for_location)
-async def incorrect_location(message: Message, _: callable):
+async def incorrect_location(message: Message, state: FSMContext, _: callable):
     """
     Обрабатывает некорректный ввод на шаге ожидания геолокации.
-    Теперь отправляет не просто текст, а сообщение с кнопкой.
+    Теперь использует новую вспомогательную функцию.
     """
-    location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
-    keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
-    await message.answer(_("request_location"), reply_markup=keyboard)
+    await request_location_with_privacy_info(message, state, _)
