@@ -56,40 +56,22 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
 
 # --- Обработчики команд и основного сценария ---
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
-    """
-    Обработчик /start, который определяет язык пользователя,
-    отправляет полное, локализованное описание и предлагает выбрать язык.
-    """
+async def cmd_start(message: Message, state: FSMContext, _: callable):
     await state.clear()
-
-    user_lang = message.from_user.language_code
-    if user_lang and user_lang.startswith('zh'):
-        user_lang = 'zh'
-    if user_lang not in SUPPORTED_LANGUAGES:
-        user_lang = DEFAULT_LANG
-
-    _ = lambda key, **kwargs: get_string(key, user_lang).format(**kwargs)
-
     await message.answer(_("start_onboarding_message"), parse_mode="HTML")
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
 
 @router.message(Command(commands=['language']))
 async def cmd_language(message: Message, _: callable):
-    """Позволяет пользователю сменить язык в любой момент."""
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
 
 @router.callback_query(F.data.startswith("lang_"))
 async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
-    """Сохраняет выбор языка и продолжает диалог."""
     lang_code = callback.data.split("_")[1]
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
-    
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
-    
     await callback.message.edit_text(_("language_selected"))
-    
     location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
     await callback.message.answer(_("request_location"), reply_markup=keyboard)
@@ -108,10 +90,10 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: cal
     await state.clear()
 
 @router.callback_query(F.data == "new_search")
-async def new_search_callback(callback: types.CallbackQuery, state: FSMContext):
+async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
     await callback.answer()
     await callback.message.delete()
-    await cmd_start(callback.message, state)
+    await cmd_start(callback.message, state, _)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
@@ -171,4 +153,10 @@ async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: ca
 
 @router.message(SearchSteps.waiting_for_location)
 async def incorrect_location(message: Message, _: callable):
-    await message.answer(_("send_location_btn"))
+    """
+    Обрабатывает некорректный ввод на шаге ожидания геолокации.
+    Теперь отправляет не просто текст, а сообщение с кнопкой.
+    """
+    location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
+    keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
+    await message.answer(_("request_location"), reply_markup=keyboard)
