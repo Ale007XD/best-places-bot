@@ -36,7 +36,7 @@
   "direction_west": "向西",
   "direction_northwest": "向西北",
   "distance_template": "距离您 {distance} 米 {direction}",
-  "card_template": "<b>{i}. {place_name}</b>\n🍽️ {main_type}\n⭐️ 评分: {rating}\n📍 {distance_str}\n🗺️ 地址: {address}"
+  "card_template": "<b>{i}. {place_name}</b>\n🍽️ {main_type}\n⭐️ 评分: {rating}\n📍 {distance_str}\n🗺️ 地址: {address}",
   "manual_radius_prompt": "请输入所需的半径（米）（例如：350，最大5000）。",
   "manual_radius_error": "格式无效。请输入1到5000之间的整数。",
   "manual_rating_prompt": "请输入所需的最低评分（例如：3.2或4）。",
