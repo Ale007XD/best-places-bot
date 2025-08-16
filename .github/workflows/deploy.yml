@@ -1,13 +1,10 @@
 name: Deploy Telegram Bot to VPS
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Connect to VPS and Deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -25,27 +22,20 @@ jobs:
             cat ~/.ssh/id_ed25519 | head -10
             ssh -i ~/.ssh/id_ed25519 -T git@github.com || true
 
-
-            
             set -e
-
             # --- SSH для доступа к GitHub ---
             mkdir -p ~/.ssh
             chmod 700 ~/.ssh
             printf "%s" "$GIT_SSH_KEY" > ~/.ssh/id_ed25519
             chmod 600 ~/.ssh/id_ed25519
-
             # known_hosts для github.com
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
             sort -u ~/.ssh/known_hosts -o ~/.ssh/known_hosts
             chmod 644 ~/.ssh/known_hosts
-
-            # (Опционально, ускоряет работу нестандартных launchers)
+            # (Опционально) ssh config
             echo -e "Host github.com\n  IdentityFile ~/.ssh/id_ed25519\n  IdentitiesOnly yes" > ~/.ssh/config
             chmod 600 ~/.ssh/config
-
             PROJECT_DIR="$HOME/best-places-bot"
-
             # --- DEPLOY ---
             if [ -d "$PROJECT_DIR" ]; then
               echo ">>> Project directory exists. Pulling latest changes..."
@@ -57,16 +47,12 @@ jobs:
               git clone git@github.com:Ale007XD/best-places-bot.git best-places-bot
               cd "$PROJECT_DIR"
             fi
-
             # --- .env ---
             echo "BOT_TOKEN=$BOT_TOKEN" > .env
             echo "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY" >> .env
             echo "ADMIN_ID=$ADMIN_ID" >> .env
-
             echo ">>> Building and starting Docker container..."
             docker compose up --build -d
-
             echo ">>> Pruning old Docker images..."
             docker image prune -f
-
             echo ">>> Deployment successful!"
