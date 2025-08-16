@@ -20,9 +20,13 @@ jobs:
             GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
             ADMIN_ID=${{ secrets.ADMIN_ID }}
           script: |
-            env | grep GIT_SSH_KEY | wc -l
-            echo "GIT_SSH_KEY content:"
+            echo "==== ENVIRONMENT DUMP ===="
+            env | grep GIT_SSH_KEY
+            echo "==== SECRET HEAD ===="
             echo "$GIT_SSH_KEY" | head -5
+            echo "==== SECRET END ===="
+            env | grep GIT_SSH_KEY | wc -l
+            
             ls -l ~/.ssh/
             cat ~/.ssh/id_ed25519 | head -10
             ssh -i ~/.ssh/id_ed25519 -T git@github.com || true
