@@ -15,7 +15,11 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-          envs: GIT_SSH_KEY=${{ secrets.GIT_SSH_KEY }},BOT_TOKEN=${{ secrets.BOT_TOKEN }},GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }},ADMIN_ID=${{ secrets.ADMIN_ID }}
+          envs: |
+            GIT_SSH_KEY=${{ secrets.GIT_SSH_KEY }}
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+            ADMIN_ID=${{ secrets.ADMIN_ID }}
           script: |
             ls -l ~/.ssh/
             cat ~/.ssh/id_ed25519 | head -10
