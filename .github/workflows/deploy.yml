@@ -40,6 +40,31 @@ jobs:
             # если любая из последующих команд завершится с ошибкой.
             set -e
 
+            set -e
+
+            # --- ДОВЕРИЕ SSH КЛЮЧУ GITHUB ---
+            mkdir -p ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+            sort -u ~/.ssh/known_hosts -o ~/.ssh/known_hosts
+            
+            # --- ПОДГОТОВКА ---
+            PROJECT_DIR="$HOME/best-places-bot"
+            
+            # --- ОБНОВЛЕНИЕ ИЛИ ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА КОДА ---
+            if [ -d "$PROJECT_DIR" ]; then
+              echo ">>> Project directory exists. Pulling latest changes..."
+              cd "$PROJECT_DIR"
+              git pull origin main
+            else
+              echo ">>> Project directory does not exist. Cloning repository..."
+              cd "$HOME"
+              git clone git@github.com:Ale007XD/best-places-bot.git best-places-bot
+              cd "$PROJECT_DIR"
+            fi
+            
+            # --- ДАЛЕЕ как у вас ---
+
+
             # --- ПОДГОТОВКА ---
             # Задаем переменную с путем к проекту для удобства
             PROJECT_DIR="$HOME/best-places-bot"
