@@ -20,6 +20,11 @@ jobs:
             GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
             ADMIN_ID=${{ secrets.ADMIN_ID }}
           script: |
+            echo "==== ДЕБАГ ОКРУЖЕНИЯ ===="
+            env | grep GIT_SSH_KEY || echo "--- переменной нет ---"
+            echo "==== СТАРТ КЛЮЧА (5 строк) ===="
+            echo "$GIT_SSH_KEY" | head -5
+            echo "==== ОКОНЧАНИЕ КЛЮЧА ===="
             echo "==== ENVIRONMENT DUMP ===="
             env | grep GIT_SSH_KEY
             echo "==== SECRET HEAD ===="
