@@ -56,7 +56,7 @@ jobs:
               echo ">>> Project directory does not exist. Cloning repository..."
               cd /home/deployer # Переходим в домашнюю папку пользователя
               # ВНИМАНИЕ: Замените 'ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ' на реальный путь
-              git clone git@github.com-best-places-bot:Ale007XD/best-places-bot.git best-places-bot
+              git clone git@github.com:Ale007XD/best-places-bot.git best-places-bot
               cd $PROJECT_DIR
             fi
 
