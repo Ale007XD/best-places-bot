@@ -42,7 +42,8 @@ jobs:
 
             # --- ПОДГОТОВКА ---
             # Задаем переменную с путем к проекту для удобства
-            PROJECT_DIR="/home/deploy/best-places-bot"
+            HOME_DIR="/home/deploy"
+            PROJECT_DIR="$HOME_DIR/best-places-bot"
 
             # --- ОБНОВЛЕНИЕ ИЛИ ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА КОДА ---
             # Проверяем, существует ли папка проекта на сервере
