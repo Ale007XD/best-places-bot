@@ -50,7 +50,7 @@ jobs:
             if [ -d "$PROJECT_DIR" ]; then
               # Если папка существует, это обновление.
               echo ">>> Project directory exists. Pulling latest changes..."
-              cd $PROJECT_DIR
+              cd "$PROJECT_DIR"
               git pull origin main
             else
               # Если папки нет, это первое развертывание.
@@ -58,7 +58,7 @@ jobs:
               cd /home/deployer # Переходим в домашнюю папку пользователя
               # ВНИМАНИЕ: Замените 'ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ' на реальный путь
               git clone git@github.com:Ale007XD/best-places-bot.git best-places-bot
-              cd $PROJECT_DIR
+              cd "$PROJECT_DIR"
             fi
 
             # --- СОЗДАНИЕ .env ФАЙЛА ---
