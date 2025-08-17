@@ -4,7 +4,6 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-
 from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_to_direction
 from bot.keyboards import inline_keyboards
 from bot.utils.google_maps_api import find_places
@@ -26,9 +25,11 @@ class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
 # --- Вспомогательные функции ---
-
 async def start_dialog(message: Message, state: FSMContext, _: callable):
-    """Единая и надежная функция для начала или перезапуска диалога."""
+    """
+    Единая и надежная функция для начала или перезапуска диалога.
+    Полный сброс — язык сбрасывается на следующем этапе.
+    """
     await state.clear()
     await message.answer(_("start_onboarding_message"), parse_mode="HTML")
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
@@ -44,10 +45,13 @@ async def request_location(message: Message, state: FSMContext, _: callable):
 
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
+    # Сохраняем язык даже после очистки state (кроме reset)
+    lang = user_data.get("lang_code", lang_code)
     await state.clear()
-    all_candidates = await find_places(_, lang_code, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
+    if lang:
+        await state.set_data({"lang_code": lang})
+    all_candidates = await find_places(_, lang, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
-
     if not final_places:
         await bot.send_message(chat_id, _("no_results") + "\n" + _("try_another_range"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
     else:
@@ -61,7 +65,6 @@ async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, mi
         await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
 
 # --- Обработчики команд и основного сценария ---
-
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, _: callable):
     await start_dialog(message, state, _)
@@ -75,6 +78,8 @@ async def cmd_language(message: Message, state: FSMContext, _: callable):
 async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
     lang_code = callback.data.split("_")[1]
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
+    # --- сохраняем выбранный язык и в FSM (важно для "новый поиск") ---
+    await state.set_data({"lang_code": lang_code})
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
     await callback.message.edit_text(_("language_selected"))
     await request_location(callback.message, state, _)
@@ -93,9 +98,22 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: cal
 
 @router.callback_query(F.data == "new_search")
 async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
+    """
+    Новый поиск: сбрасываем состояние, но сохраняем язык из FSM чтобы не сбрасывался.
+    """
     await callback.answer()
     await callback.message.delete()
-    await start_dialog(callback.message, state, _)
+    # --- сохраняем язык ---
+    data = await state.get_data()
+    lang_code = data.get("lang_code")
+    await state.clear()
+    if lang_code:
+        await state.set_data({"lang_code": lang_code})
+        _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
+    # если язык неизвестен, используем дефолт
+    else:
+        _ = _
+    await request_location(callback.message, state, _)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
@@ -129,7 +147,8 @@ async def ask_for_manual_radius(callback: types.CallbackQuery, state: FSMContext
 async def get_manual_radius(message: Message, state: FSMContext, _: callable):
     try:
         radius = int(message.text)
-        if not 1 <= radius <= 5000: raise ValueError("Radius out of range.")
+        if not 1 <= radius <= 5000:
+            raise ValueError("Radius out of range.")
         await state.update_data(radius=radius)
         await message.answer(_("select_rating_range"), reply_markup=inline_keyboards.get_rating_keyboard(_))
         await state.set_state(SearchSteps.waiting_for_rating)
@@ -146,7 +165,8 @@ async def ask_for_manual_rating(callback: types.CallbackQuery, state: FSMContext
 async def get_manual_rating(message: Message, state: FSMContext, bot: Bot, _: callable, lang_code: str):
     try:
         min_rating = float(message.text.replace(',', '.'))
-        if not 1.0 <= min_rating <= 5.0: raise ValueError("Rating out of range.")
+        if not 1.0 <= min_rating <= 5.0:
+            raise ValueError("Rating out of range.")
         loading_message = await message.answer(_("searching"))
         await process_and_send_results(message.chat.id, bot, state, min_rating, 5.0, _, lang_code)
         await loading_message.delete()
