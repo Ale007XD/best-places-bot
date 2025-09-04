@@ -28,7 +28,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           # указывайте ВСЕ реально используемые файлы/папки вашего проекта
-          source: ".env,app,src,fonts,Dockerfile,docker-compose.yml,requirements.txt"
+          source: ".env,bot,fonts,Dockerfile,docker-compose.yml,requirements.txt"
           target: "~/best-places-bot"
 
       # 4. Подключение к VPS и запуск/обновление контейнера
