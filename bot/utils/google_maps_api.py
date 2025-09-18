@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 
-async def fetch_places_by_type(_, client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str, lang_code: str) -> List[Dict[str, Any]]:
+async def fetch_places_by_type(client: httpx.AsyncClient, api_key: str, lat: float, lon: float, radius: int, place_type: str, lang_code: str) -> List[Dict[str, Any]]:
     results_for_type = []
     url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lon}&radius={radius}&type={place_type}&language={lang_code}&key={api_key}"
     for _ in range(2):
@@ -22,18 +22,21 @@ async def fetch_places_by_type(_, client: httpx.AsyncClient, api_key: str, lat: 
             break
     return results_for_type
 
-def get_primary_type(_, place_types: list) -> str:
-    type_map = {'restaurant': _("type_restaurant"), 'cafe': _("type_cafe"), 'bar': _("type_bar")}
-    for t in place_types:
-        if t in type_map: return type_map[t]
-    return _("type_food")
+def get_primary_type(place_types: list) -> str:
+    # Возвращаем "сырой" ключ типа, а не переведенную строку
+    # Порядок важен: сначала более специфичные, потом общие
+    priority_types = ['restaurant', 'cafe', 'bar']
+    for t in priority_types:
+        if t in place_types:
+            return t
+    return 'food' # общий ключ для еды
 
-async def find_places(_, lang_code: str, api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]:
+async def find_places(lang_code: str, api_key: str, lat: float, lon: float, radius: int, min_rating: float) -> List[Dict[str, Any]]:
     all_places = []
     async with httpx.AsyncClient() as client:
         tasks = [
-            fetch_places_by_type(_, client, api_key, lat, lon, radius, "restaurant", lang_code),
-            fetch_places_by_type(_, client, api_key, lat, lon, radius, "cafe", lang_code),
+            fetch_places_by_type(client, api_key, lat, lon, radius, "restaurant", lang_code),
+            fetch_places_by_type(client, api_key, lat, lon, radius, "cafe", lang_code),
         ]
         list_of_results = await asyncio.gather(*tasks)
         for sublist in list_of_results: all_places.extend(sublist)
@@ -46,13 +49,13 @@ async def find_places(_, lang_code: str, api_key: str, lat: float, lon: float, r
         if place_id and place_id not in seen_place_ids and rating and float(rating) >= min_rating:
             location = place.get('geometry', {}).get('location', {})
             filtered_places.append({
-                "name": place.get('name', 'Название не указано'),
+                "name": place.get('name', "name_not_found"),
                 "rating": float(rating),
-                "address": place.get('vicinity', 'Адрес не указан'),
+                "address": place.get('vicinity', "address_not_found"),
                 "place_id": place_id,
                 "lat": location.get('lat'),
                 "lng": location.get('lng'),
-                "main_type": get_primary_type(_, place.get('types', []))
+                "main_type": get_primary_type(place.get('types', []))
             })
             seen_place_ids.add(place_id)
     return sorted(filtered_places, key=lambda p: p['rating'], reverse=True)
