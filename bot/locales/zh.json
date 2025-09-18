@@ -41,5 +41,7 @@
   "manual_radius_error": "格式无效。请输入1到5000之间的整数。",
   "manual_rating_prompt": "请输入所需的最低评分（例如：3.2或4）。",
   "manual_rating_error": "格式无效。请输入1.0到5.0之间的数字。",
-"location_privacy_info": "🔒 <i>为了精确查找您周围的地点，我需要您的位置信息。您的地理位置仅用于本次搜索，不会被存储在任何地方。</i>"
+  "location_privacy_info": "🔒 <i>为了精确查找您周围的地点，我需要您的位置信息。您的地理位置仅用于本次搜索，不会被存储在任何地方。</i>",
+  "name_not_found": "未指定名称",
+  "address_not_found": "未指定地址"
 }

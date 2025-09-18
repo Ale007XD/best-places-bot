@@ -41,5 +41,7 @@
   "manual_radius_error": "Invalid format. Please enter an integer between 1 and 5000.",
   "manual_rating_prompt": "Enter the minimum desired rating (e.g., 3.2 or 4).",
   "manual_rating_error": "Invalid format. Please enter a number between 1.0 and 5.0.",
-  "location_privacy_info": "🔒 <i>This is needed to find places specifically around you. I only use your location once for the search and do not store it anywhere.</i>"
+  "location_privacy_info": "🔒 <i>This is needed to find places specifically around you. I only use your location once for the search and do not store it anywhere.</i>",
+  "name_not_found": "Name not specified",
+  "address_not_found": "Address not specified"
 }

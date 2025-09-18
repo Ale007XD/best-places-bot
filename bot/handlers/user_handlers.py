@@ -12,7 +12,6 @@ from bot.services.translator import get_string
 
 router = Router()
 
-# --- Определяем все состояния FSM ---
 class SearchSteps(StatesGroup):
     waiting_for_language = State()
     waiting_for_location = State()
@@ -25,18 +24,14 @@ class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
 # --- Вспомогательные функции ---
+
 async def start_dialog(message: Message, state: FSMContext, _: callable):
-    """
-    Единая и надежная функция для начала или перезапуска диалога.
-    Полный сброс — язык сбрасывается на следующем этапе.
-    """
     await state.clear()
     await message.answer(_("start_onboarding_message"), parse_mode="HTML")
     await message.answer(_("select_language"), reply_markup=inline_keyboards.get_language_keyboard())
     await state.set_state(SearchSteps.waiting_for_language)
 
 async def request_location(message: Message, state: FSMContext, _: callable):
-    """Отправляет унифицированный запрос геолокации."""
     location_button = KeyboardButton(text=_("send_location_btn"), request_location=True)
     keyboard = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True, one_time_keyboard=True)
     full_text = _("request_location") + "\n\n" + _("location_privacy_info")
@@ -45,26 +40,57 @@ async def request_location(message: Message, state: FSMContext, _: callable):
 
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
-    # Сохраняем язык даже после очистки state (кроме reset)
     lang = user_data.get("lang_code", lang_code)
     await state.clear()
     if lang:
         await state.set_data({"lang_code": lang})
-    all_candidates = await find_places(_, lang, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
+
+    all_candidates = await find_places(lang, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
+
     if not final_places:
-        await bot.send_message(chat_id, _("no_results") + "\n" + _("try_another_range"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
+        new_search_keyboard = inline_keyboards.get_new_search_keyboard(_("new_search_btn"))
+        await bot.send_message(chat_id, _("no_results") + "\n" + _("try_another_range"), reply_markup=new_search_keyboard)
     else:
         await bot.send_message(chat_id, _("found_results"))
         for i, place in enumerate(final_places[:3], 1):
-            direction = bearing_to_direction(_, calculate_bearing(user_data['latitude'], user_data['longitude'], place['lat'], place['lng']))
+            # 1. Переводим все текстовые данные перед отправкой
+            place_name = _(place['name'])
+            address = _(place['address'])
+            main_type = _(f"type_{place['main_type']}")
+            direction_key = bearing_to_direction(calculate_bearing(user_data['latitude'], user_data['longitude'], place['lat'], place['lng']))
+            direction_str = _(direction_key)
             distance = calculate_distance(user_data['latitude'], user_data['longitude'], place['lat'], place['lng'])
-            distance_str = _("distance_template", distance=distance, direction=direction)
-            text = _("card_template", i=i, place_name=place['name'], main_type=place['main_type'], rating=place['rating'], distance_str=distance_str, address=place['address'])
-            await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=inline_keyboards.get_google_maps_link_button(_, place, distance, direction))
-        await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=inline_keyboards.get_new_search_keyboard(_))
+            distance_str = _("distance_template", distance=distance, direction=direction_str)
+
+            # 2. Собираем карточку с переведенными данными
+            text = _("card_template", i=i, place_name=place_name, main_type=main_type, rating=place['rating'], distance_str=distance_str, address=address)
+
+            # 3. Собираем текст для кнопки "Поделиться"
+            share_text = _(
+                "share_text_template",
+                place_name=place_name,
+                main_type=main_type,
+                rating=place['rating'],
+                distance=distance,
+                direction=direction_str
+            )
+
+            # 4. Создаем клавиатуру с переведенными кнопками
+            maps_link_keyboard = inline_keyboards.get_google_maps_link_button(
+                place=place,
+                share_text=share_text,
+                open_in_maps_btn_text=_("open_in_maps_btn"),
+                share_find_btn_text=_("share_find_btn")
+            )
+            await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=maps_link_keyboard)
+
+        new_search_keyboard = inline_keyboards.get_new_search_keyboard(_("new_search_btn"))
+        await bot.send_message(chat_id, _("new_search_prompt"), reply_markup=new_search_keyboard)
+
 
 # --- Обработчики команд и основного сценария ---
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, _: callable):
     await start_dialog(message, state, _)
@@ -78,9 +104,10 @@ async def cmd_language(message: Message, state: FSMContext, _: callable):
 async def select_language(callback: types.CallbackQuery, state: FSMContext, redis_conn: redis.Redis):
     lang_code = callback.data.split("_")[1]
     await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
-    # --- сохраняем выбранный язык и в FSM (важно для "новый поиск") ---
     await state.set_data({"lang_code": lang_code})
+
     _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
+
     await callback.message.edit_text(_("language_selected"))
     await request_location(callback.message, state, _)
     await callback.answer()
@@ -97,36 +124,35 @@ async def process_feedback(message: Message, state: FSMContext, bot: Bot, _: cal
     await state.clear()
 
 @router.callback_query(F.data == "new_search")
-async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable):
-    """
-    Новый поиск: сбрасываем состояние, но сохраняем язык из FSM чтобы не сбрасывался.
-    """
+async def new_search_callback(callback: types.CallbackQuery, state: FSMContext, _: callable, lang_code: str):
     await callback.answer()
     await callback.message.delete()
-    # --- сохраняем язык ---
+
     data = await state.get_data()
-    lang_code = data.get("lang_code")
+    current_lang = data.get("lang_code", lang_code)
     await state.clear()
-    if lang_code:
-        await state.set_data({"lang_code": lang_code})
-        _ = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
-    # если язык неизвестен, используем дефолт
-    else:
-        _ = _
+    await state.set_data({"lang_code": current_lang})
+
+    _ = lambda key, **kwargs: get_string(key, current_lang).format(**kwargs)
+
     await request_location(callback.message, state, _)
 
 @router.message(SearchSteps.waiting_for_location, F.location)
 async def get_location(message: Message, state: FSMContext, _: callable):
     await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
     await message.answer(_("thanks"), reply_markup=ReplyKeyboardRemove())
-    await message.answer(_("select_radius"), reply_markup=inline_keyboards.get_radius_keyboard(_))
+    radius_keyboard = inline_keyboards.get_radius_keyboard(_("manual_input_btn"))
+    await message.answer(_("select_radius"), reply_markup=radius_keyboard)
     await state.set_state(SearchSteps.waiting_for_radius)
 
 @router.callback_query(SearchSteps.waiting_for_radius, F.data.startswith('radius_'))
 async def get_radius(callback: types.CallbackQuery, state: FSMContext, _: callable):
     radius = int(callback.data.split('_')[1])
     await state.update_data(radius=radius)
-    await callback.message.edit_text(_("select_rating_range"), reply_markup=inline_keyboards.get_rating_keyboard(_))
+    rating_keyboard = inline_keyboards.get_rating_keyboard(
+        _("rating_range_1"), _("rating_range_2"), _("rating_range_3"), _("manual_input_btn")
+    )
+    await callback.message.edit_text(_("select_rating_range"), reply_markup=rating_keyboard)
     await state.set_state(SearchSteps.waiting_for_rating)
     await callback.answer()
 
@@ -150,7 +176,10 @@ async def get_manual_radius(message: Message, state: FSMContext, _: callable):
         if not 1 <= radius <= 5000:
             raise ValueError("Radius out of range.")
         await state.update_data(radius=radius)
-        await message.answer(_("select_rating_range"), reply_markup=inline_keyboards.get_rating_keyboard(_))
+        rating_keyboard = inline_keyboards.get_rating_keyboard(
+            _("rating_range_1"), _("rating_range_2"), _("rating_range_3"), _("manual_input_btn")
+        )
+        await message.answer(_("select_rating_range"), reply_markup=rating_keyboard)
         await state.set_state(SearchSteps.waiting_for_rating)
     except (ValueError, TypeError):
         await message.answer(_("manual_radius_error"))
