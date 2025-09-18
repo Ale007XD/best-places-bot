@@ -37,6 +37,7 @@ async def find_places(lang_code: str, api_key: str, lat: float, lon: float, radi
         tasks = [
             fetch_places_by_type(client, api_key, lat, lon, radius, "restaurant", lang_code),
             fetch_places_by_type(client, api_key, lat, lon, radius, "cafe", lang_code),
+            fetch_places_by_type(client, api_key, lat, lon, radius, "bar", lang_code),
         ]
         list_of_results = await asyncio.gather(*tasks)
         for sublist in list_of_results: all_places.extend(sublist)
