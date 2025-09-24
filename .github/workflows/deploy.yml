@@ -1,63 +1,49 @@
-# Название рабочего процесса, которое будет отображаться в GitHub Actions
 name: Deploy Telegram Bot to VPS
 
-# Триггер: этот процесс будет запускаться автоматически
-# при каждом пуше в ветку 'main'
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
-# Описание всех задач (jobs)
 jobs:
   deploy:
-    # Задача выполняется на последней Ubuntu
     runs-on: ubuntu-latest
-
     steps:
-      # Подключаемся к серверу через SSH и выполняем деплой-скрипт
-      - name: Connect to VPS and Deploy
+      # 1. Скачивание исходного кода репозитория (Actions Checkout)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Создание .env файла (сохраняется именно в корне репозитория для деплоя)
+      - name: Create .env file
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+          echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+          echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
+
+      # 3. Копирование проекта на VPS через SCP-ACTION (без git на сервере!)
+      - name: Copy project files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          # указывайте ВСЕ реально используемые файлы/папки вашего проекта
+          source: ".env,bot,fonts,Dockerfile,docker-compose.yml,requirements.txt"
+          target: "~/best-places-bot"
+
+      # 4. Подключение к VPS и запуск/обновление контейнера
+      - name: Deploy and Restart via Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
-          # Параметры подключения к серверу
-          host: ${{ secrets.VPS_HOST }}           # IP или hostname VPS
-          username: ${{ secrets.VPS_USERNAME }}   # имя пользователя на сервере
-          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }} # приватный ключ для SSH-подключения
-          
-          # Shell-скрипт для запуска на сервере
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           script: |
-            # --- Безопасный режим (остановка при ошибке)
-            set -e
-
-            # --- Подготовка ---
-            # Указываем домашнюю директорию и путь к проекту (замените deploy при необходимости!)
-            HOME_DIR="/home/${USER:-deploy}"
-            PROJECT_DIR="$HOME_DIR/best-places-bot"
-
-            # --- Обновление или первоначальная загрузка кода ---
-            if [ -d "$PROJECT_DIR" ]; then
-              echo ">>> Project directory exists. Pulling latest changes..."
-              cd "$PROJECT_DIR"
-              git pull origin main
-            else
-              echo ">>> Project directory does not exist. Cloning repository..."
-              cd "$HOME_DIR"
-              git clone git@github.com:Ale007XD/best-places-bot.git best-places-bot
-              cd "$PROJECT_DIR"
-            fi
-
-            # --- Создание .env файла ---
-            echo ">>> Creating .env file..."
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
-            echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
-            echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
-
-            # --- Запуск через Docker Compose ---
-            echo ">>> Building and starting Docker container..."
+            cd ~/best-places-bot
+            echo ">>> Stopping and removing old containers..."
+            docker compose down || true
+            echo ">>> Building and starting new containers..."
             docker compose up --build -d
-
-            # --- Очистка старых Docker-образов ---
             echo ">>> Pruning old Docker images..."
             docker image prune -f
-
             echo ">>> Deployment successful!"
-
