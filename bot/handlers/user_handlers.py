@@ -45,7 +45,7 @@ async def request_location(message: Message, state: FSMContext, _: callable):
 async def process_and_send_results(chat_id: int, bot: Bot, state: FSMContext, min_rating: float, max_rating: float, _: callable, lang_code: str):
     user_data = await state.get_data()
     await state.clear()
-    all_candidates = await find_places(_, lang_code, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating)
+    all_candidates = await find_places(_, settings.GOOGLE_MAPS_API_KEY, user_data['latitude'], user_data['longitude'], user_data['radius'], min_rating, lang_code)
     final_places = [p for p in all_candidates if p['rating'] <= max_rating]
 
     if not final_places:
