@@ -8,6 +8,10 @@ from aiogram.fsm.context import FSMContext
 from bot.services.translator import get_string, DEFAULT_LANG
 
 class I18nMiddleware(BaseMiddleware):
+    def __init__(self, redis_conn: redis.Redis):
+        self.redis = redis_conn
+        super().__init__()
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -16,7 +20,6 @@ class I18nMiddleware(BaseMiddleware):
     ) -> Any:
         user = data.get("event_from_user")
         state: FSMContext = data.get("state")
-        redis_conn: redis.Redis = data.get("redis_conn")
         lang_code = None
 
         # 1. Сначала пробуем взять язык из FSMContext (если был выбран и сохранён)
@@ -25,18 +28,17 @@ class I18nMiddleware(BaseMiddleware):
             lang_code = fsm_data.get("lang_code")
 
         # 2. Если нет — ищем в Redis
-        if not lang_code and redis_conn:
+        if not lang_code:
             if user is None:
                 lang_code = DEFAULT_LANG
             else:
-                lang_code_bytes = await redis_conn.get(f"user_lang:{user.id}")
-                lang_code = lang_code_bytes.decode('utf-8') if lang_code_bytes else DEFAULT_LANG
-
-        if not lang_code:
-            lang_code = DEFAULT_LANG
+                lang_code = await self.redis.get(f"user_lang:{user.id}")
+                if not lang_code:
+                    lang_code = DEFAULT_LANG
 
         # Передаём функцию-переводчик и язык во все роутеры/handlers
         data["_"] = lambda key, **kwargs: get_string(key, lang_code).format(**kwargs)
         data["lang_code"] = lang_code
+        data["redis_conn"] = self.redis
 
         return await handler(event, data)

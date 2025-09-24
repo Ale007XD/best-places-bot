@@ -12,11 +12,7 @@ class Settings(BaseSettings):
     # Обязательные переменные, которые должны быть в .env
     BOT_TOKEN: str
     GOOGLE_MAPS_API_KEY: str
-    ADMIN_ID: int
-
-    # Настройки Redis с значениями по умолчанию
-    REDIS_HOST: str = 'localhost'
-    REDIS_PORT: int = 6379
+    ADMIN_ID: int # ID для отправки обратной связи
 
 # Создаем единый экземпляр настроек для всего приложения.
 # Импортируем его в другие модули, чтобы получить доступ к токенам.

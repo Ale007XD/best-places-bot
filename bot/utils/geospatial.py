@@ -16,11 +16,11 @@ def calculate_bearing(lat1, lon1, lat2, lon2) -> float:
     x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon)
     return (math.degrees(math.atan2(y, x)) + 360) % 360
 
-def bearing_to_direction(bearing: float) -> str:
-    """Преобразует градусы в ключ направления для перевода."""
+def bearing_to_direction(_, bearing: float) -> str:
+    """Преобразует градусы в текстовое направление, используя переводчик."""
     val = int((bearing / 45) + 0.5)
     direction_keys = [
         "direction_north", "direction_northeast", "direction_east", "direction_southeast",
         "direction_south", "direction_southwest", "direction_west", "direction_northwest"
     ]
-    return direction_keys[val % 8]
+    return _(direction_keys[val % 8])
