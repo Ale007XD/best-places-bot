@@ -14,8 +14,8 @@ services:
     container_name: best_places_redis
     restart: always
 
-  services:
-    best_places_bot:
+  best_places_bot:
     restart: unless-stopped
+  
   best_places_redis:
     restart: unless-stopped
