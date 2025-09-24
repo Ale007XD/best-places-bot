@@ -5,7 +5,6 @@ services:
     restart: always
     env_file:
       - .env
-    # Указываем, что бот зависит от Redis
     depends_on:
       - redis
 
@@ -13,9 +12,3 @@ services:
     image: "redis:alpine"
     container_name: best_places_redis
     restart: always
-
-  best_places_bot:
-    restart: unless-stopped
-  
-  best_places_redis:
-    restart: unless-stopped
