@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   telegram-bot:
     build: .
@@ -15,3 +13,9 @@ services:
     image: "redis:alpine"
     container_name: best_places_redis
     restart: always
+
+  services:
+    best_places_bot:
+    restart: unless-stopped
+  best_places_redis:
+    restart: unless-stopped
