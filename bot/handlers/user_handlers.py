@@ -111,16 +111,16 @@ async def process_and_send_results(
         lat, lon, radius, min_rating, max_rating, lang_code
     )
 
-    all_candidates = await find_places(
+    all_candidates = await search_places(
         _,
-        api_key=settings.FSQ_API_KEY,
         lat=lat,
         lon=lon,
         radius=radius,
         min_rating=min_rating,
         max_rating=max_rating,
         lang_code=lang_code,
-    )
+        api_key=settings.FSQ_API_KEY,
+     )
 
     logging.info("Places fetched: %s before final sorting/capping", len(all_candidates))
 
