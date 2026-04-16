@@ -24,7 +24,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKey
 
 from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_to_direction
 from bot.keyboards import inline_keyboards
-from bot.utils.foursquare_api import find_places
+from bot.utils.places_service import search_places
 from bot.config import settings
 from bot.services.translator import get_string
 
