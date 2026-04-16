@@ -17,7 +17,7 @@ jobs:
       - name: Create .env file
         run: |
           echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
-          echo "GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}" >> .env
+          echo "FSQ_API_KEY=${{ secrets.FSQ_API_KEY }}" >> .env
           echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
 
       # 3. Копирование проекта на VPS через SCP-ACTION (без git на сервере!)
