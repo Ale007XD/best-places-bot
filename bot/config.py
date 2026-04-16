@@ -1,19 +1,22 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Корень проекта вычисляется относительно этого файла — не зависит от CWD.
+_ENV_FILE = Path(__file__).parent.parent / ".env"
+
 
 class Settings(BaseSettings):
     """
     Класс для хранения и валидации переменных окружения.
-    Использует pydantic для надежной работы с конфигурацией.
+    Использует pydantic для надёжной работы с конфигурацией.
     """
-    # Конфигурация указывает, что нужно искать файл .env на один уровень выше
-    # текущей директории (т.е. в корне проекта)
-    model_config = SettingsConfigDict(env_file='../.env', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding='utf-8')
 
     # Обязательные переменные, которые должны быть в .env
     BOT_TOKEN: str
-    GOOGLE_MAPS_API_KEY: str
-    ADMIN_ID: int # ID для отправки обратной связи
+    FSQ_API_KEY: str       # Foursquare Places API key (было GOOGLE_MAPS_API_KEY)
+    ADMIN_ID: int          # Telegram user_id для получения фидбэка
 
-# Создаем единый экземпляр настроек для всего приложения.
-# Импортируем его в другие модули, чтобы получить доступ к токенам.
+
+# Единый экземпляр настроек для всего приложения.
 settings = Settings()
