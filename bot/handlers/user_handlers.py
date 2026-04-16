@@ -120,6 +120,7 @@ async def process_and_send_results(
         max_rating=max_rating,
         lang_code=lang_code,
         api_key=settings.FSQ_API_KEY,
+        mapbox_token=settings.MAPBOX_TOKEN,
      )
 
     logging.info("Places fetched: %s before final sorting/capping", len(all_candidates))
