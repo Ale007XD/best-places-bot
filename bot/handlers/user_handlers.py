@@ -122,6 +122,7 @@ async def process_and_send_results(
         lang_code=lang_code,
         fsq_api_key=settings.FSQ_API_KEY,
         mapbox_token=settings.MAPBOX_TOKEN,
+        vietmap_api_key=settings.VIETMAP_API_KEY,  # ВьетМап
         redis_conn=redis_conn,  # Кэш
      )
 
