@@ -96,6 +96,7 @@ async def process_and_send_results(
     max_rating: float,
     _,
     lang_code: str,
+    redis_conn,  # Кэш
     analytics=None,
 ) -> None:
     """
@@ -119,7 +120,7 @@ async def process_and_send_results(
         min_rating=min_rating,
         max_rating=max_rating,
         lang_code=lang_code,
-        api_key=settings.FSQ_API_KEY,
+        fsq_api_key=settings.FSQ_API_KEY,
         mapbox_token=settings.MAPBOX_TOKEN,
         redis_conn=redis_conn,  # Кэш
      )
@@ -169,7 +170,7 @@ async def handle_start(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("lang_"))
-async def set_language(callback: CallbackQuery, state: FSMContext, redis_conn, **kwargs):
+async def set_language(callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs):
     """
     Сохраняем выбранный язык в FSM и в Redis (для I18nMiddleware).
     """
