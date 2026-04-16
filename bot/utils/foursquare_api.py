@@ -49,6 +49,8 @@ async def _fetch_by_category(
     url = "https://api.foursquare.com/v3/places/search"
     headers = {
         "Authorization": api_key,
+        # Обязательный заголовок для нового Places API (без него — 410 Gone)
+        "X-Places-Api-Version": "1970-01-01",
         "Accept-Language": lang_code,
     }
     params = {
@@ -61,12 +63,14 @@ async def _fetch_by_category(
 
     try:
         r = await client.get(url, headers=headers, params=params, timeout=10.0)
-        r.raise_for_status()
+        if not r.is_success:
+            logging.error(
+                "FSQ error for category %s: HTTP %s — %s",
+                category_id, r.status_code, r.text[:300],
+            )
+            return []
         data = r.json()
         return data.get("results", [])
-    except httpx.HTTPStatusError as e:
-        logging.error("FSQ HTTP status error for category %s: %s", category_id, e)
-        return []
     except httpx.RequestError as e:
         logging.error("FSQ request error for category %s: %s", category_id, e)
         return []
