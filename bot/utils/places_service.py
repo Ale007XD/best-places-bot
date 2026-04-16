@@ -1,12 +1,29 @@
 # bot/utils/places_service.py
 
 import asyncio
+import json
+import hashlib
 from typing import List, Dict, Any
 import logging
 
 from bot.utils.foursquare_api import find_places as fsq_find
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.geospatial import calculate_distance
+
+
+CACHE_TTL = 600  # 10 минут
+
+
+def _make_cache_key(
+    lat: float,
+    lon: float,
+    radius: int,
+    min_rating: float,
+    max_rating: float,
+) -> str:
+    raw = f"{round(lat,4)}:{round(lon,4)}:{radius}:{min_rating}:{max_rating}"
+    h = hashlib.md5(raw.encode()).hexdigest()
+    return f"places:{h}"
 
 
 def _deduplicate(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -47,11 +64,20 @@ async def search_places(
     lang_code: str,
     fsq_api_key: str,
     mapbox_token: str,
+    redis_conn,  # 🔥 ВАЖНО: передаём извне
 ) -> List[Dict[str, Any]]:
 
-    logging.info("PlacesService: multi-provider search")
+    cache_key = _make_cache_key(lat, lon, radius, min_rating, max_rating)
 
-    # 🔥 Mapbox — основной источник
+    # 🔹 1. CACHE READ
+    cached = await redis_conn.get(cache_key)
+    if cached:
+        logging.info("CACHE HIT")
+        return json.loads(cached)
+
+    logging.info("CACHE MISS → querying providers")
+
+    # 🔹 2. PROVIDERS
     mapbox_task = find_places_mapbox(
         lat=lat,
         lon=lon,
@@ -61,7 +87,6 @@ async def search_places(
         access_token=mapbox_token,
     )
 
-    # 🔥 Foursquare — enrichment + фильтр
     fsq_task = fsq_find(
         _,
         api_key=fsq_api_key,
@@ -78,10 +103,8 @@ async def search_places(
     merged = mapbox_results + fsq_results
     merged = _deduplicate(merged)
 
-    # fallback если мало результатов
+    # 🔹 fallback
     if len(merged) < 3:
-        logging.info("Fallback: expanding FSQ search")
-
         fallback = await fsq_find(
             _,
             api_key=fsq_api_key,
@@ -92,7 +115,6 @@ async def search_places(
             max_rating=5.0,
             lang_code=lang_code,
         )
-
         merged.extend(fallback)
         merged = _deduplicate(merged)
 
@@ -101,5 +123,15 @@ async def search_places(
         key=lambda p: _score(p, lat, lon),
         reverse=True,
     )
+
+    # 🔹 3. CACHE WRITE
+    try:
+        await redis_conn.setex(
+            cache_key,
+            CACHE_TTL,
+            json.dumps(ranked[:10])  # кешируем чуть больше
+        )
+    except Exception as e:
+        logging.warning("Cache write failed: %s", e)
 
     return ranked
