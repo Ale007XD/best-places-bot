@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # Обязательные переменные, которые должны быть в .env
     BOT_TOKEN: str
     FSQ_API_KEY: str       # Foursquare Places API key (было GOOGLE_MAPS_API_KEY)
+    MAPBOX_TOKEN: str # Добавляем ключ для Mapbox
     ADMIN_ID: int          # Telegram user_id для получения фидбэка
 
 
