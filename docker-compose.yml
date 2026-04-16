@@ -5,7 +5,6 @@ services:
     restart: always
     env_file:
       - .env
-    # Указываем, что бот зависит от Redis
     depends_on:
       - redis
 
@@ -13,3 +12,9 @@ services:
     image: "redis:alpine"
     container_name: best_places_redis
     restart: always
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  redis_data:
