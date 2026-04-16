@@ -8,6 +8,9 @@ from bot.config import settings
 from bot.handlers import user_handlers
 from bot.middlewares.i18n import I18nMiddleware
 from bot.utils.analytics import Analytics
+from bot.middlewares.redis import RedisMiddleware
+
+dp.update.middleware(RedisMiddleware(redis_conn))
 
 
 async def main():
