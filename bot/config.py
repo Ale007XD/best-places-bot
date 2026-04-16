@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     BOT_TOKEN: str
     FSQ_API_KEY: str       # Foursquare Places API key (было GOOGLE_MAPS_API_KEY)
     MAPBOX_TOKEN: str # Добавляем ключ для Mapbox
+    VIETMAP_API_KEY: str # VietMap
     ADMIN_ID: int          # Telegram user_id для получения фидбэка
 
 
