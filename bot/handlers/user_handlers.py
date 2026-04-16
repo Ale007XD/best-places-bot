@@ -24,7 +24,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKey
 
 from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_to_direction
 from bot.keyboards import inline_keyboards
-from bot.utils.google_maps_api import find_places
+from bot.utils.foursquare_api import find_places
 from bot.config import settings
 from bot.services.translator import get_string
 
@@ -96,26 +96,24 @@ async def process_and_send_results(
     max_rating: float,
     _,
     lang_code: str,
+    analytics=None,
 ) -> None:
     """
     Выполняет поиск мест по параметрам из FSM и отправляет результаты.
-    Ключевое: правильный вызов find_places с нужным порядком аргументов.
     """
     user_data = await state.get_data()
     lat = float(user_data["latitude"])
     lon = float(user_data["longitude"])
     radius = int(user_data["radius"])
 
-    # Логируем входные параметры
     logging.info(
         "Searching places: lat=%s lon=%s radius=%s min_rating=%s max_rating=%s lang=%s",
         lat, lon, radius, min_rating, max_rating, lang_code
     )
 
-    # ВАЖНО: корректный порядок и полный набор аргументов
     all_candidates = await find_places(
         _,
-        api_key=settings.GOOGLE_MAPS_API_KEY,
+        api_key=settings.FSQ_API_KEY,
         lat=lat,
         lon=lon,
         radius=radius,
@@ -126,7 +124,7 @@ async def process_and_send_results(
 
     logging.info("Places fetched: %s before final sorting/capping", len(all_candidates))
 
-    # Сортировка по рейтингу и количеству оценок (стабильнее)
+    # Сортировка по рейтингу и количеству оценок
     all_candidates.sort(
         key=lambda p: (
             float(p.get("rating") or 0.0),
@@ -135,18 +133,20 @@ async def process_and_send_results(
         reverse=True,
     )
 
-    # Берём топ-3
     top = all_candidates[:3]
 
-    # Ответ пользователю
     if not top:
+        if analytics:
+            await analytics.track_empty_result()
         await bot.send_message(
             chat_id,
             get_string("no_results", lang=lang_code) + "\n" + get_string("try_another_range", lang=lang_code),
         )
         return
 
-    # Отправляем карточки по одному сообщению
+    if analytics:
+        await analytics.track_search_request()
+
     for p in top:
         text = _format_place_card(lang_code, lat, lon, p)
         await bot.send_message(chat_id, text, parse_mode="HTML")
@@ -167,12 +167,15 @@ async def handle_start(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("lang_"))
-async def set_language(callback: CallbackQuery, state: FSMContext):
+async def set_language(callback: CallbackQuery, state: FSMContext, redis_conn, **kwargs):
     """
-    Сохраняем выбранный язык и просим прислать локацию.
+    Сохраняем выбранный язык в FSM и в Redis (для I18nMiddleware).
     """
     lang_code = callback.data.split("_", 1)[1]
     await state.update_data(lang_code=lang_code)
+
+    # Сохраняем в Redis — I18nMiddleware читает отсюда на каждый апдейт
+    await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
 
     # Клавиатура для отправки геопозиции
     kb = ReplyKeyboardMarkup(
@@ -218,7 +221,7 @@ async def set_radius(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("rating_"), SearchSteps.waiting_for_rating)
-async def get_rating_from_button(callback: CallbackQuery, state: FSMContext):
+async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, analytics=None, **kwargs):
     """
     Обработаем предустановленный диапазон рейтинга и запустим поиск.
     """
@@ -230,13 +233,18 @@ async def get_rating_from_button(callback: CallbackQuery, state: FSMContext):
     min_rating = float(min_s)
     max_rating = float(max_s)
 
-    # Сообщим пользователю, что ищем
+    if analytics:
+        await analytics.track_user(callback.from_user.id)
+        await analytics.track_feature_use("rating", f"{min_s}_{max_s}")
+
     await callback.message.answer(get_string("searching", lang=lang_code))
 
-    # Вызов поиска и отправка результатов
-    await process_and_send_results(callback.message.chat.id, callback.bot, state, min_rating, max_rating, _t(lang_code), lang_code)
+    await process_and_send_results(
+        callback.message.chat.id, callback.bot, state,
+        min_rating, max_rating, _t(lang_code), lang_code,
+        analytics=analytics,
+    )
     await callback.answer()
 
 
 # Ниже могут быть обработчики ручного ввода радиуса и рейтинга, команда /feedback и т.д.
-# Логика их не менялась, ключевое исправление — корректный вызов find_places.
