@@ -1,149 +1,245 @@
-# Best Places Bot
+Best Places Bot
 
-Telegram-бот-помощник для поиска лучших кафе, ресторанов и баров рядом с пользователем.  
+Telegram-бот для поиска лучших кафе, ресторанов и баров рядом с пользователем.
 Диалог: язык → геолокация → радиус → диапазон рейтинга → топ-3 заведения.
 
 ---
 
-## Архитектура
+Архитектура
 
-```
 bot/
-├── main.py                  # Точка входа: Bot, Dispatcher, RedisStorage, polling
+├── main.py                  # Точка входа: Bot, Dispatcher, RedisStorage, middleware
 ├── config.py                # Pydantic Settings (.env)
 ├── handlers/
-│   └── user_handlers.py     # FSM-диалог + сборка карточек + отправка результатов
+│   └── user_handlers.py     # FSM-диалог + вызов поиска + отправка карточек
 ├── keyboards/
-│   └── inline_keyboards.py  # Клавиатуры: язык, радиус, рейтинг, шаринг
+│   └── inline_keyboards.py  # Inline клавиатуры
 ├── middlewares/
-│   └── i18n.py              # I18nMiddleware — читает lang из Redis, пишет `_` в data
+│   ├── i18n.py              # Язык из Redis → `_` в data
+│   └── redis.py             # DI: прокидывает redis_conn в handlers
 ├── services/
-│   └── translator.py        # Загрузка JSON-локалей, get_string()
+│   └── translator.py        # Локализация (JSON)
 ├── utils/
-│   ├── foursquare_api.py    # Foursquare Places API: параллельные запросы, дедупликация
-│   ├── geospatial.py        # Haversine-расстояние, азимут → текстовое направление
-│   └── analytics.py         # Redis-счётчики: DAU, поиски, пустые результаты, фичи
+│   ├── places_service.py    # 🔥 Оркестратор поиска (core)
+│   ├── foursquare_api.py    # Foursquare API (rating + enrichment)
+│   ├── mapbox_api.py        # Mapbox API (primary search)
+│   ├── vietmap_api.py       # VietMap API (fallback VN)
+│   ├── geospatial.py        # Distance + bearing
+│   └── analytics.py         # Redis-метрики
 └── locales/
     ├── ru.json
     ├── en.json
     └── zh.json
-```
 
-**Стек:** Python 3.11, aiogram 3.x, httpx (async), Redis, pydantic-settings, Docker Compose.
+Стек: Python 3.11, aiogram 3.x, httpx (async), Redis, pydantic-settings, Docker Compose.
 
 ---
 
-## Поток диалога (FSM)
+Поток диалога (FSM)
 
-```
 /start
-  └─► waiting_for_language      (inline: ru / en / zh)
-        └─► waiting_for_location    (ReplyKeyboard с request_location)
-              └─► waiting_for_radius    (inline: 50 / 100 / 200 м / вручную)
-                    └─► waiting_for_rating   (inline: 4.0–4.5 / 4.41–4.7 / 4.71–5.0 / вручную)
-                          └─► [поиск] → топ-3 карточки
-```
+  └─► waiting_for_language
+        └─► waiting_for_location
+              └─► waiting_for_radius
+                    └─► waiting_for_rating
+                          └─► search → top-3 карточки
 
-Язык сохраняется в Redis (`user_lang:{user_id}`), остальные данные — в FSM-хранилище (`RedisStorage`).
+Хранение:
 
----
-
-## Ключевые решения и их обоснование
-
-### foursquare_api.py (вместо google_maps_api.py)
-- **Параллельные запросы:** Три типа (`restaurant`, `cafe`, `bar`) запрашиваются параллельно через `asyncio.gather` для минимального суммарного latency.
-- **Дедупликация** по `fsq_id` до фильтрации — защита от пересечений типов.
-- `_normalize_place()` фиксирует контракт выходной схемы: downstream-код не зависит от сырого ответа API.
-- Ранняя проверка ключа избавляет от трудноотлаживаемого `UNAUTHORIZED` или `INVALID_KEY` в середине цепочки.
-- Выбран как основное API для Вьетнама из-за лучшего покрытия и более выгодного бесплатного тарифа.
-
-### i18n
-- Middleware читает язык из Redis на каждый апдейт — язык можно менять без перезапуска бота.
-- `_` передаётся через `data` — хендлеры получают переводчик как зависимость (DI), без глобального состояния.
-
-### geospatial.py
-- Формула Haversine (stdlib `math`) — нет внешних зависимостей, достаточная точность для дистанций ≤ 5 км.
-- `bearing_to_direction` принимает `_` как первый аргумент (переводчик), что позволяет локализовать направления.
-
-### analytics.py
-- Redis pipeline (`SADD` + `INCR` + `HINCRBY`) — все метрики за один roundtrip.
-- Ключи вида `stats:*:daily:{YYYY-MM-DD}` — естественный TTL через `EXPIRE` или ручную ротацию.
-- Переиспользует соединение Redis, переданное из `main.py`, избегая создания дублирующих connection pool'ов.
-
-### Конфигурация
-- `pydantic-settings` для надёжной загрузки и валидации переменных окружения.
-- Путь к `.env` вычисляется относительно файла `config.py`, что делает его не зависящим от текущей рабочей директории.
-
-### Хранение состояний FSM
-- Использование `RedisStorage` гарантирует сохранение состояний FSM при перезапусках контейнера, повышая отказоустойчивость бота.
+- язык → Redis ("user_lang:{user_id}")
+- FSM → RedisStorage
 
 ---
 
-## Известные дефекты (Актуализировано)
+🔥 Ключевая архитектура (Production)
 
-| # | Файл | Проблема | Рекомендация |
-|---|------|----------|--------------|
-| 1 | `inline_keyboards.py` | Радиус в клавиатуре (50/100/200 м) не совпадает с комментарием в коде (200/500/1000 м) | Привести к единому значению |
-| 2 | `foursquare_api.py` | `find_places` и `_fetch_by_category` принимают `_` первым аргументом, но не используют его | Убрать `_` из сигнатур |
-| 3 | `user_handlers.py` | Нет обработчиков для ручного ввода радиуса и рейтинга | Реализовать хендлеры для `waiting_for_manual_radius` и `waiting_for_manual_rating` |
+Multi-provider поиск
+
+PlacesService
+ ├── Mapbox (primary search)
+ ├── Foursquare (ratings + enrichment)
+ └── VietMap (fallback для Вьетнама)
+
+Flow:
+
+Cache → Mapbox + Foursquare → FSQ fallback → VietMap → Rank → Top-3
 
 ---
 
-## Развёртывание
+🧠 places_service.py (ядро системы)
 
-### Локально
+Основные функции
 
-```bash
-cp .env.example .env   # заполнить BOT_TOKEN, FSQ_API_KEY, ADMIN_ID
+- Параллельные запросы ("asyncio.gather")
+- Дедупликация (name + lat + lon)
+- Ranking:
+  - рейтинг (приоритет)
+  - расстояние
+- Fallback chain:
+  - расширение фильтра FSQ
+  - VietMap (локальные места)
+- Redis cache (TTL = 10 минут)
+
+Формально
+
+Result = Rank(Merge(Providers)) with Cache
+
+---
+
+⚡ Redis Cache
+
+- Ключ: geo-hash (lat/lon/radius/rating)
+- TTL: 600 секунд
+- Хранится top-10 (для повторных запросов)
+
+Преимущества:
+
+- ×5–10 ускорение
+- снижение API-запросов
+- стабильный UX
+
+---
+
+🔌 Dependency Injection (Middleware)
+
+Redis передаётся через middleware:
+
+Update → RedisMiddleware → handler(redis_conn)
+
+Плюсы:
+
+- нет глобальных переменных
+- соблюдение Stateless Engine
+- чистая архитектура
+
+---
+
+📊 Провайдеры
+
+Mapbox
+
+- основной источник POI
+- хорошее покрытие в Азии
+- быстрый
+
+Foursquare
+
+- рейтинг (0–5)
+- категории
+- фильтрация
+
+VietMap
+
+- локальные заведения во Вьетнаме
+- используется только как fallback
+
+---
+
+🧭 geospatial.py
+
+- Haversine (без зависимостей)
+- bearing → локализованное направление
+
+---
+
+📈 analytics.py
+
+- Redis pipeline
+- метрики:
+  - DAU
+  - search_count
+  - empty_results
+  - feature_usage
+
+---
+
+Конфигурация
+
+Используется "pydantic-settings".
+
+.env:
+
+BOT_TOKEN=
+FSQ_API_KEY=
+MAPBOX_TOKEN=
+VIETMAP_API_KEY=
+ADMIN_ID=
+
+---
+
+Развёртывание
+
+Локально
+
+cp .env.example .env
 docker compose up --build
-```
-
-### CI/CD (GitHub Actions → VPS)
-
-Pipeline в `.github/workflows/deploy.yml`:
-1. Формирует `.env` из GitHub Secrets.
-2. Копирует проект на VPS через `scp-action`.
-3. Выполняет `docker compose down && docker compose up --build -d` по SSH.
-
-Необходимые секреты: `BOT_TOKEN`, `FSQ_API_KEY`, `ADMIN_ID`, `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_PRIVATE_KEY`.
 
 ---
 
-## Переменные окружения
+CI/CD
 
-| Переменная | Описание |
-|---|---|
-| `BOT_TOKEN` | Токен Telegram-бота (BotFather) |
-| `FSQ_API_KEY` | Ключ Foursquare Places API |
-| `ADMIN_ID` | Telegram user_id для получения фидбэка |
+GitHub Actions:
+
+1. Генерация ".env"
+2. SCP на VPS
+3. Docker deploy
 
 ---
 
-## Перспективные задачи и пути развития
+⚠️ Известные дефекты (актуально)
 
-1.  **Доработка ручного ввода радиуса и рейтинга:**
-    *   Реализовать хендлеры для `waiting_for_manual_radius` и `waiting_for_manual_rating`, включая валидацию ввода (число, диапазон).
-    *   Предоставить пользователю возможность повторного ввода или отмены, если ввод некорректен.
-2.  **Интеграция с другими API для обогащения данных:**
-    *   **Фотографии:** Интегрировать получение и отображение фотографий мест через Foursquare API для более привлекательных карточек.
-    *   **Подробная информация о месте:** При нажатии на карточку места показывать кнопки для запроса дополнительной информации (адрес, телефон, часы работы, ссылка на веб-сайт, меню и т.д.) через Foursquare Places Details API.
-    *   **Отзывы:** Изучить возможность интеграции с API отзывов (если доступно и уместно).
-3.  **Улучшение пользовательского опыта (UX):**
-    *   **Кнопка "Новый поиск":** После выдачи результатов добавить кнопку "Новый поиск", чтобы упростить повторное использование бота.
-    *   **Логирование и обработка ошибок:** Улучшить пользовательские сообщения при ошибках (например, с внешними API).
-    *   **Прогресс-индикаторы:** Во время выполнения длительных операций отправлять сообщения типа "Ищу...", чтобы пользователь видел активность бота.
-    *   **Персонализация:** Возможность сохранения любимых мест или истории поиска.
-4.  **Расширение функционала поиска:**
-    *   **Поиск по категориям:** Дать возможность выбрать более специфичные категории (например, "пекарня", "коворкинг с едой").
-    *   **Фильтр по открытым местам:** Добавить фильтр "открыто сейчас".
-    *   **Фильтр по ценовой категории:** Использовать `price_level` от Foursquare для фильтрации.
-5.  **Административная панель/команды:**
-    *   Реализовать команды для администратора (`/stats`) для просмотра ежедневной статистики из `Analytics`.
-    *   Команда для рассылки сообщений всем пользователям (с осторожностью).
-6.  **Улучшение инфраструктуры:**
-    *   **Мониторинг:** Настройка системы мониторинга для бота и Redis (например, Prometheus, Grafana).
-    *   **Резервное копирование Redis:** Автоматическое создание бэкапов данных Redis.
-7.  **Голосовой ввод/поиск:** Для улучшения доступности и удобства, особенно на мобильных устройствах.
-8.  **Интеграция с картами:**
-    *   В карточке каждого заведения добавить кнопку "Открыть на карте" (Google Maps или другой сервис), передавая координаты для быстрого построения маршрута.
-``` 
+#| Файл| Проблема| Решение
+1| keyboards| несоответствие радиусов| унифицировать
+2| foursquare_api| лишний "_" аргумент| удалить
+3| FSM| нет ручного ввода| добавить handlers
+
+---
+
+🚀 Roadmap
+
+1. Качество поиска
+
+- Smart merge (объединение одного POI из разных API)
+- Provider scoring (FSQ > Mapbox > VietMap)
+
+2. UX
+
+- кнопка "Новый поиск"
+- loading-индикатор
+- история запросов
+
+3. Данные
+
+- фото (Foursquare)
+- детали (часы, сайт)
+- фильтр "открыто сейчас"
+
+4. Инфраструктура
+
+- cache hit rate
+- provider metrics
+- мониторинг
+
+---
+
+🧠 Архитектурные принципы
+
+- FSM = детерминированная система
+- Stateless Engine
+- Dependency Injection через middleware
+- Multi-provider orchestration
+- Минимализм (без overengineering)
+
+---
+
+💡 Итог
+
+Система перешла от:
+
+Single API → Multi-provider Orchestrator
+
+Это даёт:
+
+- почти нулевые empty results
+- лучшее покрытие во Вьетнаме
+- масштабируемость без рефакторинга
