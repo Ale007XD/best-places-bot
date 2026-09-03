@@ -40,9 +40,9 @@ def get_rating_keyboard(_) -> InlineKeyboardMarkup:
     Предустановленные узкие диапазоны рейтинга + ручной ввод для гибкости.
     """
     buttons = [
-        [InlineKeyboardButton(text=_( "rating_range_1"), callback_data="rating_4.0_4.5")],
-        [InlineKeyboardButton(text=_( "rating_range_2"), callback_data="rating_4.41_4.7")],
-        [InlineKeyboardButton(text=_( "rating_range_3"), callback_data="rating_4.71_5.0")],
+        [InlineKeyboardButton(text=_( "rating_range_1"), callback_data="rating_4.5_4.7")],
+        [InlineKeyboardButton(text=_( "rating_range_2"), callback_data="rating_4.8_4.9")],
+        [InlineKeyboardButton(text=_( "rating_range_3"), callback_data="rating_5.0_5.0")],
         [InlineKeyboardButton(text=_( "manual_input_btn"), callback_data="manual_rating_input")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -13,11 +13,9 @@
 """
 
 import logging
-from typing import Tuple, Optional
 
-import redis.asyncio as redis
-from aiogram import Router, F, types, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram import Router, F, Bot
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
@@ -225,7 +223,7 @@ async def set_radius(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("rating_"), SearchSteps.waiting_for_rating)
-async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, analytics=None, **kwargs):
+async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs):
     """
     Обработаем предустановленный диапазон рейтинга и запустим поиск.
     """
@@ -246,6 +244,7 @@ async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, ana
     await process_and_send_results(
         callback.message.chat.id, callback.bot, state,
         min_rating, max_rating, _t(lang_code), lang_code,
+        redis_conn,
         analytics=analytics,
     )
     await callback.answer()
