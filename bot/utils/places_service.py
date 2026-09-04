@@ -21,8 +21,9 @@ def _make_cache_key(
     radius: int,
     min_rating: float,
     max_rating: float,
+    lang_code: str,
 ) -> str:
-    raw = f"{round(lat,4)}:{round(lon,4)}:{radius}:{min_rating}:{max_rating}"
+    raw = f"{round(lat,4)}:{round(lon,4)}:{radius}:{min_rating}:{max_rating}:{lang_code}"
     h = hashlib.md5(raw.encode()).hexdigest()
     return f"places:{h}"
 
@@ -40,11 +41,12 @@ def _deduplicate(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return result
 
 
-def _score(place: Dict[str, Any], user_lat: float, user_lon: float) -> float:
+def _score(place: Dict[str, Any], user_lat: float, user_lon: float, radius: int) -> float:
     """
     Ranking:
     - приоритет рейтинга (FSQ)
-    - затем расстояние
+    - затем расстояние (линейно по всему радиусу, а не 1/(1+d) — та функция
+      схлопывалась к ~0 уже к 50м и дистанция переставала на что-либо влиять)
     """
 
     rating = float(place.get("rating") or 0.0)
@@ -53,12 +55,12 @@ def _score(place: Dict[str, Any], user_lat: float, user_lon: float) -> float:
     lon = place.get("lon")
 
     if lat is None or lon is None:
-        return rating
+        return 0.7 * rating
 
     distance = calculate_distance(user_lat, user_lon, float(lat), float(lon))
 
-    # чем ближе — тем выше score
-    distance_score = 1 / (1 + distance)
+    # чем ближе — тем выше score; на границе радиуса вклад дистанции — 0
+    distance_score = max(0.0, 1 - (distance / radius)) if radius > 0 else 0.0
 
     return 0.7 * rating + 0.3 * distance_score
 
@@ -88,7 +90,7 @@ async def search_places(
     6. Cache write
     """
 
-    cache_key = _make_cache_key(lat, lon, radius, min_rating, max_rating)
+    cache_key = _make_cache_key(lat, lon, radius, min_rating, max_rating, lang_code)
 
     # 🔹 1. CACHE READ
     try:
@@ -106,7 +108,7 @@ async def search_places(
         lat=lat,
         lon=lon,
         radius=radius,
-        limit=30,
+        limit=10,  # Geocoding v5: максимум 10, find_places_mapbox дополнительно зажимает сам
         lang_code=lang_code,
         access_token=mapbox_token,
     )
@@ -127,6 +129,12 @@ async def search_places(
     merged = mapbox_results + fsq_results
     merged = _deduplicate(merged)
 
+    # Если ниже сработает фолбэк — итоговый список перестанет строго
+    # соответствовать запрошенному диапазону рейтинга, и его нельзя будет
+    # закэшировать под ключом этого диапазона (иначе следующий пользователь
+    # с тем же диапазоном получит из кэша чужой, нерелевантный результат).
+    used_widened_fallback = False
+
     # 🔹 3. FALLBACK #1 — расширяем FSQ
     if len(merged) < 3:
         logging.info("Fallback: expanding Foursquare search")
@@ -142,6 +150,9 @@ async def search_places(
             lang_code=lang_code,
         )
 
+        if fsq_fallback:
+            used_widened_fallback = True
+
         merged.extend(fsq_fallback)
         merged = _deduplicate(merged)
 
@@ -156,24 +167,30 @@ async def search_places(
             api_key=vietmap_api_key,
         )
 
+        if vietmap_results:
+            used_widened_fallback = True  # у VietMap рейтинга нет вовсе
+
         merged.extend(vietmap_results)
         merged = _deduplicate(merged)
 
     # 🔹 5. RANKING
     ranked = sorted(
         merged,
-        key=lambda p: _score(p, lat, lon),
+        key=lambda p: _score(p, lat, lon, radius),
         reverse=True,
     )
 
-    # 🔹 6. CACHE WRITE
-    try:
-        await redis_conn.setex(
-            cache_key,
-            CACHE_TTL,
-            json.dumps(ranked[:10])  # кешируем больше, чем отдаём
-        )
-    except Exception as e:
-        logging.warning("Cache write failed: %s", e)
+    # 🔹 6. CACHE WRITE — только «честные» результаты в исходном диапазоне
+    if not used_widened_fallback:
+        try:
+            await redis_conn.setex(
+                cache_key,
+                CACHE_TTL,
+                json.dumps(ranked[:10])  # кешируем больше, чем отдаём
+            )
+        except Exception as e:
+            logging.warning("Cache write failed: %s", e)
+    else:
+        logging.info("Skipping cache write: results widened beyond requested rating range")
 
     return ranked

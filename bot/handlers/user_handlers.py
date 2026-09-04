@@ -12,6 +12,7 @@
   чтобы устранить TypeError и несоответствие позиций аргументов.
 """
 
+import html
 import logging
 
 from aiogram import Router, F, Bot
@@ -62,10 +63,10 @@ def _format_place_card(
     """
     Формирует текст карточки места с расстоянием и направлением.
     """
-    name = place.get("name", "—")
+    name = html.escape(str(place.get("name") or "—"))
     rating = place.get("rating", "—")
-    ratings_total = place.get("user_ratings_total", 0)
-    vicinity = place.get("vicinity") or "—"
+    ratings_total = int(place.get("user_ratings_total") or 0)
+    vicinity = html.escape(str(place.get("vicinity") or "—"))
     plat = place.get("lat")
     plon = place.get("lon")
 
@@ -80,7 +81,7 @@ def _format_place_card(
 
     return (
         f"📍 <b>{name}</b>\n"
-        f"⭐️ {rating} ({int(ratings_total)})\n"
+        f"⭐️ {rating} ({ratings_total})\n"
         f"🧭 {distance_m} • {direction_txt}\n"
         f"🗺 {vicinity}"
     )
@@ -227,6 +228,10 @@ async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, red
     """
     Обработаем предустановленный диапазон рейтинга и запустим поиск.
     """
+    # Отвечаем сразу: сам поиск может занять 5-15 сек (несколько провайдеров + fallback'и),
+    # а Telegram считает callback_query "протухшим" по истечении окна ожидания ответа.
+    await callback.answer()
+
     data = await state.get_data()
     lang_code = data.get("lang_code", "ru")
 
@@ -247,7 +252,6 @@ async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, red
         redis_conn,
         analytics=analytics,
     )
-    await callback.answer()
 
 
 # Ниже могут быть обработчики ручного ввода радиуса и рейтинга, команда /feedback и т.д.

@@ -6,6 +6,8 @@ from typing import List, Dict, Any
 
 import httpx
 
+from bot.utils.geospatial import calculate_distance
+
 
 def _bbox_from_radius(lat: float, lon: float, radius: int) -> str:
     """
@@ -41,7 +43,8 @@ async def find_places_mapbox(
         "proximity": f"{lon},{lat}",
         "bbox": _bbox_from_radius(lat, lon, radius),
         "types": "poi",
-        "limit": limit,
+        # У Geocoding v5 максимум — 10 (запрошенное значение молча обрежется/даст ошибку).
+        "limit": max(1, min(int(limit), 10)),
         "language": lang_code,
         "access_token": access_token,
     }
@@ -57,7 +60,15 @@ async def find_places_mapbox(
         data = r.json()
         features = data.get("features", [])
 
-        return [_normalize(f) for f in features]
+        places = [_normalize(f) for f in features]
+
+        # bbox — квадрат вокруг точки, его углы дальше radius (до ~1.41×radius).
+        # Отсекаем всё, что реально дальше запрошенного радиуса.
+        return [
+            p for p in places
+            if p.get("lat") is not None and p.get("lon") is not None
+            and calculate_distance(lat, lon, p["lat"], p["lon"]) <= radius
+        ]
 
     except Exception as e:
         logging.error("Mapbox request failed: %s", e)

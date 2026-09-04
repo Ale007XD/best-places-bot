@@ -18,6 +18,8 @@ jobs:
         run: |
           echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
           echo "FSQ_API_KEY=${{ secrets.FSQ_API_KEY }}" >> .env
+          echo "MAPBOX_TOKEN=${{ secrets.MAPBOX_TOKEN }}" >> .env
+          echo "VIETMAP_API_KEY=${{ secrets.VIETMAP_API_KEY }}" >> .env
           echo "ADMIN_ID=${{ secrets.ADMIN_ID }}" >> .env
 
       # 3. Копирование проекта на VPS через SCP-ACTION (без git на сервере!)
@@ -28,7 +30,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           # указывайте ВСЕ реально используемые файлы/папки вашего проекта
-          source: ".env,bot,fonts,Dockerfile,docker-compose.yml,requirements.txt"
+          source: ".env,bot,Dockerfile,docker-compose.yml,requirements.txt"
           target: "~/best-places-bot"
 
       # 4. Подключение к VPS и запуск/обновление контейнера

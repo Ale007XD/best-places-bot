@@ -95,7 +95,7 @@ def _normalize_place(p: Dict[str, Any]) -> Dict[str, Any]:
         "place_id": p.get("fsq_id"),
         "name": p.get("name"),
         "rating": rating,
-        "user_ratings_total": (p.get("stats") or {}).get("total_ratings", 0),
+        "user_ratings_total": (p.get("stats") or {}).get("total_ratings") or 0,
         "types": [c.get("name", "") for c in cats],
         "primary_type": primary_type,
         "lat": geo.get("latitude"),
