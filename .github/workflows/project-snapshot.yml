@@ -32,7 +32,7 @@ jobs:
             rel_path="./$file"
             if [ -f "$rel_path" ]; then
               size=$(stat -c%s "$rel_path" 2>/dev/null || echo 0)
-              if [ "$size" -lt 500000 ] && [[ "$file" =~ \.(py|js|ts|jsx|tsx|json|md|txt|yml|yaml|sh|cfg|ini|toml)$ ]]; then
+              if [[ "$file" == "Dockerfile" ]] || [[ "$file" =~ \.(py|js|ts|json|md|txt|yml|yaml|sh|toml)$ ]]; then
                 content=$(cat "$rel_path" 2>/dev/null | base64 -w0 || echo "[Error]")
               else
                 content="[File excluded or too large]"
