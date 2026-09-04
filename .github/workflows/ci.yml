@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"            # прод = Dockerfile python:3.11-slim
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      # Только линтеры: ruff и mypy --ignore-missing-imports не требуют
+      # установки рантайм-зависимостей — job выполняется за секунды.
+      - name: Install linters
+        run: pip install ruff mypy
+
+      - name: ruff check
+        run: ruff check bot/ scripts/
+
+      - name: Bytecode check
+        run: python -m compileall -q bot/ scripts/
+
+      # Код пока без аннотаций: mypy не блокирующий.
+      # Перевести в блокирующие, когда вывод станет пустым (убрать continue-on-error).
+      - name: mypy (advisory)
+        run: mypy bot/ --ignore-missing-imports
+        continue-on-error: true
+
+  smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Фейковые значения — только чтобы bot.config.Settings() прошёл валидацию
+      # при импорте. Запросов к Telegram/FSQ/Mapbox CI не делает.
+      BOT_TOKEN: "123456:CI-FAKE"
+      FSQ_API_KEY: "fake"
+      MAPBOX_TOKEN: "fake"
+      VIETMAP_API_KEY: "fake"
+      ADMIN_ID: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Smoke test
+        run: python scripts/smoke.py
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Первая автоматическая валидация docker-compose.yml — файла, который
+      # ни разу не попадал в ревью. Dummy .env нужен на случай env_file в compose.
+      - name: Validate docker-compose.yml
+        run: |
+          printf 'BOT_TOKEN=fake\nFSQ_API_KEY=fake\nMAPBOX_TOKEN=fake\nVIETMAP_API_KEY=fake\nADMIN_ID=1\n' > .env
+          docker compose config --quiet
+
+      - name: Build image
+        run: docker build -t best-places-bot:ci .
