@@ -65,8 +65,10 @@ async def find_places_mapbox(
         # bbox — квадрат вокруг точки, его углы дальше radius (до ~1.41×radius).
         # Отсекаем всё, что реально дальше запрошенного радиуса.
         return [
-            p for p in places
-            if p.get("lat") is not None and p.get("lon") is not None
+            p
+            for p in places
+            if p.get("lat") is not None
+            and p.get("lon") is not None
             and calculate_distance(lat, lon, p["lat"], p["lon"]) <= radius
         ]
 
@@ -95,4 +97,4 @@ def _normalize(f: Dict[str, Any]) -> Dict[str, Any]:
         "icon": None,
         "icon_background_color": None,
         "permanently_closed": None,
-  }
+    }

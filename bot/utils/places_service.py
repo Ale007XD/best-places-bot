@@ -23,7 +23,7 @@ def _make_cache_key(
     max_rating: float,
     lang_code: str,
 ) -> str:
-    raw = f"{round(lat,4)}:{round(lon,4)}:{radius}:{min_rating}:{max_rating}:{lang_code}"
+    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{min_rating}:{max_rating}:{lang_code}"
     h = hashlib.md5(raw.encode()).hexdigest()
     return f"places:{h}"
 
@@ -41,7 +41,9 @@ def _deduplicate(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return result
 
 
-def _score(place: Dict[str, Any], user_lat: float, user_lon: float, radius: int) -> float:
+def _score(
+    place: Dict[str, Any], user_lat: float, user_lon: float, radius: int
+) -> float:
     """
     Ranking:
     - приоритет рейтинга (FSQ)

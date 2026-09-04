@@ -66,7 +66,9 @@ async def _fetch_by_category(
         if not r.is_success:
             logging.error(
                 "FSQ error for category %s: HTTP %s — %s",
-                category_id, r.status_code, r.text[:300],
+                category_id,
+                r.status_code,
+                r.text[:300],
             )
             return []
         data = r.json()
@@ -89,7 +91,9 @@ def _normalize_place(p: Dict[str, Any]) -> Dict[str, Any]:
     raw_rating = p.get("rating")
     rating = round(float(raw_rating) / 2, 2) if raw_rating is not None else None
 
-    primary_type = cats[0].get("name", "point_of_interest") if cats else "point_of_interest"
+    primary_type = (
+        cats[0].get("name", "point_of_interest") if cats else "point_of_interest"
+    )
 
     return {
         "place_id": p.get("fsq_id"),

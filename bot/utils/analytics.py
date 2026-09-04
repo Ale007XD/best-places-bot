@@ -34,7 +34,9 @@ class Analytics:
 
     async def track_feature_use(self, feature: str, value):
         """Отслеживает использование конкретной фичи (например, радиуса)."""
-        await self.r.hincrby(f"stats:features:{feature}:{self._get_today_str()}", str(value), 1)
+        await self.r.hincrby(
+            f"stats:features:{feature}:{self._get_today_str()}", str(value), 1
+        )
 
     async def get_today_stats(self) -> dict:
         """Собирает всю статистику за сегодня одним pipeline."""
@@ -58,4 +60,3 @@ class Analytics:
             "radius_usage": results[4],
             "rating_usage": results[5],
         }
-

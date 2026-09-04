@@ -3,6 +3,7 @@
 Требует env-переменных для bot.config.Settings() — в CI их задаёт workflow
 (job smoke), локально: BOT_TOKEN=x FSQ_API_KEY=x MAPBOX_TOKEN=x VIETMAP_API_KEY=x ADMIN_ID=1.
 """
+
 import asyncio
 
 import redis.asyncio as aioredis
@@ -28,7 +29,9 @@ def check_locales() -> None:
 
 def check_geospatial() -> None:
     assert calculate_distance(0, 0, 0, 0) == 0
-    assert abs(calculate_distance(0, 0, 0, 1) - 111_320) < 1_000  # ~1° долготы на экваторе
+    assert (
+        abs(calculate_distance(0, 0, 0, 1) - 111_320) < 1_000
+    )  # ~1° долготы на экваторе
     brg = calculate_bearing(0, 0, 1, 0)
     assert abs(brg - 90) < 1  # строго на восток
 

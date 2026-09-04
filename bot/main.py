@@ -14,10 +14,10 @@ async def main():
     """Основная функция для настройки и запуска бота."""
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
-    redis_conn = redis.Redis(host='redis', port=6379, decode_responses=True)
+    redis_conn = redis.Redis(host="redis", port=6379, decode_responses=True)
 
     # RedisStorage: FSM-состояния переживают рестарт контейнера
     storage = RedisStorage(redis=redis_conn)

@@ -19,9 +19,19 @@ from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+    CallbackQuery,
+)
 
-from bot.utils.geospatial import calculate_distance, calculate_bearing, bearing_to_direction
+from bot.utils.geospatial import (
+    calculate_distance,
+    calculate_bearing,
+    bearing_to_direction,
+)
 from bot.keyboards import inline_keyboards
 from bot.utils.places_service import search_places
 from bot.config import settings
@@ -31,6 +41,7 @@ router = Router()
 
 
 # --- Состояния FSM ---
+
 
 class SearchSteps(StatesGroup):
     waiting_for_language = State()
@@ -46,6 +57,7 @@ class FeedbackState(StatesGroup):
 
 
 # --- Вспомогательные функции ---
+
 
 def _t(lang_code: str):
     """
@@ -108,7 +120,12 @@ async def process_and_send_results(
 
     logging.info(
         "Searching places: lat=%s lon=%s radius=%s min_rating=%s max_rating=%s lang=%s",
-        lat, lon, radius, min_rating, max_rating, lang_code
+        lat,
+        lon,
+        radius,
+        min_rating,
+        max_rating,
+        lang_code,
     )
 
     all_candidates = await search_places(
@@ -123,7 +140,7 @@ async def process_and_send_results(
         mapbox_token=settings.MAPBOX_TOKEN,
         vietmap_api_key=settings.VIETMAP_API_KEY,  # ВьетМап
         redis_conn=redis_conn,  # Кэш
-     )
+    )
 
     logging.info("Places fetched: %s before final capping", len(all_candidates))
 
@@ -139,7 +156,9 @@ async def process_and_send_results(
             await analytics.track_empty_result()
         await bot.send_message(
             chat_id,
-            get_string("no_results", lang=lang_code) + "\n" + get_string("try_another_range", lang=lang_code),
+            get_string("no_results", lang=lang_code)
+            + "\n"
+            + get_string("try_another_range", lang=lang_code),
         )
         return
 
@@ -152,6 +171,7 @@ async def process_and_send_results(
 
 
 # --- Хендлеры диалога ---
+
 
 @router.message(CommandStart())
 async def handle_start(message: Message, state: FSMContext):
@@ -166,7 +186,9 @@ async def handle_start(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("lang_"))
-async def set_language(callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs):
+async def set_language(
+    callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs
+):
     """
     Сохраняем выбранный язык в FSM и в Redis (для I18nMiddleware).
     """
@@ -179,11 +201,20 @@ async def set_language(callback: CallbackQuery, state: FSMContext, redis_conn, a
     # Клавиатура для отправки геопозиции
     kb = ReplyKeyboardMarkup(
         resize_keyboard=True,
-        keyboard=[[KeyboardButton(text=get_string("send_location_btn", lang=lang_code), request_location=True)]],
+        keyboard=[
+            [
+                KeyboardButton(
+                    text=get_string("send_location_btn", lang=lang_code),
+                    request_location=True,
+                )
+            ]
+        ],
         one_time_keyboard=True,
     )
 
-    await callback.message.answer(get_string("request_location", lang=lang_code), reply_markup=kb)
+    await callback.message.answer(
+        get_string("request_location", lang=lang_code), reply_markup=kb
+    )
     await state.set_state(SearchSteps.waiting_for_location)
     await callback.answer()
 
@@ -196,9 +227,16 @@ async def got_location(message: Message, state: FSMContext):
     data = await state.get_data()
     lang_code = data.get("lang_code", "ru")
 
-    await state.update_data(latitude=message.location.latitude, longitude=message.location.longitude)
-    await message.answer(get_string("select_radius", lang=lang_code), reply_markup=ReplyKeyboardRemove())
-    await message.answer(get_string("thanks", lang=lang_code), reply_markup=inline_keyboards.get_radius_keyboard(_t(lang_code)))
+    await state.update_data(
+        latitude=message.location.latitude, longitude=message.location.longitude
+    )
+    await message.answer(
+        get_string("select_radius", lang=lang_code), reply_markup=ReplyKeyboardRemove()
+    )
+    await message.answer(
+        get_string("thanks", lang=lang_code),
+        reply_markup=inline_keyboards.get_radius_keyboard(_t(lang_code)),
+    )
     await state.set_state(SearchSteps.waiting_for_radius)
 
 
@@ -214,13 +252,18 @@ async def set_radius(callback: CallbackQuery, state: FSMContext):
     radius = int(callback.data.split("_", 1)[1])
     await state.update_data(radius=radius)
 
-    await callback.message.answer(get_string("select_rating_range", lang=lang_code), reply_markup=inline_keyboards.get_rating_keyboard(_t(lang_code)))
+    await callback.message.answer(
+        get_string("select_rating_range", lang=lang_code),
+        reply_markup=inline_keyboards.get_rating_keyboard(_t(lang_code)),
+    )
     await state.set_state(SearchSteps.waiting_for_rating)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("rating_"), SearchSteps.waiting_for_rating)
-async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs):
+async def get_rating_from_button(
+    callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs
+):
     """
     Обработаем предустановленный диапазон рейтинга и запустим поиск.
     """
@@ -243,8 +286,13 @@ async def get_rating_from_button(callback: CallbackQuery, state: FSMContext, red
     await callback.message.answer(get_string("searching", lang=lang_code))
 
     await process_and_send_results(
-        callback.message.chat.id, callback.bot, state,
-        min_rating, max_rating, _t(lang_code), lang_code,
+        callback.message.chat.id,
+        callback.bot,
+        state,
+        min_rating,
+        max_rating,
+        _t(lang_code),
+        lang_code,
         redis_conn,
         analytics=analytics,
     )
