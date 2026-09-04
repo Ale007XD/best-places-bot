@@ -64,7 +64,7 @@ def _format_place_card(
     Формирует текст карточки места с расстоянием и направлением.
     """
     name = html.escape(str(place.get("name") or "—"))
-    rating = place.get("rating", "—")
+    rating = place.get("rating") or "—"
     ratings_total = int(place.get("user_ratings_total") or 0)
     vicinity = html.escape(str(place.get("vicinity") or "—"))
     plat = place.get("lat")
@@ -125,17 +125,13 @@ async def process_and_send_results(
         redis_conn=redis_conn,  # Кэш
      )
 
-    logging.info("Places fetched: %s before final sorting/capping", len(all_candidates))
+    logging.info("Places fetched: %s before final capping", len(all_candidates))
 
-    # Сортировка по рейтингу и количеству оценок
-    all_candidates.sort(
-        key=lambda p: (
-            float(p.get("rating") or 0.0),
-            int(p.get("user_ratings_total") or 0),
-        ),
-        reverse=True,
-    )
-
+    # Порядок уже задан search_places()._score (рейтинг + линейная дистанция) —
+    # он же используется при записи в кэш. Пересортировка здесь означала бы:
+    # 1) дистанция из _score никак не влияет на то, что видит пользователь;
+    # 2) на cache hit (top-10 по _score) и cache miss (полный список) можно
+    #    получить РАЗНЫЙ top-3 для одного и того же запроса.
     top = all_candidates[:3]
 
     if not top:

@@ -180,17 +180,23 @@ async def search_places(
         reverse=True,
     )
 
-    # 🔹 6. CACHE WRITE — только «честные» результаты в исходном диапазоне
-    if not used_widened_fallback:
+    # 🔹 6. CACHE WRITE — только «честные» результаты в исходном диапазоне.
+    # Кэшируем, только если явный фолбэк не расширял диапазон И среди того,
+    # что реально уйдёт в кэш, нет мест без рейтинга вовсе. Второе условие
+    # нужно отдельно: Mapbox/VietMap (rating=None) не проходят фильтр диапазона
+    # ни на одном этапе, но Mapbox мержится в merged на шаге 2 безусловно —
+    # если его одного хватило на >=3 места, ни один фолбэк не сработает,
+    # used_widened_fallback останется False, а нерейтингованное место всё
+    # равно попадёт в кэш под ключом узкого диапазона.
+    to_cache = ranked[:10]  # кешируем больше, чем отдаём
+    has_unrated = any(p.get("rating") is None for p in to_cache)
+
+    if not used_widened_fallback and not has_unrated:
         try:
-            await redis_conn.setex(
-                cache_key,
-                CACHE_TTL,
-                json.dumps(ranked[:10])  # кешируем больше, чем отдаём
-            )
+            await redis_conn.setex(cache_key, CACHE_TTL, json.dumps(to_cache))
         except Exception as e:
             logging.warning("Cache write failed: %s", e)
     else:
-        logging.info("Skipping cache write: results widened beyond requested rating range")
+        logging.info("Skipping cache write: results widened or contain unrated places")
 
     return ranked
