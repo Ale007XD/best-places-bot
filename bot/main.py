@@ -10,6 +10,7 @@ from bot.handlers import user_handlers
 from bot.middlewares.i18n import I18nMiddleware
 from bot.utils.analytics import Analytics
 
+logger = logging.getLogger(__name__)
 
 async def main():
     """Основная функция для настройки и запуска бота."""

@@ -12,6 +12,7 @@
 """
 
 import html
+import logging
 
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandStart
@@ -34,6 +35,8 @@ from bot.utils.geospatial import (
     calculate_distance,
 )
 from bot.utils.places_service import search_places
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
