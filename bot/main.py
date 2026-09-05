@@ -36,7 +36,7 @@ async def main():
 
     await bot.delete_webhook(drop_pending_updates=True)
 
-    logging.info("Запуск бота...")
+    logger.info("Запуск бота...")
     await dp.start_polling(bot)
 
 
@@ -44,4 +44,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logging.info("Бот остановлен.")
+        logger.info("Бот остановлен.")

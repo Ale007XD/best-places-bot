@@ -1,5 +1,4 @@
 # bot/utils/analytics.py
-from datetime import date
 
 import redis.asyncio as redis
 
@@ -10,8 +9,8 @@ class Analytics:
         self.r = redis_conn
 
     def _get_today_str(self) -> str:
-        """Возвращает сегодняшнюю дату в формате ГГГГ-ММ-ДД."""
-        return date.today().isoformat()
+        """Возвращает сегодняшнюю дату (UTC) в формате ГГГГ-ММ-ДД."""
+        return datetime.now(tz=UTC).date().isoformat()
 
     async def track_user(self, user_id: int):
         """Отмечает уникального пользователя за сегодняшний день."""

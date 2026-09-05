@@ -12,7 +12,6 @@
 """
 
 import html
-import logging
 
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandStart
@@ -117,7 +116,7 @@ async def process_and_send_results(
     lon = float(user_data["longitude"])
     radius = int(user_data["radius"])
 
-    logging.info(
+    logger.info(
         "Searching places: lat=%s lon=%s radius=%s min_rating=%s max_rating=%s lang=%s",
         lat,
         lon,
@@ -141,7 +140,7 @@ async def process_and_send_results(
         redis_conn=redis_conn,  # Кэш
     )
 
-    logging.info("Places fetched: %s before final capping", len(all_candidates))
+    logger.info("Places fetched: %s before final capping", len(all_candidates))
 
     # Порядок уже задан search_places()._score (рейтинг + линейная дистанция) —
     # он же используется при записи в кэш. Пересортировка здесь означала бы:

@@ -106,7 +106,7 @@ async def search_places(
     except (RedisError, ValueError) as e:
         logger.warning("Cache read failed: %s", e)
 
-    logging.info("CACHE MISS → querying providers")
+    logger.info("CACHE MISS → querying providers")
 
     # 🔹 2. PROVIDERS (parallel)
     mapbox_task = find_places_mapbox(
