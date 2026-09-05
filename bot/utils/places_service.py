@@ -6,6 +6,10 @@ import json
 import logging
 from typing import Any
 
+from redis.exceptions import RedisError
+
+logger = logging.getLogger(__name__)
+
 from bot.utils.foursquare_api import find_places as fsq_find
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
@@ -97,10 +101,10 @@ async def search_places(
     try:
         cached = await redis_conn.get(cache_key)
         if cached:
-            logging.info("CACHE HIT")
+            logger.info("CACHE HIT")
             return json.loads(cached)
-    except Exception as e:
-        logging.warning("Cache read failed: %s", e)
+    except (RedisError, ValueError) as e:
+        logger.warning("Cache read failed: %s", e)
 
     logging.info("CACHE MISS → querying providers")
 
@@ -138,7 +142,7 @@ async def search_places(
 
     # 🔹 3. FALLBACK #1 — расширяем FSQ
     if len(merged) < 3:
-        logging.info("Fallback: expanding Foursquare search")
+        logger.info("Fallback: expanding Foursquare search")
 
         fsq_fallback = await fsq_find(
             _,
@@ -159,7 +163,7 @@ async def search_places(
 
     # 🔹 4. FALLBACK #2 — VietMap (локальные места)
     if len(merged) < 3:
-        logging.info("Fallback: VietMap activated")
+        logger.info("Fallback: VietMap activated")
 
         vietmap_results = await find_places_vietmap(
             lat=lat,
@@ -195,9 +199,9 @@ async def search_places(
     if not used_widened_fallback and not has_unrated:
         try:
             await redis_conn.setex(cache_key, CACHE_TTL, json.dumps(to_cache))
-        except Exception as e:
-            logging.warning("Cache write failed: %s", e)
+        except (RedisError, TypeError) as e:
+            logger.warning("Cache write failed: %s", e)
     else:
-        logging.info("Skipping cache write: results widened or contain unrated places")
+        logger.info("Skipping cache write: results widened or contain unrated places")
 
     return ranked

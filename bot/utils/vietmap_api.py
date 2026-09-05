@@ -1,6 +1,8 @@
 # bot/utils/vietmap_api.py
 
 import logging
+
+logger = logging.getLogger(__name__)
 from typing import Any
 
 import httpx
@@ -30,7 +32,7 @@ async def find_places_vietmap(
             r = await client.get(url, params=params, timeout=10.0)
 
         if not r.is_success:
-            logging.error("VietMap error: %s %s", r.status_code, r.text[:200])
+            logger.error("VietMap error: %s %s", r.status_code, r.text[:200])
             return []
 
         data = r.json()
@@ -38,8 +40,8 @@ async def find_places_vietmap(
 
         return [_normalize(p) for p in results]
 
-    except Exception as e:
-        logging.error("VietMap request failed: %s", e)
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("VietMap request failed: %s", e)
         return []
 
 

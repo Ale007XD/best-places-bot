@@ -4,6 +4,8 @@ import logging
 import math
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 import httpx
 
 from bot.utils.geospatial import calculate_distance
@@ -54,7 +56,7 @@ async def find_places_mapbox(
             r = await client.get(url, params=params, timeout=10.0)
 
         if not r.is_success:
-            logging.error("Mapbox error: %s %s", r.status_code, r.text[:200])
+            logger.error("Mapbox error: %s %s", r.status_code, r.text[:200])
             return []
 
         data = r.json()
@@ -72,8 +74,8 @@ async def find_places_mapbox(
             and calculate_distance(lat, lon, p["lat"], p["lon"]) <= radius
         ]
 
-    except Exception as e:
-        logging.error("Mapbox request failed: %s", e)
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("Mapbox request failed: %s", e)
         return []
 
 

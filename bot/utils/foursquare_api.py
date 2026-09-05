@@ -14,6 +14,8 @@
 
 import asyncio
 import logging
+
+logger = logging.getLogger(__name__)
 from typing import Any
 
 import httpx
@@ -42,7 +44,7 @@ async def _fetch_by_category(
     Возвращает сырые объекты из FSQ.
     """
     if not api_key or str(api_key).strip().lower() in ("none", ""):
-        logging.error("FSQ_API_KEY is empty or missing")
+        logger.error("FSQ_API_KEY is empty or missing")
         return []
 
     url = "https://api.foursquare.com/v3/places/search"
@@ -63,7 +65,7 @@ async def _fetch_by_category(
     try:
         r = await client.get(url, headers=headers, params=params, timeout=10.0)
         if not r.is_success:
-            logging.error(
+            logger.error(
                 "FSQ error for category %s: HTTP %s — %s",
                 category_id,
                 r.status_code,
@@ -73,7 +75,7 @@ async def _fetch_by_category(
         data = r.json()
         return data.get("results", [])
     except httpx.RequestError as e:
-        logging.error("FSQ request error for category %s: %s", category_id, e)
+        logger.error("FSQ request error for category %s: %s", category_id, e)
         return []
 
 
