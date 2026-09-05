@@ -8,12 +8,12 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
-logger = logging.getLogger(__name__)
-
 from bot.utils.foursquare_api import find_places as fsq_find
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.vietmap_api import find_places_vietmap
+
+logger = logging.getLogger(__name__)
 
 CACHE_TTL = 600  # 10 минут
 

@@ -1,11 +1,11 @@
 # bot/utils/vietmap_api.py
 
 import logging
-
-logger = logging.getLogger(__name__)
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 async def find_places_vietmap(

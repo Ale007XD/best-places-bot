@@ -4,11 +4,11 @@ import logging
 import math
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 import httpx
 
 from bot.utils.geospatial import calculate_distance
+
+logger = logging.getLogger(__name__)
 
 
 def _bbox_from_radius(lat: float, lon: float, radius: int) -> str:
