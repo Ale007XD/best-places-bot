@@ -2,7 +2,7 @@
 
 import logging
 import math
-from typing import List, Dict, Any
+from typing import Any
 
 import httpx
 
@@ -26,7 +26,7 @@ async def find_places_mapbox(
     limit: int,
     lang_code: str,
     access_token: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Mapbox Geocoding API (POI search)
 
@@ -77,7 +77,7 @@ async def find_places_mapbox(
         return []
 
 
-def _normalize(f: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize(f: dict[str, Any]) -> dict[str, Any]:
     coords = f.get("geometry", {}).get("coordinates", [None, None])
 
     return {

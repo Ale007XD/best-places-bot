@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Корень проекта вычисляется относительно этого файла — не зависит от CWD.

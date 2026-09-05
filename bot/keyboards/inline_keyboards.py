@@ -1,5 +1,4 @@
 # bot/keyboards/inline_keyboards.py
-# -*- coding: utf-8 -*-
 """
 Инлайн-клавиатуры для выбора языка, радиуса, рейтинга и шаринга.
 Расширены предустановки радиуса до 200/500/1000 м для практичного охвата.
@@ -7,7 +6,7 @@
 
 from urllib.parse import quote_plus
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def get_language_keyboard() -> InlineKeyboardMarkup:

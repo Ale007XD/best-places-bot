@@ -1,5 +1,4 @@
 # bot/handlers/user_handlers.py
-# -*- coding: utf-8 -*-
 """
 Пользовательские обработчики aiogram:
 - Диалог выбора языка → геолокации → радиуса → рейтинга.
@@ -15,27 +14,27 @@
 import html
 import logging
 
-from aiogram import Router, F, Bot
+from aiogram import Bot, F, Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
+    CallbackQuery,
+    KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
-    KeyboardButton,
     ReplyKeyboardRemove,
-    CallbackQuery,
 )
 
-from bot.utils.geospatial import (
-    calculate_distance,
-    calculate_bearing,
-    bearing_to_direction,
-)
-from bot.keyboards import inline_keyboards
-from bot.utils.places_service import search_places
 from bot.config import settings
+from bot.keyboards import inline_keyboards
 from bot.services.translator import get_string
+from bot.utils.geospatial import (
+    bearing_to_direction,
+    calculate_bearing,
+    calculate_distance,
+)
+from bot.utils.places_service import search_places
 
 router = Router()
 

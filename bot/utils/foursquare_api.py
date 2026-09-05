@@ -1,5 +1,4 @@
 # bot/utils/foursquare_api.py
-# -*- coding: utf-8 -*-
 """
 Интеграция с Foursquare Places API v3 (замена Google Places).
 
@@ -15,13 +14,13 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 
 # Маппинг: имя типа → ID категории Foursquare
 # Полный список: https://docs.foursquare.com/data-products/docs/categories
-CATEGORY_MAP: Dict[str, str] = {
+CATEGORY_MAP: dict[str, str] = {
     "restaurant": "13065",
     "cafe": "13032",
     "bar": "13003",
@@ -37,7 +36,7 @@ async def _fetch_by_category(
     category_id: str,
     lang_code: str,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Запрашивает заведения одной категории через FSQ Places Search.
     Возвращает сырые объекты из FSQ.
@@ -78,7 +77,7 @@ async def _fetch_by_category(
         return []
 
 
-def _normalize_place(p: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
     """
     Приводит объект FSQ к той же схеме, что google_maps_api._normalize_place.
     Рейтинг делится на 2: FSQ 0–10 → 0–5 (совместимо с фильтром).
@@ -124,7 +123,7 @@ async def find_places(
     min_rating: float,
     max_rating: float,
     lang_code: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Ищет заведения (restaurant / cafe / bar) через Foursquare Places API.
     Параллельные запросы по категориям, дедупликация по fsq_id,
@@ -140,7 +139,7 @@ async def find_places(
 
     # Дедупликация по fsq_id
     seen: set = set()
-    raw: List[Dict[str, Any]] = []
+    raw: list[dict[str, Any]] = []
     for sub in nested:
         for p in sub:
             pid = p.get("fsq_id")
@@ -151,7 +150,7 @@ async def find_places(
     normalized = [_normalize_place(p) for p in raw]
 
     # Фильтр по рейтингу
-    def in_range(p: Dict[str, Any]) -> bool:
+    def in_range(p: dict[str, Any]) -> bool:
         r = p.get("rating")
         try:
             r_val = float(r) if r is not None else 0.0

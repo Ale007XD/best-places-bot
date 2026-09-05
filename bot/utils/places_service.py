@@ -1,16 +1,15 @@
 # bot/utils/places_service.py
 
 import asyncio
-import json
 import hashlib
-from typing import List, Dict, Any
+import json
 import logging
+from typing import Any
 
 from bot.utils.foursquare_api import find_places as fsq_find
+from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.vietmap_api import find_places_vietmap
-from bot.utils.geospatial import calculate_distance
-
 
 CACHE_TTL = 600  # 10 минут
 
@@ -28,7 +27,7 @@ def _make_cache_key(
     return f"places:{h}"
 
 
-def _deduplicate(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen = set()
     result = []
 
@@ -42,7 +41,7 @@ def _deduplicate(places: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _score(
-    place: Dict[str, Any], user_lat: float, user_lon: float, radius: int
+    place: dict[str, Any], user_lat: float, user_lon: float, radius: int
 ) -> float:
     """
     Ranking:
@@ -79,7 +78,7 @@ async def search_places(
     mapbox_token: str,
     vietmap_api_key: str,
     redis_conn,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Production Places Orchestrator
 

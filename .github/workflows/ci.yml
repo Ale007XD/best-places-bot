@@ -20,7 +20,7 @@ jobs:
       # Только линтеры: ruff и mypy --ignore-missing-imports не требуют
       # установки рантайм-зависимостей — job выполняется за секунды.
       - name: Install linters
-        run: pip install ruff mypy
+        run: pip install -r requirements-dev.txt
 
       - name: ruff check
         run: ruff check bot/ scripts/

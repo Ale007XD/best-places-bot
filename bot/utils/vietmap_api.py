@@ -1,7 +1,7 @@
 # bot/utils/vietmap_api.py
 
 import logging
-from typing import List, Dict, Any
+from typing import Any
 
 import httpx
 
@@ -11,7 +11,7 @@ async def find_places_vietmap(
     lon: float,
     radius: int,
     api_key: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     VietMap Places API (fallback для Вьетнама)
     """
@@ -43,7 +43,7 @@ async def find_places_vietmap(
         return []
 
 
-def _normalize(p: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize(p: dict[str, Any]) -> dict[str, Any]:
     return {
         "place_id": p.get("id"),
         "name": p.get("name"),

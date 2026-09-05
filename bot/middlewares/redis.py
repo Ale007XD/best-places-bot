@@ -1,8 +1,10 @@
 # bot/middlewares/redis.py
 
-from typing import Callable, Dict, Any, Awaitable
-from aiogram import BaseMiddleware
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 import redis.asyncio as redis
+from aiogram import BaseMiddleware
 
 
 class RedisMiddleware(BaseMiddleware):
@@ -15,9 +17,9 @@ class RedisMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[Any, Dict[str, Any]], Awaitable[Any]],
+        handler: Callable[[Any, dict[str, Any]], Awaitable[Any]],
         event: Any,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
 
         data["redis_conn"] = self.redis_conn

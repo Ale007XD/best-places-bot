@@ -1,6 +1,7 @@
 # bot/utils/analytics.py
-import redis.asyncio as redis
 from datetime import date
+
+import redis.asyncio as redis
 
 
 class Analytics:

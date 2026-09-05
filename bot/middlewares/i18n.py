@@ -1,10 +1,12 @@
-from typing import Callable, Dict, Any, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+import redis.asyncio as redis
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-import redis.asyncio as redis
 
 # Импортируем из нового, чистого модуля
-from bot.services.translator import get_string, DEFAULT_LANG
+from bot.services.translator import DEFAULT_LANG, get_string
 
 
 class I18nMiddleware(BaseMiddleware):
@@ -14,9 +16,9 @@ class I18nMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         user = data.get("event_from_user")
 
