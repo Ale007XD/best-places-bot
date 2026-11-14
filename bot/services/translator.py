@@ -23,3 +23,11 @@ def get_string(key: str, lang: str = DEFAULT_LANG) -> str:
     return TRANSLATIONS.get(lang, {}).get(
         key, TRANSLATIONS.get(DEFAULT_LANG, {}).get(key, f"_{key}_")
     )
+
+
+def detect_language(telegram_code: str | None) -> str | None:
+    """'ru', 'en-US', 'zh-hans' → поддерживаемый код языка или None."""
+    if not telegram_code:
+        return None
+    base = telegram_code.lower().split("-")[0]
+    return base if base in TRANSLATIONS else None

@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from bot.utils.geospatial import calculate_distance
+from bot.utils.http import get_client
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,7 @@ async def find_places_mapbox(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, params=params, timeout=10.0)
+        r = await get_client().get(url, params=params)
 
         if not r.is_success:
             logger.error("Mapbox error: %s %s", r.status_code, r.text[:200])
@@ -87,16 +87,9 @@ def _normalize(f: dict[str, Any]) -> dict[str, Any]:
         "name": f.get("text"),
         "rating": None,  # Mapbox не даёт рейтинг
         "user_ratings_total": 0,
-        "types": f.get("place_type", []),
-        "primary_type": f.get("place_type", ["poi"])[0],
+        "primary_type": (f.get("place_type") or ["poi"])[0],
         "lat": coords[1],
         "lon": coords[0],
         "vicinity": f.get("place_name"),
-        "price_level": None,
-        "business_status": "OPERATIONAL",
-        "opening_hours": None,
-        "photos": [],
-        "icon": None,
-        "icon_background_color": None,
-        "permanently_closed": None,
+        "source": "mapbox",
     }

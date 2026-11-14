@@ -1,245 +1,88 @@
-Best Places Bot
+# Best Places Bot
 
-Telegram-бот для поиска лучших кафе, ресторанов и баров рядом с пользователем.
-Диалог: язык → геолокация → радиус → диапазон рейтинга → топ-3 заведения.
+Telegram-бот: топ-3 кафе, ресторана и бара рядом с пользователем.
+
+**Диалог:** геопозиция → один экран параметров (радиус + минимальный рейтинг +
+«Искать») → одно сообщение с тремя местами и кнопками «открыть на карте».
+Язык определяется автоматически (по языку Telegram), параметры запоминаются.
+
+Стек: Python 3.11, aiogram 3.x, httpx, Redis, pydantic-settings, Docker Compose.
 
 ---
 
-Архитектура
+## Быстрый запуск
 
+```bash
+cp .env.example .env      # заполнить BOT_TOKEN и FSQ_API_KEY — больше ничего не нужно
+docker compose up -d --build
+docker compose logs -f telegram-bot
+```
+
+Обязательные переменные — только `BOT_TOKEN` и `FSQ_API_KEY` (Service Key из
+Foursquare Developer Console). Остальное опционально, см. `.env.example`.
+
+Проверка ключа Foursquare одной командой:
+
+```bash
+curl -s "https://places-api.foursquare.com/places/search?ll=10.7769,106.7009&radius=500&limit=1&fsq_category_ids=13065" \
+  -H "Authorization: Bearer $FSQ_API_KEY" -H "X-Places-Api-Version: 2025-06-17"
+```
+
+Команды бота: `/start`, `/language`, `/feedback` и `/stats` (последние две — если задан `ADMIN_ID`).
+
+---
+
+## Архитектура
+
+```
 bot/
-├── main.py                  # Точка входа: Bot, Dispatcher, RedisStorage, middleware
-├── config.py                # Pydantic Settings (.env)
-├── handlers/
-│   └── user_handlers.py     # FSM-диалог + вызов поиска + отправка карточек
-├── keyboards/
-│   └── inline_keyboards.py  # Inline клавиатуры
-├── middlewares/
-│   ├── i18n.py              # Язык из Redis → `_` в data
-│   └── redis.py             # DI: прокидывает redis_conn в handlers
-├── services/
-│   └── translator.py        # Локализация (JSON)
+├── main.py                 # Bot, Dispatcher, RedisStorage (TTL 6 ч), graceful shutdown
+├── config.py               # pydantic-settings (.env)
+├── handlers/user_handlers.py   # диалог, экран параметров, поиск, /feedback, /stats
+├── keyboards/inline_keyboards.py
+├── middlewares/i18n.py     # язык (Redis → язык Telegram), redis_conn в handlers
+├── services/translator.py  # локализация (JSON)
 ├── utils/
-│   ├── places_service.py    # 🔥 Оркестратор поиска (core)
-│   ├── foursquare_api.py    # Foursquare API (rating + enrichment)
-│   ├── mapbox_api.py        # Mapbox API (primary search)
-│   ├── vietmap_api.py       # VietMap API (fallback VN)
-│   ├── geospatial.py        # Distance + bearing
-│   └── analytics.py         # Redis-метрики
-└── locales/
-    ├── ru.json
-    ├── en.json
-    └── zh.json
+│   ├── places_service.py   # оркестратор: кэш → Foursquare → (аварийно) Mapbox/VietMap → ранжирование
+│   ├── foursquare_api.py   # Places API (places-api.foursquare.com, Bearer), 1 запрос на поиск
+│   ├── mapbox_api.py       # аварийный фолбэк
+│   ├── vietmap_api.py      # аварийный фолбэк (эндпоинт не сверен с документацией!)
+│   ├── http.py             # общий httpx-клиент
+│   ├── geospatial.py       # расстояние / азимут
+│   └── analytics.py        # Redis-метрики (TTL 90 дней)
+└── locales/{ru,en,zh}.json
+```
 
-Стек: Python 3.11, aiogram 3.x, httpx (async), Redis, pydantic-settings, Docker Compose.
+### Поиск
 
----
+1. Кэш в Redis (10 мин) хранит **сырой** список мест по точке/радиусу/языку —
+   без рейтинга в ключе, поэтому смена порога рейтинга не тратит API-вызовов.
+2. Один запрос к Foursquare на все категории (restaurant / coffee shop / bar).
+   Если поля `rating`/`stats` недоступны по ключу (4xx), запрос автоматически
+   повторяется с базовыми полями; тогда бот показывает ближайшие места с пометкой.
+3. Mapbox/VietMap вызываются **только** если Foursquare вернул пусто и заданы ключи.
+4. Дедупликация (нормализованное имя + расстояние ≤ 75 м) → фильтр по радиусу →
+   фильтр по рейтингу → ранжирование (0.7·рейтинг/5 + 0.3·близость).
+   Если мест с нужным рейтингом меньше трёх, добираются лучшие из остальных
+   (с пометкой), а не пустой ответ.
 
-Поток диалога (FSM)
+### Хранение данных
 
-/start
-  └─► waiting_for_language
-        └─► waiting_for_location
-              └─► waiting_for_radius
-                    └─► waiting_for_rating
-                          └─► search → top-3 карточки
-
-Хранение:
-
-- язык → Redis ("user_lang:{user_id}")
-- FSM → RedisStorage
-
----
-
-🔥 Ключевая архитектура (Production)
-
-Multi-provider поиск
-
-PlacesService
- ├── Mapbox (primary search)
- ├── Foursquare (ratings + enrichment)
- └── VietMap (fallback для Вьетнама)
-
-Flow:
-
-Cache → Mapbox + Foursquare → FSQ fallback → VietMap → Rank → Top-3
+Геопозиция и параметры лежат в FSM (Redis) не дольше 6 часов; в `user_prefs:{id}`
+сохраняются только радиус и порог рейтинга; координаты не пишутся никуда, кроме FSM.
 
 ---
 
-🧠 places_service.py (ядро системы)
-
-Основные функции
-
-- Параллельные запросы ("asyncio.gather")
-- Дедупликация (name + lat + lon)
-- Ranking:
-  - рейтинг (приоритет)
-  - расстояние
-- Fallback chain:
-  - расширение фильтра FSQ
-  - VietMap (локальные места)
-- Redis cache (TTL = 10 минут)
-
-Формально
-
-Result = Rank(Merge(Providers)) with Cache
-
----
-
-⚡ Redis Cache
-
-- Ключ: geo-hash (lat/lon/radius/rating)
-- TTL: 600 секунд
-- Хранится top-10 (для повторных запросов)
-
-Преимущества:
-
-- ×5–10 ускорение
-- снижение API-запросов
-- стабильный UX
-
----
-
-🔌 Dependency Injection (Middleware)
-
-Redis передаётся через middleware:
-
-Update → RedisMiddleware → handler(redis_conn)
-
-Плюсы:
-
-- нет глобальных переменных
-- соблюдение Stateless Engine
-- чистая архитектура
-
----
-
-📊 Провайдеры
-
-Mapbox
-
-- основной источник POI
-- хорошее покрытие в Азии
-- быстрый
-
-Foursquare
-
-- рейтинг (0–5)
-- категории
-- фильтрация
-
-VietMap
-
-- локальные заведения во Вьетнаме
-- используется только как fallback
-
----
-
-🧭 geospatial.py
-
-- Haversine (без зависимостей)
-- bearing → локализованное направление
-
----
-
-📈 analytics.py
-
-- Redis pipeline
-- метрики:
-  - DAU
-  - search_count
-  - empty_results
-  - feature_usage
-
----
-
-Конфигурация
-
-Используется "pydantic-settings".
-
-.env:
-
-BOT_TOKEN=
-FSQ_API_KEY=
-MAPBOX_TOKEN=
-VIETMAP_API_KEY=
-ADMIN_ID=
-
----
-
-Развёртывание
-
-Локально
-
-cp .env.example .env
-docker compose up --build
-
----
-
-CI/CD
-
-GitHub Actions:
-
-1. Генерация ".env"
-2. SCP на VPS
-3. Docker deploy
-
----
-
-⚠️ Известные дефекты (актуально)
-
-#| Файл| Проблема| Решение
-1| keyboards| несоответствие радиусов| унифицировать
-2| foursquare_api| лишний "_" аргумент| удалить
-3| FSM| нет ручного ввода| добавить handlers
-
----
-
-🚀 Roadmap
-
-1. Качество поиска
-
-- Smart merge (объединение одного POI из разных API)
-- Provider scoring (FSQ > Mapbox > VietMap)
-
-2. UX
-
-- кнопка "Новый поиск"
-- loading-индикатор
-- история запросов
-
-3. Данные
-
-- фото (Foursquare)
-- детали (часы, сайт)
-- фильтр "открыто сейчас"
-
-4. Инфраструктура
-
-- cache hit rate
-- provider metrics
-- мониторинг
-
----
-
-🧠 Архитектурные принципы
-
-- FSM = детерминированная система
-- Stateless Engine
-- Dependency Injection через middleware
-- Multi-provider orchestration
-- Минимализм (без overengineering)
-
----
-
-💡 Итог
-
-Система перешла от:
-
-Single API → Multi-provider Orchestrator
-
-Это даёт:
-
-- почти нулевые empty results
-- лучшее покрытие во Вьетнаме
-- масштабируемость без рефакторинга
+## Проверки
+
+```bash
+pip install -r requirements-dev.txt
+ruff check bot/ scripts/
+BOT_TOKEN=1:x FSQ_API_KEY=x python -m scripts.smoke   # нужен Redis на localhost:6379
+```
+
+## Известные ограничения
+
+- Категории Foursquare (`13065,13032,13003`) стоит сверить с текущей Category Taxonomy.
+- Эндпоинт VietMap не подтверждён документацией — это аварийный фолбэк.
+- `rating`/`stats` — расширенные поля Foursquare; их доступность зависит от тарифа ключа.

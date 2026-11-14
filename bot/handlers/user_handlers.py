@@ -1,302 +1,444 @@
 # bot/handlers/user_handlers.py
 """
-Пользовательские обработчики aiogram:
-- Диалог выбора языка → геолокации → радиуса → рейтинга.
-- Вызов поиска мест через Google Places с корректным порядком аргументов.
-- Отправка карточек с расстоянием/направлением и клавиатурами действий.
+Диалог:
+  /start → (язык, только если не удалось определить) → геопозиция →
+  ОДИН экран параметров (радиус + мин. рейтинг + «Искать») → одно сообщение с топ-3.
 
-Ключевое исправление:
-- Вызов find_places приведён к сигнатуре
-  find_places(_, api_key, lat, lon, radius, min_rating, max_rating, lang_code)
-  чтобы устранить TypeError и несоответствие позиций аргументов.
+Параметры запоминаются в Redis (user_prefs:{id}) и подставляются при следующем поиске.
+Геопозицию можно прислать в любой момент — это сразу открывает экран параметров.
 """
 
 import html
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.filters import CommandStart
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (
-    CallbackQuery,
-    KeyboardButton,
-    Message,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
-)
+from aiogram.types import CallbackQuery, Message
+from redis.exceptions import RedisError
 
 from bot.config import settings
-from bot.keyboards import inline_keyboards
-from bot.services.translator import get_string
+from bot.keyboards import inline_keyboards as kb
+from bot.services.translator import SUPPORTED_LANGUAGES, get_string
 from bot.utils.geospatial import (
     bearing_to_direction,
     calculate_bearing,
     calculate_distance,
 )
-from bot.utils.places_service import search_places
+from bot.utils.places_service import TOP_N, SearchResult, search_places
 
 logger = logging.getLogger(__name__)
 
 router = Router()
 
-
-# --- Состояния FSM ---
+SEARCH_THROTTLE_SEC = 4
 
 
 class SearchSteps(StatesGroup):
-    waiting_for_language = State()
     waiting_for_location = State()
-    waiting_for_radius = State()
-    waiting_for_manual_radius = State()
-    waiting_for_rating = State()
-    waiting_for_manual_rating = State()
 
 
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
 
 
-# --- Вспомогательные функции ---
+# --- Вспомогательное ---
 
 
 def _t(lang_code: str):
-    """
-    Упрощённая прокладка переводчика.
-    """
     return lambda key: get_string(key, lang=lang_code)
 
 
-def _format_place_card(
-    lang_code: str,
-    user_lat: float,
-    user_lon: float,
-    place: dict,
-) -> str:
-    """
-    Формирует текст карточки места с расстоянием и направлением.
-    """
-    name = html.escape(str(place.get("name") or "—"))
-    rating = place.get("rating") or "—"
-    ratings_total = int(place.get("user_ratings_total") or 0)
-    vicinity = html.escape(str(place.get("vicinity") or "—"))
-    plat = place.get("lat")
-    plon = place.get("lon")
+def _message_of(callback: CallbackQuery) -> Message | None:
+    """callback.message может быть None / недоступным (старое сообщение)."""
+    return callback.message if isinstance(callback.message, Message) else None
 
-    # Геометрия
-    distance_m = "—"
-    direction_txt = "—"
-    if plat is not None and plon is not None:
-        dist = calculate_distance(user_lat, user_lon, float(plat), float(plon))
-        brg = calculate_bearing(user_lat, user_lon, float(plat), float(plon))
-        direction_txt = bearing_to_direction(_t(lang_code), brg)
-        distance_m = f"{dist} м"
 
+async def _load_prefs(redis_conn, user_id: int) -> tuple[int, float]:
+    radius, min_rating = settings.DEFAULT_RADIUS, settings.DEFAULT_MIN_RATING
+    try:
+        prefs = await redis_conn.hgetall(f"user_prefs:{user_id}")
+        if prefs.get("radius") in {str(r) for r in kb.RADII}:
+            radius = int(prefs["radius"])
+        if prefs.get("min_rating") in {str(m) for m in kb.MIN_RATINGS}:
+            min_rating = float(prefs["min_rating"])
+    except RedisError as e:  # prefs — удобство, не критичный путь
+        logger.warning("prefs load failed: %s", e)
+    return radius, min_rating
+
+
+async def _save_prefs(redis_conn, user_id: int, radius: int, min_rating: float):
+    try:
+        await redis_conn.hset(
+            f"user_prefs:{user_id}",
+            mapping={"radius": radius, "min_rating": min_rating},
+        )
+    except RedisError as e:
+        logger.warning("prefs save failed: %s", e)
+
+
+def _params_text(lang_code: str, radius: int, min_rating: float) -> str:
+    _ = _t(lang_code)
+    rating = _("rating_any_btn") if min_rating == 0 else f"{min_rating:.1f}+"
     return (
-        f"📍 <b>{name}</b>\n"
-        f"⭐️ {rating} ({ratings_total})\n"
-        f"🧭 {distance_m} • {direction_txt}\n"
-        f"🗺 {vicinity}"
+        f"{_('params_prompt')}\n\n"
+        f"📏 {radius} {_('unit_m')}  ·  ⭐️ {rating}"
     )
 
 
-async def process_and_send_results(
-    chat_id: int,
-    bot: Bot,
-    state: FSMContext,
-    min_rating: float,
-    max_rating: float,
-    _,
+async def _ask_location(message: Message, state: FSMContext, lang_code: str):
+    await state.set_state(SearchSteps.waiting_for_location)
+    _ = _t(lang_code)
+    await message.answer(
+        f"{_('request_location')}\n\n{_('location_privacy_info')}",
+        reply_markup=kb.get_location_keyboard(_),
+        parse_mode="HTML",
+    )
+
+
+async def _show_params(
+    message: Message, state: FSMContext, lang_code: str, redis_conn, user_id: int
+):
+    await state.set_state(None)
+    data = await state.get_data()
+    if "radius" not in data or "min_rating" not in data:
+        radius, min_rating = await _load_prefs(redis_conn, user_id)
+        await state.update_data(radius=radius, min_rating=min_rating)
+    else:
+        radius, min_rating = int(data["radius"]), float(data["min_rating"])
+    await message.answer(
+        _params_text(lang_code, radius, min_rating),
+        reply_markup=kb.get_params_keyboard(_t(lang_code), radius, min_rating),
+    )
+
+
+def _format_card(
+    lang_code: str, i: int, user_lat: float, user_lon: float, place: dict
+) -> str:
+    _ = _t(lang_code)
+    name = html.escape(str(place.get("name") or "—"))
+    rating = place.get("rating")
+    rating_txt = f"{rating:.1f}" if isinstance(rating, int | float) else "—"
+    total = int(place.get("user_ratings_total") or 0)
+    ptype = html.escape(str(place.get("primary_type") or ""))
+    vicinity = html.escape(str(place.get("vicinity") or "—"))
+
+    geo = "—"
+    if place.get("lat") is not None and place.get("lon") is not None:
+        plat, plon = float(place["lat"]), float(place["lon"])
+        dist = calculate_distance(user_lat, user_lon, plat, plon)
+        direction = bearing_to_direction(
+            _, calculate_bearing(user_lat, user_lon, plat, plon)
+        )
+        geo = f"{dist} {_('unit_m')} · {direction}"
+
+    stars = f"⭐️ {rating_txt}" + (f" ({total})" if total else "")
+    if ptype:
+        stars += f" · 🍽 {ptype}"
+    return f"<b>{i}. {name}</b>\n{stars}\n🧭 {geo}\n🗺 {vicinity}"
+
+
+def _format_results(
     lang_code: str,
-    redis_conn,  # Кэш
+    lat: float,
+    lon: float,
+    result: SearchResult,
+    min_rating: float,
+) -> str:
+    _ = _t(lang_code)
+    parts = []
+    if result.relaxed:
+        parts.append(f"ℹ️ {_('relaxed_note').format(rating=f'{min_rating:.1f}')}")
+    elif not result.rating_available:
+        parts.append(f"ℹ️ {_('no_rating_note')}")
+    top = result.places[:TOP_N]
+    parts += [_format_card(lang_code, i, lat, lon, p) for i, p in enumerate(top, 1)]
+    return "\n\n".join(parts)
+
+
+# --- Команды ---
+
+
+@router.message(CommandStart())
+async def handle_start(
+    message: Message,
+    state: FSMContext,
+    lang_code: str,
+    lang_known: bool,
     analytics=None,
-) -> None:
-    """
-    Выполняет поиск мест по параметрам из FSM и отправляет результаты.
-    """
-    user_data = await state.get_data()
-    lat = float(user_data["latitude"])
-    lon = float(user_data["longitude"])
-    radius = int(user_data["radius"])
+):
+    await state.clear()
+    if analytics and message.from_user:
+        await analytics.track_user(message.from_user.id)
 
-    logger.info(
-        "Searching places: lat=%s lon=%s radius=%s min_rating=%s max_rating=%s lang=%s",
-        lat,
-        lon,
-        radius,
-        min_rating,
-        max_rating,
-        lang_code,
+    if not lang_known:
+        await state.set_state(None)
+        await message.answer(
+            get_string("select_language", lang="ru"),
+            reply_markup=kb.get_language_keyboard(),
+        )
+        return
+    await _ask_location(message, state, lang_code)
+
+
+@router.message(Command("language"))
+async def handle_language(message: Message, lang_code: str):
+    await message.answer(
+        get_string("select_language", lang=lang_code),
+        reply_markup=kb.get_language_keyboard(),
     )
 
-    all_candidates = await search_places(
-        _,
-        lat=lat,
-        lon=lon,
-        radius=radius,
-        min_rating=min_rating,
-        max_rating=max_rating,
-        lang_code=lang_code,
-        fsq_api_key=settings.FSQ_API_KEY,
-        mapbox_token=settings.MAPBOX_TOKEN,
-        vietmap_api_key=settings.VIETMAP_API_KEY,  # ВьетМап
-        redis_conn=redis_conn,  # Кэш
+
+@router.message(Command("stats"))
+async def handle_stats(message: Message, analytics=None):
+    if (
+        not settings.ADMIN_ID
+        or not message.from_user
+        or message.from_user.id != settings.ADMIN_ID
+        or analytics is None
+    ):
+        return
+    s = await analytics.get_today_stats()
+    await message.answer(
+        f"DAU: {s['active_users']}\nsearches: {s['searches']}\n"
+        f"empty: {s['empty_results']}\nfeedback: {s['feedback']}\n"
+        f"radius: {s['radius_usage']}\nrating: {s['rating_usage']}"
     )
 
-    logger.info("Places fetched: %s before final capping", len(all_candidates))
 
-    # Порядок уже задан search_places()._score (рейтинг + линейная дистанция) —
-    # он же используется при записи в кэш. Пересортировка здесь означала бы:
-    # 1) дистанция из _score никак не влияет на то, что видит пользователь;
-    # 2) на cache hit (top-10 по _score) и cache miss (полный список) можно
-    #    получить РАЗНЫЙ top-3 для одного и того же запроса.
-    top = all_candidates[:3]
+@router.message(Command("feedback"))
+async def handle_feedback_cmd(message: Message, state: FSMContext, lang_code: str):
+    if not settings.ADMIN_ID:
+        return
+    await state.set_state(FeedbackState.waiting_for_feedback)
+    await message.answer(get_string("feedback_prompt", lang=lang_code))
 
-    if not top:
+
+@router.message(FeedbackState.waiting_for_feedback, F.text)
+async def handle_feedback_text(
+    message: Message, state: FSMContext, bot: Bot, lang_code: str, analytics=None
+):
+    user = message.from_user
+    who = f"{user.id} (@{user.username})" if user else "unknown"
+    try:
+        await bot.send_message(
+            settings.ADMIN_ID,
+            f"📨 Feedback от {html.escape(who)}:\n\n{html.escape(message.text or '')}",
+            parse_mode="HTML",
+        )
+    except TelegramBadRequest as e:
+        logger.error("feedback delivery failed: %s", e)
+    if analytics:
+        await analytics.track_feedback_request()
+    await state.set_state(None)  # локация/параметры в FSM сохраняются
+    await message.answer(get_string("feedback_thanks", lang=lang_code))
+
+
+# --- Язык ---
+
+
+@router.callback_query(F.data.startswith("lang_"))
+async def set_language(
+    callback: CallbackQuery, state: FSMContext, redis_conn, lang_code: str
+):
+    new_lang = (callback.data or "").split("_", 1)[1]
+    msg = _message_of(callback)
+    if new_lang not in SUPPORTED_LANGUAGES or msg is None:
+        await callback.answer()
+        return
+
+    await redis_conn.set(f"user_lang:{callback.from_user.id}", new_lang)
+    await callback.answer(get_string("language_selected", lang=new_lang))
+
+    data = await state.get_data()
+    if "latitude" in data:
+        await _show_params(msg, state, new_lang, redis_conn, callback.from_user.id)
+    else:
+        await _ask_location(msg, state, new_lang)
+
+
+# --- Геопозиция → экран параметров ---
+
+
+@router.message(F.location)
+async def got_location(
+    message: Message, state: FSMContext, lang_code: str, redis_conn
+):
+    if message.from_user is None or message.location is None:
+        return
+    await state.update_data(
+        latitude=message.location.latitude, longitude=message.location.longitude
+    )
+    # убираем reply-клавиатуру «отправить геопозицию» без лишнего сообщения
+    await _show_params(message, state, lang_code, redis_conn, message.from_user.id)
+
+
+@router.message(SearchSteps.waiting_for_location)
+async def location_expected(message: Message, state: FSMContext, lang_code: str):
+    await _ask_location(message, state, lang_code)
+
+
+# --- Экран параметров ---
+
+
+async def _refresh_params(callback: CallbackQuery, lang_code: str, radius, min_rating):
+    msg = _message_of(callback)
+    if msg is None:
+        return
+    try:
+        await msg.edit_text(
+            _params_text(lang_code, radius, min_rating),
+            reply_markup=kb.get_params_keyboard(_t(lang_code), radius, min_rating),
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+
+@router.callback_query(F.data.startswith("radius_"))
+async def set_radius(callback: CallbackQuery, state: FSMContext, lang_code: str):
+    await callback.answer()
+    try:
+        radius = int((callback.data or "").split("_", 1)[1])
+    except ValueError:
+        return
+    if radius not in kb.RADII:
+        return
+    await state.update_data(radius=radius)
+    data = await state.get_data()
+    min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
+    await _refresh_params(callback, lang_code, radius, min_rating)
+
+
+@router.callback_query(F.data.startswith("minrating_"))
+async def set_min_rating(callback: CallbackQuery, state: FSMContext, lang_code: str):
+    await callback.answer()
+    try:
+        min_rating = float((callback.data or "").split("_", 1)[1])
+    except ValueError:
+        return
+    if min_rating not in kb.MIN_RATINGS:
+        return
+    await state.update_data(min_rating=min_rating)
+    data = await state.get_data()
+    radius = int(data.get("radius", settings.DEFAULT_RADIUS))
+    await _refresh_params(callback, lang_code, radius, min_rating)
+
+
+@router.callback_query(F.data == "change_params")
+async def change_params(
+    callback: CallbackQuery, state: FSMContext, lang_code: str, redis_conn
+):
+    await callback.answer()
+    msg = _message_of(callback)
+    if msg is None:
+        return
+    data = await state.get_data()
+    if "latitude" not in data:
+        await _ask_location(msg, state, lang_code)
+        return
+    await _show_params(msg, state, lang_code, redis_conn, callback.from_user.id)
+
+
+@router.callback_query(F.data == "new_search")
+async def new_search(callback: CallbackQuery, state: FSMContext, lang_code: str):
+    await callback.answer()
+    msg = _message_of(callback)
+    if msg is not None:
+        await _ask_location(msg, state, lang_code)
+
+
+# --- Поиск ---
+
+
+@router.callback_query(F.data == "search_go")
+async def do_search(
+    callback: CallbackQuery,
+    state: FSMContext,
+    lang_code: str,
+    redis_conn,
+    analytics=None,
+):
+    _ = _t(lang_code)
+    msg = _message_of(callback)
+    user_id = callback.from_user.id
+    if msg is None:
+        await callback.answer()
+        return
+
+    # Антиспам: каждый поиск стоит вызовов внешнего API.
+    allowed = await redis_conn.set(
+        f"throttle:search:{user_id}", 1, nx=True, ex=SEARCH_THROTTLE_SEC
+    )
+    if not allowed:
+        await callback.answer(_("too_fast"))
+        return
+    await callback.answer()
+
+    data = await state.get_data()
+    if "latitude" not in data or "longitude" not in data:
+        await _ask_location(msg, state, lang_code)  # FSM протух по TTL
+        return
+
+    lat, lon = float(data["latitude"]), float(data["longitude"])
+    radius = int(data.get("radius", settings.DEFAULT_RADIUS))
+    min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
+    await _save_prefs(redis_conn, user_id, radius, min_rating)
+
+    if analytics:
+        await analytics.track_user(user_id)
+        await analytics.track_feature_use("radius", radius)
+        await analytics.track_feature_use("rating", min_rating)
+
+    status = await msg.answer(_("searching"))
+
+    try:
+        result = await search_places(
+            lat=lat,
+            lon=lon,
+            radius=radius,
+            min_rating=min_rating,
+            lang_code=lang_code,
+            redis_conn=redis_conn,
+        )
+    except Exception:
+        logger.exception("search failed")
+        await status.edit_text(
+            _("error_generic"), reply_markup=kb.get_retry_keyboard(_)
+        )
+        return
+
+    if not result.places:
         if analytics:
             await analytics.track_empty_result()
-        await bot.send_message(
-            chat_id,
-            get_string("no_results", lang=lang_code)
-            + "\n"
-            + get_string("try_another_range", lang=lang_code),
+        await status.edit_text(
+            _("no_results_radius"), reply_markup=kb.get_retry_keyboard(_)
         )
         return
 
     if analytics:
         await analytics.track_search_request()
 
-    for p in top:
-        text = _format_place_card(lang_code, lat, lon, p)
-        await bot.send_message(chat_id, text, parse_mode="HTML")
-
-
-# --- Хендлеры диалога ---
-
-
-@router.message(CommandStart())
-async def handle_start(message: Message, state: FSMContext):
-    """
-    Старт: просим выбрать язык и запоминаем состояние.
-    """
-    await state.set_state(SearchSteps.waiting_for_language)
-    await message.answer(
-        get_string("select_language", lang="ru"),
-        reply_markup=inline_keyboards.get_language_keyboard(),
+    top = result.places[:TOP_N]
+    await status.edit_text(
+        _format_results(lang_code, lat, lon, result, min_rating),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+        reply_markup=kb.get_results_keyboard(_, top),
     )
 
 
-@router.callback_query(F.data.startswith("lang_"))
-async def set_language(
-    callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs
-):
-    """
-    Сохраняем выбранный язык в FSM и в Redis (для I18nMiddleware).
-    """
-    lang_code = callback.data.split("_", 1)[1]
-    await state.update_data(lang_code=lang_code)
+# --- Запасные хендлеры (регистрируются последними) ---
 
-    # Сохраняем в Redis — I18nMiddleware читает отсюда на каждый апдейт
-    await redis_conn.set(f"user_lang:{callback.from_user.id}", lang_code)
 
-    # Клавиатура для отправки геопозиции
-    kb = ReplyKeyboardMarkup(
-        resize_keyboard=True,
-        keyboard=[
-            [
-                KeyboardButton(
-                    text=get_string("send_location_btn", lang=lang_code),
-                    request_location=True,
-                )
-            ]
-        ],
-        one_time_keyboard=True,
-    )
-
-    await callback.message.answer(
-        get_string("request_location", lang=lang_code), reply_markup=kb
-    )
-    await state.set_state(SearchSteps.waiting_for_location)
+@router.callback_query()
+async def stale_callback(callback: CallbackQuery):
+    """Кнопка от старой версии/сообщения: просто гасим «часики»."""
     await callback.answer()
 
 
-@router.message(F.location, SearchSteps.waiting_for_location)
-async def got_location(message: Message, state: FSMContext):
-    """
-    Получили геолокацию — сохраним координаты и предложим выбрать радиус.
-    """
-    data = await state.get_data()
-    lang_code = data.get("lang_code", "ru")
-
-    await state.update_data(
-        latitude=message.location.latitude, longitude=message.location.longitude
-    )
-    await message.answer(
-        get_string("select_radius", lang=lang_code), reply_markup=ReplyKeyboardRemove()
-    )
-    await message.answer(
-        get_string("thanks", lang=lang_code),
-        reply_markup=inline_keyboards.get_radius_keyboard(_t(lang_code)),
-    )
-    await state.set_state(SearchSteps.waiting_for_radius)
-
-
-@router.callback_query(F.data.startswith("radius_"), SearchSteps.waiting_for_radius)
-async def set_radius(callback: CallbackQuery, state: FSMContext):
-    """
-    Установим радиус и перейдём к выбору диапазона рейтинга.
-    """
-    data = await state.get_data()
-    lang_code = data.get("lang_code", "ru")
-
-    # radius_200 | radius_500 | radius_1000
-    radius = int(callback.data.split("_", 1)[1])
-    await state.update_data(radius=radius)
-
-    await callback.message.answer(
-        get_string("select_rating_range", lang=lang_code),
-        reply_markup=inline_keyboards.get_rating_keyboard(_t(lang_code)),
-    )
-    await state.set_state(SearchSteps.waiting_for_rating)
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("rating_"), SearchSteps.waiting_for_rating)
-async def get_rating_from_button(
-    callback: CallbackQuery, state: FSMContext, redis_conn, analytics=None, **kwargs
-):
-    """
-    Обработаем предустановленный диапазон рейтинга и запустим поиск.
-    """
-    # Отвечаем сразу: сам поиск может занять 5-15 сек (несколько провайдеров + fallback'и),
-    # а Telegram считает callback_query "протухшим" по истечении окна ожидания ответа.
-    await callback.answer()
-
-    data = await state.get_data()
-    lang_code = data.get("lang_code", "ru")
-
-    # rating_4.5_4.79
-    _, min_s, max_s = callback.data.split("_")
-    min_rating = float(min_s)
-    max_rating = float(max_s)
-
-    if analytics:
-        await analytics.track_user(callback.from_user.id)
-        await analytics.track_feature_use("rating", f"{min_s}_{max_s}")
-
-    await callback.message.answer(get_string("searching", lang=lang_code))
-
-    await process_and_send_results(
-        callback.message.chat.id,
-        callback.bot,
-        state,
-        min_rating,
-        max_rating,
-        _t(lang_code),
-        lang_code,
-        redis_conn,
-        analytics=analytics,
-    )
-
-
-# Ниже могут быть обработчики ручного ввода радиуса и рейтинга, команда /feedback и т.д.
+@router.message()
+async def fallback_message(message: Message, state: FSMContext, lang_code: str):
+    await _ask_location(message, state, lang_code)

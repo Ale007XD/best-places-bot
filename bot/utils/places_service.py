@@ -1,14 +1,28 @@
 # bot/utils/places_service.py
+"""
+Оркестратор поиска.
 
-import asyncio
+Flow:
+1. Кэш сырого списка (по точке/радиусу/языку — НЕ по рейтингу).
+2. Foursquare: один запрос на все категории.
+3. Только если Foursquare вернул пусто (сбой/нет данных) — аварийные
+   Mapbox и VietMap (если заданы ключи). Такие результаты не кэшируются.
+4. Дедупликация (нормализованное имя + близость).
+5. Локальный фильтр по минимальному рейтингу и ранжирование.
+   Если мест с нужным рейтингом меньше TOP_N, добираются лучшие из остальных
+   (флаг relaxed), чтобы пользователь не упирался в пустой ответ.
+"""
+
 import hashlib
 import json
 import logging
-from typing import Any
+import re
+from typing import Any, NamedTuple
 
 from redis.exceptions import RedisError
 
-from bot.utils.foursquare_api import find_places as fsq_find
+from bot.config import settings
+from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.vietmap_api import find_places_vietmap
@@ -16,88 +30,112 @@ from bot.utils.vietmap_api import find_places_vietmap
 logger = logging.getLogger(__name__)
 
 CACHE_TTL = 600  # 10 минут
+TOP_N = 3  # сколько мест показываем
+RESULT_LIMIT = 10  # сколько возвращаем наверх (с запасом)
+DEDUP_DISTANCE_M = 75
 
 
-def _make_cache_key(
-    lat: float,
-    lon: float,
-    radius: int,
-    min_rating: float,
-    max_rating: float,
-    lang_code: str,
-) -> str:
-    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{min_rating}:{max_rating}:{lang_code}"
-    h = hashlib.md5(raw.encode()).hexdigest()
-    return f"places:{h}"
+class SearchResult(NamedTuple):
+    places: list[dict[str, Any]]
+    relaxed: bool  # не хватило мест с нужным рейтингом — добавлены лучшие из остальных
+    rating_available: bool  # есть ли хоть у одного места рейтинг
+
+
+def _make_cache_key(lat: float, lon: float, radius: int, lang_code: str) -> str:
+    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{lang_code}"
+    return f"places:v2:{hashlib.md5(raw.encode()).hexdigest()}"
+
+
+def _norm_name(name: Any) -> str:
+    return re.sub(r"[\W_]+", "", str(name or "").casefold())
 
 
 def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen = set()
-    result = []
+    """Убирает дубли: то же имя (без регистра/пунктуации) и ближе DEDUP_DISTANCE_M.
 
+    Из дублей остаётся запись с рейтингом (приоритет у Foursquare — он идёт первым).
+    """
+    result: list[dict[str, Any]] = []
     for p in places:
-        key = (p.get("name"), p.get("lat"), p.get("lon"))
-        if key not in seen:
-            seen.add(key)
+        name = _norm_name(p.get("name"))
+        dup_idx = None
+        for i, q in enumerate(result):
+            if name != _norm_name(q.get("name")):
+                continue
+            if None in (p.get("lat"), p.get("lon"), q.get("lat"), q.get("lon")):
+                dup_idx = i
+                break
+            d = calculate_distance(
+                float(p["lat"]), float(p["lon"]), float(q["lat"]), float(q["lon"])
+            )
+            if d <= DEDUP_DISTANCE_M:
+                dup_idx = i
+                break
+        if dup_idx is None:
             result.append(p)
-
+        elif result[dup_idx].get("rating") is None and p.get("rating") is not None:
+            result[dup_idx] = p
     return result
 
 
-def _score(
-    place: dict[str, Any], user_lat: float, user_lon: float, radius: int
-) -> float:
-    """
-    Ranking:
-    - приоритет рейтинга (FSQ)
-    - затем расстояние (линейно по всему радиусу, а не 1/(1+d) — та функция
-      схлопывалась к ~0 уже к 50м и дистанция переставала на что-либо влиять)
-    """
-
-    rating = float(place.get("rating") or 0.0)
-
-    lat = place.get("lat")
-    lon = place.get("lon")
-
-    if lat is None or lon is None:
+def _score(p: dict[str, Any], user_lat: float, user_lon: float, radius: int) -> float:
+    """0.7 · рейтинг (нормирован на 0–1) + 0.3 · близость (линейно по радиусу)."""
+    rating = float(p.get("rating") or 0.0) / 5.0
+    if p.get("lat") is None or p.get("lon") is None or radius <= 0:
         return 0.7 * rating
-
-    distance = calculate_distance(user_lat, user_lon, float(lat), float(lon))
-
-    # чем ближе — тем выше score; на границе радиуса вклад дистанции — 0
-    distance_score = max(0.0, 1 - (distance / radius)) if radius > 0 else 0.0
-
-    return 0.7 * rating + 0.3 * distance_score
+    dist = calculate_distance(user_lat, user_lon, float(p["lat"]), float(p["lon"]))
+    return 0.7 * rating + 0.3 * max(0.0, 1 - dist / radius)
 
 
-async def search_places(
-    _,
+def _within_radius(p: dict[str, Any], lat: float, lon: float, radius: int) -> bool:
+    if p.get("lat") is None or p.get("lon") is None:
+        return True
+    d = calculate_distance(lat, lon, float(p["lat"]), float(p["lon"]))
+    return d <= radius
+
+
+def select_places(
+    raw: list[dict[str, Any]],
     lat: float,
     lon: float,
     radius: int,
     min_rating: float,
-    max_rating: float,
-    lang_code: str,
-    fsq_api_key: str,
-    mapbox_token: str,
-    vietmap_api_key: str,
-    redis_conn,
+) -> SearchResult:
+    """Чистая функция: дедуп → радиус → фильтр по рейтингу → ранжирование."""
+    places = [
+        p for p in _deduplicate(raw) if _within_radius(p, lat, lon, radius)
+    ]
+
+    def rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return sorted(items, key=lambda p: _score(p, lat, lon, radius), reverse=True)
+
+    rated = [p for p in places if p.get("rating") is not None]
+
+    # Рейтингов нет вовсе (поле недоступно / фолбэк-провайдеры) — просто ближайшие.
+    if not rated:
+        return SearchResult(rank(places)[:RESULT_LIMIT], False, False)
+
+    if min_rating <= 0:
+        unrated = [p for p in places if p.get("rating") is None]
+        return SearchResult(
+            (rank(rated) + rank(unrated))[:RESULT_LIMIT], False, True
+        )
+
+    strict = rank([p for p in rated if p["rating"] >= min_rating])
+    relaxed = False
+    if len(strict) < TOP_N:
+        rest = rank([p for p in rated if p["rating"] < min_rating])
+        extra = rest[: TOP_N - len(strict)]
+        relaxed = bool(extra)
+        strict = strict + extra
+    return SearchResult(strict[:RESULT_LIMIT], relaxed, True)
+
+
+async def _load_raw(
+    lat: float, lon: float, radius: int, lang_code: str, redis_conn
 ) -> list[dict[str, Any]]:
-    """
-    Production Places Orchestrator
+    cache_key = _make_cache_key(lat, lon, radius, lang_code)
 
-    Flow:
-    1. Cache
-    2. Mapbox + Foursquare (parallel)
-    3. Merge + deduplicate
-    4. Fallback (FSQ → VietMap)
-    5. Ranking
-    6. Cache write
-    """
-
-    cache_key = _make_cache_key(lat, lon, radius, min_rating, max_rating, lang_code)
-
-    # 🔹 1. CACHE READ
     try:
         cached = await redis_conn.get(cache_key)
         if cached:
@@ -106,102 +144,47 @@ async def search_places(
     except (RedisError, ValueError) as e:
         logger.warning("Cache read failed: %s", e)
 
-    logger.info("CACHE MISS → querying providers")
-
-    # 🔹 2. PROVIDERS (parallel)
-    mapbox_task = find_places_mapbox(
-        lat=lat,
-        lon=lon,
-        radius=radius,
-        limit=10,  # Geocoding v5: максимум 10, find_places_mapbox дополнительно зажимает сам
-        lang_code=lang_code,
-        access_token=mapbox_token,
+    raw = await fsq_fetch(
+        settings.FSQ_API_KEY,
+        settings.FSQ_API_VERSION,
+        lat,
+        lon,
+        radius,
+        lang_code,
     )
 
-    fsq_task = fsq_find(
-        _,
-        api_key=fsq_api_key,
-        lat=lat,
-        lon=lon,
-        radius=radius,
-        min_rating=min_rating,
-        max_rating=max_rating,
-        lang_code=lang_code,
-    )
-
-    mapbox_results, fsq_results = await asyncio.gather(mapbox_task, fsq_task)
-
-    merged = mapbox_results + fsq_results
-    merged = _deduplicate(merged)
-
-    # Если ниже сработает фолбэк — итоговый список перестанет строго
-    # соответствовать запрошенному диапазону рейтинга, и его нельзя будет
-    # закэшировать под ключом этого диапазона (иначе следующий пользователь
-    # с тем же диапазоном получит из кэша чужой, нерелевантный результат).
-    used_widened_fallback = False
-
-    # 🔹 3. FALLBACK #1 — расширяем FSQ
-    if len(merged) < 3:
-        logger.info("Fallback: expanding Foursquare search")
-
-        fsq_fallback = await fsq_find(
-            _,
-            api_key=fsq_api_key,
-            lat=lat,
-            lon=lon,
-            radius=radius,
-            min_rating=0.0,
-            max_rating=5.0,
-            lang_code=lang_code,
-        )
-
-        if fsq_fallback:
-            used_widened_fallback = True
-
-        merged.extend(fsq_fallback)
-        merged = _deduplicate(merged)
-
-    # 🔹 4. FALLBACK #2 — VietMap (локальные места)
-    if len(merged) < 3:
-        logger.info("Fallback: VietMap activated")
-
-        vietmap_results = await find_places_vietmap(
-            lat=lat,
-            lon=lon,
-            radius=radius,
-            api_key=vietmap_api_key,
-        )
-
-        if vietmap_results:
-            used_widened_fallback = True  # у VietMap рейтинга нет вовсе
-
-        merged.extend(vietmap_results)
-        merged = _deduplicate(merged)
-
-    # 🔹 5. RANKING
-    ranked = sorted(
-        merged,
-        key=lambda p: _score(p, lat, lon, radius),
-        reverse=True,
-    )
-
-    # 🔹 6. CACHE WRITE — только «честные» результаты в исходном диапазоне.
-    # Кэшируем, только если явный фолбэк не расширял диапазон И среди того,
-    # что реально уйдёт в кэш, нет мест без рейтинга вовсе. Второе условие
-    # нужно отдельно: Mapbox/VietMap (rating=None) не проходят фильтр диапазона
-    # ни на одном этапе, но Mapbox мержится в merged на шаге 2 безусловно —
-    # если его одного хватило на >=3 места, ни один фолбэк не сработает,
-    # used_widened_fallback останется False, а нерейтингованное место всё
-    # равно попадёт в кэш под ключом узкого диапазона.
-    to_cache = ranked[:10]  # кешируем больше, чем отдаём
-    has_unrated = any(p.get("rating") is None for p in to_cache)
-
-    if not used_widened_fallback and not has_unrated:
+    if raw:
         try:
-            await redis_conn.setex(cache_key, CACHE_TTL, json.dumps(to_cache))
+            await redis_conn.setex(cache_key, CACHE_TTL, json.dumps(raw))
         except (RedisError, TypeError) as e:
             logger.warning("Cache write failed: %s", e)
-    else:
-        logger.info("Skipping cache write: results widened or contain unrated places")
+        return raw
 
-    return ranked
+    # Foursquare пуст: аварийные провайдеры (без рейтинга, не кэшируются).
+    logger.warning("FSQ returned nothing — trying emergency providers")
+    if settings.MAPBOX_TOKEN:
+        raw += await find_places_mapbox(
+            lat=lat,
+            lon=lon,
+            radius=radius,
+            limit=10,
+            lang_code=lang_code,
+            access_token=settings.MAPBOX_TOKEN,
+        )
+    if settings.VIETMAP_API_KEY and len(raw) < TOP_N:
+        raw += await find_places_vietmap(
+            lat=lat, lon=lon, radius=radius, api_key=settings.VIETMAP_API_KEY
+        )
+    return raw
+
+
+async def search_places(
+    lat: float,
+    lon: float,
+    radius: int,
+    min_rating: float,
+    lang_code: str,
+    redis_conn,
+) -> SearchResult:
+    raw = await _load_raw(lat, lon, radius, lang_code, redis_conn)
+    return select_places(raw, lat, lon, radius, min_rating)

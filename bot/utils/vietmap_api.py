@@ -5,6 +5,8 @@ from typing import Any
 
 import httpx
 
+from bot.utils.http import get_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,7 +17,10 @@ async def find_places_vietmap(
     api_key: str,
 ) -> list[dict[str, Any]]:
     """
-    VietMap Places API (fallback для Вьетнама)
+    VietMap Places API (аварийный фолбэк для Вьетнама).
+
+    NB: эндпоинт и параметры не сверены с документацией VietMap — проверить
+    вручную (curl) перед тем, как полагаться на этот фолбэк.
     """
 
     url = "https://maps.vietmap.vn/api/place/search"
@@ -28,8 +33,7 @@ async def find_places_vietmap(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, params=params, timeout=10.0)
+        r = await get_client().get(url, params=params)
 
         if not r.is_success:
             logger.error("VietMap error: %s %s", r.status_code, r.text[:200])
@@ -51,16 +55,9 @@ def _normalize(p: dict[str, Any]) -> dict[str, Any]:
         "name": p.get("name"),
         "rating": None,  # VietMap часто без рейтинга
         "user_ratings_total": 0,
-        "types": [],
-        "primary_type": "local_place",
+        "primary_type": "",
         "lat": p.get("lat"),
         "lon": p.get("lng"),
         "vicinity": p.get("address"),
-        "price_level": None,
-        "business_status": "OPERATIONAL",
-        "opening_hours": None,
-        "photos": [],
-        "icon": None,
-        "icon_background_color": None,
-        "permanently_closed": None,
+        "source": "vietmap",
     }

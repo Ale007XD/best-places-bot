@@ -1,163 +1,163 @@
 # bot/utils/foursquare_api.py
 """
-Интеграция с Foursquare Places API v3 (замена Google Places).
+Foursquare Places API (актуальный: places-api.foursquare.com).
 
-Отличия от google_maps_api.py:
-- Authorization через заголовок, не query-параметр.
-- Рейтинг FSQ в шкале 0–10 → нормализуем делением на 2 перед фильтрацией.
-- Нет пагинации (FSQ возвращает до 50 объектов за запрос, достаточно).
-- Дедупликация по fsq_id.
-- Сигнатура find_places идентична google_maps_api.py — downstream-код не меняется.
+Отличия от легаси v3 (api.foursquare.com/v3):
+- хост и путь: https://places-api.foursquare.com/places/search;
+- авторизация: `Authorization: Bearer <Service Key>`;
+- обязательный заголовок `X-Places-Api-Version` (допустимо 2025-06-17);
+- поля ответа: fsq_place_id, latitude/longitude на верхнем уровне
+  (вместо fsq_id и geocodes.main);
+- категории: параметр fsq_category_ids.
 
-Получить ключ: https://foursquare.com/developers/signup (1000 req/день бесплатно).
+Один запрос на все категории (а не три). Фильтр по рейтингу здесь НЕ применяется:
+сырой список кэшируется и фильтруется локально, поэтому смена порога рейтинга
+не стоит ни одного нового API-вызова.
+
+rating и stats — расширенные (Pro/Premium) поля. Если ключ их не получает и API
+отвечает 4xx, запрос автоматически повторяется с базовым набором полей.
+Тогда рейтинг у мест будет None (см. places_service).
 """
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import httpx
 
+from bot.utils.http import get_client
+
 logger = logging.getLogger(__name__)
 
-# Маппинг: имя типа → ID категории Foursquare
-# Полный список: https://docs.foursquare.com/data-products/docs/categories
-CATEGORY_MAP: dict[str, str] = {
-    "restaurant": "13065",
-    "cafe": "13032",
-    "bar": "13003",
-}
+SEARCH_URL = "https://places-api.foursquare.com/places/search"
+
+# Restaurant / Coffee Shop / Bar. Сверять с Category Taxonomy при смене версии API.
+CATEGORY_IDS = "13065,13032,13003"
+
+BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance"
+EXTRA_FIELDS = "rating,stats,price"
+
+_auth_error_logged = False
+# Если ключ не получает расширенные поля — час не тратим на заведомо неудачный запрос.
+_EXTENDED_RETRY_AFTER_SEC = 3600
+_extended_denied_until = 0.0
 
 
-async def _fetch_by_category(
-    client: httpx.AsyncClient,
-    api_key: str,
-    lat: float,
-    lon: float,
-    radius: int,
-    category_id: str,
-    lang_code: str,
-    limit: int = 50,
-) -> list[dict[str, Any]]:
-    """
-    Запрашивает заведения одной категории через FSQ Places Search.
-    Возвращает сырые объекты из FSQ.
-    """
-    if not api_key or str(api_key).strip().lower() in ("none", ""):
-        logger.error("FSQ_API_KEY is empty or missing")
-        return []
-
-    url = "https://api.foursquare.com/v3/places/search"
-    headers = {
-        "Authorization": api_key,
-        # Обязательный заголовок для нового Places API (без него — 410 Gone)
-        "X-Places-Api-Version": "1970-01-01",
-        "Accept-Language": lang_code,
-    }
-    params = {
-        "ll": f"{lat},{lon}",
-        "radius": radius,
-        "categories": category_id,
-        "limit": limit,
-        "fields": "fsq_id,name,rating,stats,location,categories,geocodes,price,hours",
-    }
-
-    try:
-        r = await client.get(url, headers=headers, params=params, timeout=10.0)
-        if not r.is_success:
-            logger.error(
-                "FSQ error for category %s: HTTP %s — %s",
-                category_id,
-                r.status_code,
-                r.text[:300],
-            )
-            return []
-        data = r.json()
-        return data.get("results", [])
-    except httpx.RequestError as e:
-        logger.error("FSQ request error for category %s: %s", category_id, e)
-        return []
+async def _get(params: dict[str, Any], headers: dict[str, str]) -> httpx.Response | None:
+    """GET с одним повтором на сетевую ошибку / 5xx / 429."""
+    client = get_client()
+    for attempt in (1, 2):
+        try:
+            r = await client.get(SEARCH_URL, params=params, headers=headers)
+        except httpx.RequestError as e:
+            logger.error("FSQ request error (attempt %s): %s", attempt, e)
+            r = None
+        if r is not None and r.status_code not in (429, 500, 502, 503, 504):
+            return r
+        if attempt == 1:
+            await asyncio.sleep(0.5)
+    return r
 
 
 def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
-    """
-    Приводит объект FSQ к той же схеме, что google_maps_api._normalize_place.
-    Рейтинг делится на 2: FSQ 0–10 → 0–5 (совместимо с фильтром).
-    """
+    """Приводит объект FSQ к внутренней схеме. Рейтинг FSQ 0–10 → 0–5."""
     loc = p.get("location") or {}
-    geo = (p.get("geocodes") or {}).get("main") or {}
     cats = p.get("categories") or []
-    hours = p.get("hours") or {}
 
     raw_rating = p.get("rating")
-    rating = round(float(raw_rating) / 2, 2) if raw_rating is not None else None
-
-    primary_type = (
-        cats[0].get("name", "point_of_interest") if cats else "point_of_interest"
-    )
+    try:
+        rating = round(float(raw_rating) / 2, 2) if raw_rating is not None else None
+    except (TypeError, ValueError):
+        rating = None
 
     return {
-        "place_id": p.get("fsq_id"),
+        "place_id": p.get("fsq_place_id"),
         "name": p.get("name"),
         "rating": rating,
         "user_ratings_total": (p.get("stats") or {}).get("total_ratings") or 0,
-        "types": [c.get("name", "") for c in cats],
-        "primary_type": primary_type,
-        "lat": geo.get("latitude"),
-        "lon": geo.get("longitude"),
+        "primary_type": (cats[0].get("name") if cats else None) or "",
+        "lat": p.get("latitude"),
+        "lon": p.get("longitude"),
         "vicinity": loc.get("formatted_address") or loc.get("address"),
-        "price_level": p.get("price"),
-        "business_status": "OPERATIONAL",
-        "opening_hours": {"open_now": hours.get("open_now")},
-        "photos": [],
-        "icon": None,
-        "icon_background_color": None,
-        "permanently_closed": None,
+        "source": "fsq",
     }
 
 
-async def find_places(
-    _,
+async def fetch_places(
     api_key: str,
+    api_version: str,
     lat: float,
     lon: float,
     radius: int,
-    min_rating: float,
-    max_rating: float,
     lang_code: str,
+    limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """
-    Ищет заведения (restaurant / cafe / bar) через Foursquare Places API.
-    Параллельные запросы по категориям, дедупликация по fsq_id,
-    фильтрация по диапазону рейтинга [min_rating, max_rating] (шкала 0–5).
-    Сигнатура идентична google_maps_api.find_places.
-    """
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            _fetch_by_category(client, api_key, lat, lon, radius, cat_id, lang_code)
-            for cat_id in CATEGORY_MAP.values()
-        ]
-        nested = await asyncio.gather(*tasks)
+    """Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу."""
+    global _auth_error_logged, _extended_denied_until
 
-    # Дедупликация по fsq_id
-    seen: set = set()
-    raw: list[dict[str, Any]] = []
-    for sub in nested:
-        for p in sub:
-            pid = p.get("fsq_id")
-            if pid and pid not in seen:
-                seen.add(pid)
-                raw.append(p)
+    if not api_key:
+        logger.error("FSQ_API_KEY is empty")
+        return []
 
-    normalized = [_normalize_place(p) for p in raw]
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "X-Places-Api-Version": api_version,
+        "Accept": "application/json",
+        "Accept-Language": lang_code,
+    }
+    params: dict[str, Any] = {
+        "ll": f"{lat},{lon}",
+        "radius": radius,
+        "fsq_category_ids": CATEGORY_IDS,
+        "limit": limit,
+        "fields": BASE_FIELDS
+        if time.monotonic() < _extended_denied_until
+        else f"{BASE_FIELDS},{EXTRA_FIELDS}",
+    }
 
-    # Фильтр по рейтингу
-    def in_range(p: dict[str, Any]) -> bool:
-        r = p.get("rating")
-        try:
-            r_val = float(r) if r is not None else 0.0
-        except (TypeError, ValueError):
-            r_val = 0.0
-        return float(min_rating) <= r_val <= float(max_rating)
+    r = await _get(params, headers)
 
-    return [p for p in normalized if in_range(p)]
+    # Расширенные поля недоступны по тарифу/ключу — пробуем базовый набор.
+    if r is not None and r.status_code in (400, 402, 403, 422):
+        logger.warning(
+            "FSQ %s with extended fields (%s) — retry with base fields",
+            r.status_code,
+            r.text[:200],
+        )
+        _extended_denied_until = time.monotonic() + _EXTENDED_RETRY_AFTER_SEC
+        params["fields"] = BASE_FIELDS
+        r = await _get(params, headers)
+
+    if r is None:
+        return []
+
+    if not r.is_success:
+        if r.status_code in (401, 403) and not _auth_error_logged:
+            _auth_error_logged = True
+            logger.error(
+                "FSQ auth failed (HTTP %s). Нужен Service Key из Developer Console "
+                "(Bearer) и актуальный X-Places-Api-Version. Ответ: %s",
+                r.status_code,
+                r.text[:200],
+            )
+        else:
+            logger.error("FSQ error: HTTP %s — %s", r.status_code, r.text[:300])
+        return []
+
+    try:
+        results = r.json().get("results", [])
+    except ValueError as e:
+        logger.error("FSQ returned non-JSON: %s", e)
+        return []
+
+    seen: set[str] = set()
+    places = []
+    for p in results:
+        pid = p.get("fsq_place_id")
+        if pid and pid in seen:
+            continue
+        if pid:
+            seen.add(pid)
+        places.append(_normalize_place(p))
+    return places

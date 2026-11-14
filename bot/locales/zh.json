@@ -41,5 +41,16 @@
   "manual_radius_error": "格式无效。请输入1到5000之间的整数。",
   "manual_rating_prompt": "请输入所需的最低评分（例如：3.2或4）。",
   "manual_rating_error": "格式无效。请输入1.0到5.0之间的数字。",
-"location_privacy_info": "🔒 <i>为了精确查找您周围的地点，我需要您的位置信息。您的地理位置仅用于本次搜索，不会被存储在任何地方。</i>"
+  "location_privacy_info": "🔒 <i>位置信息仅用于搜索，最多保留几个小时。</i>",
+  "unit_m": "米",
+  "params_prompt": "设置搜索条件，然后点击“搜索”：",
+  "rating_any_btn": "不限",
+  "search_btn": "🔍 搜索",
+  "change_params_btn": "⚙️ 设置",
+  "new_location_btn": "📍 新位置",
+  "relaxed_note": "附近评分 {rating}+ 的地点不多，已补充其余最佳地点。",
+  "no_rating_note": "暂时无法获取评分，显示最近的地点。",
+  "no_results_radius": "此范围内没有找到 🙁 请尝试扩大半径。",
+  "error_generic": "搜索出错了，请一分钟后重试。",
+  "too_fast": "请稍等，上一次搜索仍在进行…"
 }

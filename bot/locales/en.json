@@ -41,5 +41,16 @@
   "manual_radius_error": "Invalid format. Please enter an integer between 1 and 5000.",
   "manual_rating_prompt": "Enter the minimum desired rating (e.g., 3.2 or 4).",
   "manual_rating_error": "Invalid format. Please enter a number between 1.0 and 5.0.",
-  "location_privacy_info": "🔒 <i>This is needed to find places specifically around you. I only use your location once for the search and do not store it anywhere.</i>"
+  "location_privacy_info": "🔒 <i>Your location is only used for the search and is kept for a few hours at most.</i>",
+  "unit_m": "m",
+  "params_prompt": "Set up the search and tap “Search”:",
+  "rating_any_btn": "Any",
+  "search_btn": "🔍 Search",
+  "change_params_btn": "⚙️ Settings",
+  "new_location_btn": "📍 New location",
+  "relaxed_note": "Few places rated {rating}+ nearby — I added the best of the rest.",
+  "no_rating_note": "Ratings are unavailable right now — showing the nearest places.",
+  "no_results_radius": "Nothing found within this radius 🙁 Try a larger one.",
+  "error_generic": "Something went wrong during the search. Please try again in a minute.",
+  "too_fast": "One moment, the previous search is still running…"
 }

@@ -9,8 +9,12 @@ from bot.config import settings
 from bot.handlers import user_handlers
 from bot.middlewares.i18n import I18nMiddleware
 from bot.utils.analytics import Analytics
+from bot.utils.http import close_client
 
 logger = logging.getLogger(__name__)
+
+# Геопозиция и параметры лежат в FSM — не держим их дольше этого срока.
+FSM_TTL_SEC = 6 * 3600
 
 
 async def main():
@@ -20,26 +24,33 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
-    redis_conn = redis.Redis(host="redis", port=6379, decode_responses=True)
+    redis_conn = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    await redis_conn.ping()  # падаем сразу и понятно, если Redis недоступен
 
-    # RedisStorage: FSM-состояния переживают рестарт контейнера
-    storage = RedisStorage(redis=redis_conn)
-
-    analytics = Analytics(redis_conn=redis_conn)
+    storage = RedisStorage(
+        redis=redis_conn, state_ttl=FSM_TTL_SEC, data_ttl=FSM_TTL_SEC
+    )
 
     bot = Bot(token=settings.BOT_TOKEN)
     dp = Dispatcher(storage=storage)
 
-    # Передаём analytics через workflow_data — доступен в хендлерах через **kwargs
-    dp["analytics"] = analytics
+    # Доступно в хендлерах как аргумент `analytics`
+    dp["analytics"] = Analytics(redis_conn=redis_conn)
 
     dp.update.middleware(I18nMiddleware(redis_conn))
     dp.include_router(user_handlers.router)
 
-    await bot.delete_webhook(drop_pending_updates=True)
+    if not settings.FSQ_API_KEY:
+        logger.error("FSQ_API_KEY пуст — поиск работать не будет")
 
-    logger.info("Запуск бота...")
-    await dp.start_polling(bot)
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Запуск бота...")
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+        await close_client()
+        await redis_conn.aclose()
 
 
 if __name__ == "__main__":
