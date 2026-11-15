@@ -24,6 +24,9 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
+    # httpx на INFO пишет полные URL запросов: там токены API и координаты пользователей.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     redis_conn = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     await redis_conn.ping()  # падаем сразу и понятно, если Redis недоступен
 

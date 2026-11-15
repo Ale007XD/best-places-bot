@@ -116,6 +116,27 @@ def check_dedup() -> None:
     assert any(p["rating"] == 4.5 for p in out), "должна остаться запись с рейтингом"
 
 
+def check_overpass_and_fill() -> None:
+    from bot.utils.overpass_api import _normalize as osm_norm
+
+    n = osm_norm(
+        {
+            "type": "way",
+            "id": 7,
+            "center": {"lat": 1.0, "lon": 2.0},
+            "tags": {"amenity": "cafe", "name": "X", "addr:street": "S", "addr:housenumber": "5"},
+        }
+    )
+    assert n and n["lat"] == 1.0 and n["rating"] is None and n["vicinity"] == "5 S"
+    assert n["primary_type"] == "Café" and n["place_id"] == "osm:way/7"
+    assert osm_norm({"type": "node", "id": 1, "lat": 1, "lon": 2, "tags": {"amenity": "bar"}}) is None
+
+    # мало мест с рейтингом → добираем ближайшими без рейтинга (флаг relaxed)
+    raw = [_p("R", 4.8, 0.0003), _p("U1", None, 0.0002), _p("U2", None, 0.0004)]
+    res = select_places(raw, 10.0, 106.0, 500, 4.5)
+    assert res.places[0]["name"] == "R" and len(res.places) == 3 and res.relaxed
+
+
 def check_keyboards() -> None:
     _ = lambda k: get_string(k, lang="ru")
     m = kb.get_params_keyboard(_, 500, 4.0)
@@ -149,5 +170,6 @@ if __name__ == "__main__":
     check_select()
     check_dedup()
     check_keyboards()
+    check_overpass_and_fill()
     asyncio.run(check_redis())
     print("SMOKE OK")

@@ -4,9 +4,11 @@
 
 Flow:
 1. Кэш сырого списка (по точке/радиусу/языку — НЕ по рейтингу).
-2. Foursquare: один запрос на все категории.
-3. Только если Foursquare вернул пусто (сбой/нет данных) — аварийные
-   Mapbox и VietMap (если заданы ключи). Такие результаты не кэшируются.
+2. Foursquare: один запрос на все категории (при нехватке кредитов на Premium-поля —
+   автоматически с базовыми, без рейтинга).
+3. Если мест меньше TOP_N или Foursquare сбоит — дополняем OpenStreetMap (Overpass,
+   бесплатно, без рейтинга). Mapbox/VietMap — только если совсем пусто и заданы ключи.
+   Если Foursquare сбоит и ничего не найдено — SearchUnavailable (не «мест нет»).
 4. Дедупликация (нормализованное имя + близость).
 5. Локальный фильтр по минимальному рейтингу и ранжирование.
    Если мест с нужным рейтингом меньше TOP_N, добираются лучшие из остальных
@@ -22,17 +24,24 @@ from typing import Any, NamedTuple
 from redis.exceptions import RedisError
 
 from bot.config import settings
+from bot.utils.foursquare_api import FoursquareError
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
+from bot.utils.overpass_api import find_places_overpass
 from bot.utils.vietmap_api import find_places_vietmap
 
 logger = logging.getLogger(__name__)
 
 CACHE_TTL = 600  # 10 минут
+FALLBACK_CACHE_TTL = 120  # если Foursquare сбоил — кэшируем ненадолго
 TOP_N = 3  # сколько мест показываем
 RESULT_LIMIT = 10  # сколько возвращаем наверх (с запасом)
 DEDUP_DISTANCE_M = 75
+
+
+class SearchUnavailable(Exception):
+    """Основной провайдер сбоит, а фолбэки ничего не нашли — это не «мест нет»."""
 
 
 class SearchResult(NamedTuple):
@@ -128,6 +137,12 @@ def select_places(
         extra = rest[: TOP_N - len(strict)]
         relaxed = bool(extra)
         strict = strict + extra
+    if len(strict) < TOP_N:
+        # Мест с рейтингом мало (редкий район / часть данных из OSM) — добираем ближайшими.
+        unrated = rank([p for p in places if p.get("rating") is None])
+        extra = unrated[: TOP_N - len(strict)]
+        relaxed = relaxed or bool(extra)
+        strict = strict + extra
     return SearchResult(strict[:RESULT_LIMIT], relaxed, True)
 
 
@@ -144,25 +159,28 @@ async def _load_raw(
     except (RedisError, ValueError) as e:
         logger.warning("Cache read failed: %s", e)
 
-    raw = await fsq_fetch(
-        settings.FSQ_API_KEY,
-        settings.FSQ_API_VERSION,
-        lat,
-        lon,
-        radius,
-        lang_code,
-    )
+    fsq_ok = True
+    try:
+        raw = await fsq_fetch(
+            settings.FSQ_API_KEY,
+            settings.FSQ_API_VERSION,
+            lat,
+            lon,
+            radius,
+            lang_code,
+        )
+    except FoursquareError as e:
+        logger.warning("Foursquare failed (%s) — using fallbacks", e)
+        raw, fsq_ok = [], False
 
-    if raw:
-        try:
-            await redis_conn.setex(cache_key, CACHE_TTL, json.dumps(raw))
-        except (RedisError, TypeError) as e:
-            logger.warning("Cache write failed: %s", e)
-        return raw
+    # Мало данных (редкий район или сбой FSQ) — дополняем бесплатным OSM.
+    if len(raw) < TOP_N and settings.OVERPASS_ENABLED:
+        raw = raw + await find_places_overpass(
+            lat, lon, radius, settings.OVERPASS_URL
+        )
 
-    # Foursquare пуст: аварийные провайдеры (без рейтинга, не кэшируются).
-    logger.warning("FSQ returned nothing — trying emergency providers")
-    if settings.MAPBOX_TOKEN:
+    # Совсем пусто — платные/ключевые аварийные провайдеры, если заданы.
+    if not raw and settings.MAPBOX_TOKEN:
         raw += await find_places_mapbox(
             lat=lat,
             lon=lon,
@@ -171,10 +189,20 @@ async def _load_raw(
             lang_code=lang_code,
             access_token=settings.MAPBOX_TOKEN,
         )
-    if settings.VIETMAP_API_KEY and len(raw) < TOP_N:
+    if not raw and settings.VIETMAP_API_KEY:
         raw += await find_places_vietmap(
             lat=lat, lon=lon, radius=radius, api_key=settings.VIETMAP_API_KEY
         )
+
+    if not raw and not fsq_ok:
+        raise SearchUnavailable("Foursquare failed and fallbacks returned nothing")
+
+    if raw:
+        try:
+            ttl = CACHE_TTL if fsq_ok else FALLBACK_CACHE_TTL
+            await redis_conn.setex(cache_key, ttl, json.dumps(raw))
+        except (RedisError, TypeError) as e:
+            logger.warning("Cache write failed: %s", e)
     return raw
 
 

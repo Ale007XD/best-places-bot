@@ -10,13 +10,16 @@ Foursquare Places API (актуальный: places-api.foursquare.com).
   (вместо fsq_id и geocodes.main);
 - категории: параметр fsq_category_ids.
 
-Один запрос на все категории (а не три). Фильтр по рейтингу здесь НЕ применяется:
-сырой список кэшируется и фильтруется локально, поэтому смена порога рейтинга
-не стоит ни одного нового API-вызова.
+Один запрос на все категории. Фильтр по рейтингу здесь НЕ применяется:
+сырой список кэшируется и фильтруется локально.
 
-rating и stats — расширенные (Pro/Premium) поля. Если ключ их не получает и API
-отвечает 4xx, запрос автоматически повторяется с базовым набором полей.
-Тогда рейтинг у мест будет None (см. places_service).
+rating / stats / price — Premium-поля, они тарифицируются кредитами. Если кредитов
+нет (HTTP 429 «no API credits remaining») или поля недоступны по ключу (400/402/403/422),
+запрос автоматически повторяется с базовыми (Pro) полями, а на час расширенные поля
+отключаются. Тогда у мест нет рейтинга (rating=None), см. places_service.
+
+При настоящей ошибке (ключ, кредиты на всё, сеть, 5xx, не-JSON) бросается
+FoursquareError — оркестратор отличает «сбой провайдера» от «мест нет».
 """
 
 import asyncio
@@ -39,21 +42,32 @@ BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance
 EXTRA_FIELDS = "rating,stats,price"
 
 _auth_error_logged = False
-# Если ключ не получает расширенные поля — час не тратим на заведомо неудачный запрос.
+# Если ключ не может получать расширенные поля — час не тратим на заведомо неудачный запрос.
 _EXTENDED_RETRY_AFTER_SEC = 3600
 _extended_denied_until = 0.0
 
 
+class FoursquareError(Exception):
+    """Провайдер недоступен или отверг запрос (в отличие от пустого, но успешного ответа)."""
+
+
+def _is_credit_error(r: httpx.Response) -> bool:
+    return r.status_code == 429 and "credit" in r.text.lower()
+
+
 async def _get(params: dict[str, Any], headers: dict[str, str]) -> httpx.Response | None:
-    """GET с одним повтором на сетевую ошибку / 5xx / 429."""
+    """GET с одним повтором на сетевую ошибку / 5xx / 429 (кроме «нет кредитов»)."""
     client = get_client()
+    r: httpx.Response | None = None
     for attempt in (1, 2):
         try:
             r = await client.get(SEARCH_URL, params=params, headers=headers)
         except httpx.RequestError as e:
             logger.error("FSQ request error (attempt %s): %s", attempt, e)
             r = None
-        if r is not None and r.status_code not in (429, 500, 502, 503, 504):
+        if r is not None and (
+            r.status_code not in (429, 500, 502, 503, 504) or _is_credit_error(r)
+        ):
             return r
         if attempt == 1:
             await asyncio.sleep(0.5)
@@ -93,12 +107,14 @@ async def fetch_places(
     lang_code: str,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу."""
+    """
+    Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу.
+    [] — успешный ответ без мест. FoursquareError — сбой провайдера.
+    """
     global _auth_error_logged, _extended_denied_until
 
     if not api_key:
-        logger.error("FSQ_API_KEY is empty")
-        return []
+        raise FoursquareError("FSQ_API_KEY is empty")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -106,31 +122,34 @@ async def fetch_places(
         "Accept": "application/json",
         "Accept-Language": lang_code,
     }
+    extended = time.monotonic() >= _extended_denied_until
     params: dict[str, Any] = {
         "ll": f"{lat},{lon}",
         "radius": radius,
         "fsq_category_ids": CATEGORY_IDS,
         "limit": limit,
-        "fields": BASE_FIELDS
-        if time.monotonic() < _extended_denied_until
-        else f"{BASE_FIELDS},{EXTRA_FIELDS}",
+        "fields": f"{BASE_FIELDS},{EXTRA_FIELDS}" if extended else BASE_FIELDS,
     }
 
     r = await _get(params, headers)
 
-    # Расширенные поля недоступны по тарифу/ключу — пробуем базовый набор.
-    if r is not None and r.status_code in (400, 402, 403, 422):
+    # Расширенные поля недоступны (нет кредитов / тариф) — повторяем с базовыми.
+    if (
+        extended
+        and r is not None
+        and (r.status_code in (400, 402, 403, 422) or _is_credit_error(r))
+    ):
         logger.warning(
             "FSQ %s with extended fields (%s) — retry with base fields",
             r.status_code,
-            r.text[:200],
+            r.text[:160],
         )
         _extended_denied_until = time.monotonic() + _EXTENDED_RETRY_AFTER_SEC
         params["fields"] = BASE_FIELDS
         r = await _get(params, headers)
 
     if r is None:
-        return []
+        raise FoursquareError("network error")
 
     if not r.is_success:
         if r.status_code in (401, 403) and not _auth_error_logged:
@@ -141,15 +160,19 @@ async def fetch_places(
                 r.status_code,
                 r.text[:200],
             )
+        elif _is_credit_error(r):
+            logger.error(
+                "FSQ: у аккаунта нет кредитов даже на базовые поля — пополните/включите "
+                "автоплатёж: https://foursquare.com/developers/orgs"
+            )
         else:
             logger.error("FSQ error: HTTP %s — %s", r.status_code, r.text[:300])
-        return []
+        raise FoursquareError(f"HTTP {r.status_code}")
 
     try:
         results = r.json().get("results", [])
     except ValueError as e:
-        logger.error("FSQ returned non-JSON: %s", e)
-        return []
+        raise FoursquareError(f"non-JSON response: {e}") from e
 
     seen: set[str] = set()
     places = []

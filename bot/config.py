@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     FSQ_API_VERSION: str = "2025-06-17"
     MAPBOX_TOKEN: str = ""  # аварийный фолбэк, если Foursquare недоступен
     VIETMAP_API_KEY: str = ""  # аварийный фолбэк для Вьетнама
+    # OpenStreetMap (Overpass): бесплатный фолбэк без ключа, места без рейтинга
+    OVERPASS_ENABLED: bool = True
+    OVERPASS_URL: str = "https://overpass-api.de/api/interpreter"
     ADMIN_ID: int = 0  # Telegram user_id: /feedback и /stats (0 = выключено)
     REDIS_URL: str = "redis://redis:6379/0"
 
