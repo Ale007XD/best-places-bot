@@ -31,9 +31,27 @@ class Settings(BaseSettings):
     VIETMAP_API_KEY: str = ""  # аварийный фолбэк для Вьетнама
     # OpenStreetMap (Overpass): бесплатный фолбэк без ключа, места без рейтинга
     OVERPASS_ENABLED: bool = True
-    OVERPASS_URL: str = "https://overpass-api.de/api/interpreter"
+    # Один или несколько адресов через запятую (зеркала на случай 502/таймаутов)
+    OVERPASS_URL: str = (
+        "https://overpass-api.de/api/interpreter,"
+        "https://overpass.kumi.systems/api/interpreter,"
+        "https://overpass.private.coffee/api/interpreter"
+    )
     ADMIN_ID: int = 0  # Telegram user_id: /feedback и /stats (0 = выключено)
     REDIS_URL: str = "redis://redis:6379/0"
+
+    # --- монетизация / геймификация ---
+    QUOTA_ENABLED: bool = True  # False = без лимитов и без paywall
+    FREE_SEARCHES_PER_DAY: int = 5
+    PRO_DAILY_LIMIT: int = 100  # fair-use потолок для Pro
+    STREAK_BONUS_CAP: int = 5  # макс. прибавка к дневному лимиту за серию дней
+    QUOTA_UTC_OFFSET_HOURS: int = 7  # когда «наступает» новый день (7 = Вьетнам)
+    REFERRAL_BONUS: int = 5  # бонусных поисков обоим за приглашённого
+    REFERRAL_MAX_REWARDED: int = 20  # потолок наград за рефералы на одного пользователя
+    STARS_PRICE_PACK20: int = 50
+    STARS_PRICE_PRO_WEEK: int = 100
+    STARS_PRICE_PRO_MONTH: int = 300
+    STARS_PRICE_FREEZE: int = 15
 
     # Дефолты экрана параметров (если у пользователя нет сохранённых)
     DEFAULT_RADIUS: int = 500

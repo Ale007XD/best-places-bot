@@ -24,7 +24,7 @@ Foursquare Developer Console). Остальное опционально, см. 
 Проверка ключа Foursquare одной командой:
 
 ```bash
-curl -s "https://places-api.foursquare.com/places/search?ll=10.7769,106.7009&radius=500&limit=1&fsq_category_ids=13065" \
+curl -s "https://places-api.foursquare.com/places/search?ll=10.7769,106.7009&radius=500&limit=1&fsq_category_ids=63be6904847c3692a84b9bb5" \
   -H "Authorization: Bearer $FSQ_API_KEY" -H "X-Places-Api-Version: 2025-06-17"
 ```
 
@@ -83,6 +83,6 @@ BOT_TOKEN=1:x FSQ_API_KEY=x python -m scripts.smoke   # нужен Redis на lo
 
 ## Известные ограничения
 
-- Категории Foursquare (`13065,13032,13003`) стоит сверить с текущей Category Taxonomy.
+- Категории Foursquare: новый API принимает только 24-символьные ID (числовые вроде 13065 дают HTTP 400). Используется родитель «Dining and Drinking»; если и он отвергнут — запрос без фильтра и отбор по названию категории.
 - Эндпоинт VietMap не подтверждён документацией — это аварийный фолбэк.
 - `rating`/`stats` — расширенные поля Foursquare; их доступность зависит от тарифа ключа.

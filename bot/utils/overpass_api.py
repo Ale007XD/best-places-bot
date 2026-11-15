@@ -4,10 +4,13 @@ OpenStreetMap через Overpass API: бесплатный фолбэк без 
 
 Даёт название, тип, адрес и координаты заведений, но НЕ рейтинги — поэтому такие места
 показываются «ближайшими» с пометкой (см. places_service.select_places). Для Вьетнама
-покрытие OSM хорошее. Публичный сервер — fair use: результаты кэшируются, поиск
-пользователя ограничен троттлингом.
+покрытие OSM хорошее. Публичные серверы — fair use: результаты кэшируются, поиск
+пользователя ограничен троттлингом. Публичные инстансы часто отвечают 502/таймаутом,
+поэтому адресов может быть несколько (через запятую): запрос идёт на первый, а если он
+не ответил за 2 с — параллельно стартует следующий; берётся первый успешный ответ.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -51,27 +54,67 @@ def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-async def find_places_overpass(
-    lat: float, lon: float, radius: int, url: str, limit: int = 60
-) -> list[dict[str, Any]]:
-    """Заведения вокруг точки. При любой ошибке — [] (фолбэк не должен ронять поиск)."""
-    query = (
-        "[out:json][timeout:15];"
-        f"nwr(around:{int(radius)},{lat},{lon})"
-        '["amenity"~"^(restaurant|cafe|bar|pub|fast_food)$"]["name"];'
-        f"out center {limit};"
-    )
+_HEDGE_DELAY_SEC = 2.0
+_ATTEMPT_TIMEOUT_SEC = 8.0
+
+
+async def _query_one(url: str, query: str) -> list[dict[str, Any]] | None:
+    """Один сервер. None — ошибка (в отличие от успешного, но пустого ответа)."""
     try:
         r = await get_client().post(
             url,
             data={"data": query},
             headers={"User-Agent": "best-places-bot/1.0"},
-            timeout=20.0,
+            timeout=_ATTEMPT_TIMEOUT_SEC,
         )
         r.raise_for_status()
-        elements = r.json().get("elements", [])
+        return r.json().get("elements", [])
     except (httpx.HTTPError, ValueError) as e:
-        logger.error("Overpass error: %s", e)
+        logger.warning("Overpass %s failed: %s", url, e or type(e).__name__)
+        return None
+
+
+async def find_places_overpass(
+    lat: float, lon: float, radius: int, url: str, limit: int = 60
+) -> list[dict[str, Any]]:
+    """Заведения вокруг точки. При любой ошибке — [] (фолбэк не должен ронять поиск).
+
+    url — один адрес или несколько через запятую (зеркала).
+    """
+    urls = [u.strip() for u in url.split(",") if u.strip()]
+    if not urls:
+        return []
+
+    query = (
+        "[out:json][timeout:8];"
+        f"nwr(around:{int(radius)},{lat},{lon})"
+        '["amenity"~"^(restaurant|cafe|bar|pub|fast_food)$"]["name"];'
+        f"out center {limit};"
+    )
+
+    async def attempt(i: int, u: str) -> list[dict[str, Any]] | None:
+        if i:
+            await asyncio.sleep(i * _HEDGE_DELAY_SEC)
+        return await _query_one(u, query)
+
+    tasks = [asyncio.create_task(attempt(i, u)) for i, u in enumerate(urls)]
+    elements: list[dict[str, Any]] | None = None
+    try:
+        pending = set(tasks)
+        while pending and elements is None:
+            done, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED
+            )
+            for t in done:
+                if t.result() is not None:
+                    elements = t.result()
+                    break
+    finally:
+        for t in tasks:
+            t.cancel()
+
+    if elements is None:
+        logger.error("Overpass: all %s servers failed", len(urls))
         return []
 
     places = [p for el in elements if (p := _normalize(el))]

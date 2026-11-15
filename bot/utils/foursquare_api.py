@@ -8,7 +8,8 @@ Foursquare Places API (актуальный: places-api.foursquare.com).
 - обязательный заголовок `X-Places-Api-Version` (допустимо 2025-06-17);
 - поля ответа: fsq_place_id, latitude/longitude на верхнем уровне
   (вместо fsq_id и geocodes.main);
-- категории: параметр fsq_category_ids.
+- категории: параметр fsq_category_ids, и ТОЛЬКО 24-символьные (BSON) ID. Старые
+  числовые (13065, 13032, 13003) дают HTTP 400 "fsq_category_ids: invalid id".
 
 Один запрос на все категории. Фильтр по рейтингу здесь НЕ применяется:
 сырой список кэшируется и фильтруется локально.
@@ -24,6 +25,7 @@ FoursquareError — оркестратор отличает «сбой пров�
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any
 
@@ -35,8 +37,20 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://places-api.foursquare.com/places/search"
 
-# Restaurant / Coffee Shop / Bar. Сверять с Category Taxonomy при смене версии API.
-CATEGORY_IDS = "13065,13032,13003"
+# "Dining and Drinking" — родительская категория (рестораны, кафе, бары, пекарни…).
+# ID взят из документации Foursquare (Research Feed Schema). Если API его не принимает
+# (HTTP 400 про fsq_category_ids), переходим к запросу без фильтра категорий и
+# отбираем заведения локально по названию категории.
+DINING_CATEGORY_ID = "63be6904847c3692a84b9bb5"
+_CATEGORY_CANDIDATES: tuple[str | None, ...] = (DINING_CATEGORY_ID, None)
+_category_idx = 0  # индекс рабочего варианта; запоминается между запросами
+
+_FOOD_RE = re.compile(
+    r"\b(restaurant|cafe|café|coffee|tea|bar|pub|bakery|diner|bistro|eatery|brewery|"
+    r"noodle|pizza|burger|dessert|ice cream|juice|grill|steakhouse|sushi|food|snack|"
+    r"pho|bbq)\b",
+    re.IGNORECASE,
+)
 
 BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance"
 EXTRA_FIELDS = "rating,stats,price"
@@ -55,7 +69,9 @@ def _is_credit_error(r: httpx.Response) -> bool:
     return r.status_code == 429 and "credit" in r.text.lower()
 
 
-async def _get(params: dict[str, Any], headers: dict[str, str]) -> httpx.Response | None:
+async def _get(
+    params: dict[str, Any], headers: dict[str, str]
+) -> httpx.Response | None:
     """GET с одним повтором на сетевую ошибку / 5xx / 429 (кроме «нет кредитов»)."""
     client = get_client()
     r: httpx.Response | None = None
@@ -111,7 +127,7 @@ async def fetch_places(
     Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу.
     [] — успешный ответ без мест. FoursquareError — сбой провайдера.
     """
-    global _auth_error_logged, _extended_denied_until
+    global _auth_error_logged, _extended_denied_until, _category_idx
 
     if not api_key:
         raise FoursquareError("FSQ_API_KEY is empty")
@@ -122,31 +138,52 @@ async def fetch_places(
         "Accept": "application/json",
         "Accept-Language": lang_code,
     }
-    extended = time.monotonic() >= _extended_denied_until
-    params: dict[str, Any] = {
-        "ll": f"{lat},{lon}",
-        "radius": radius,
-        "fsq_category_ids": CATEGORY_IDS,
-        "limit": limit,
-        "fields": f"{BASE_FIELDS},{EXTRA_FIELDS}" if extended else BASE_FIELDS,
-    }
 
-    r = await _get(params, headers)
+    r: httpx.Response | None = None
+    category: str | None = None
+    for idx in range(_category_idx, len(_CATEGORY_CANDIDATES)):
+        category = _CATEGORY_CANDIDATES[idx]
+        extended = time.monotonic() >= _extended_denied_until
+        params: dict[str, Any] = {
+            "ll": f"{lat},{lon}",
+            "radius": radius,
+            "limit": limit,
+            "fields": f"{BASE_FIELDS},{EXTRA_FIELDS}" if extended else BASE_FIELDS,
+        }
+        if category:
+            params["fsq_category_ids"] = category
 
-    # Расширенные поля недоступны (нет кредитов / тариф) — повторяем с базовыми.
-    if (
-        extended
-        and r is not None
-        and (r.status_code in (400, 402, 403, 422) or _is_credit_error(r))
-    ):
-        logger.warning(
-            "FSQ %s with extended fields (%s) — retry with base fields",
-            r.status_code,
-            r.text[:160],
-        )
-        _extended_denied_until = time.monotonic() + _EXTENDED_RETRY_AFTER_SEC
-        params["fields"] = BASE_FIELDS
         r = await _get(params, headers)
+
+        # Расширенные поля недоступны (нет кредитов / тариф) — повторяем с базовыми.
+        if (
+            extended
+            and r is not None
+            and (r.status_code in (400, 402, 403, 422) or _is_credit_error(r))
+            and "fsq_category_ids" not in r.text
+        ):
+            logger.warning(
+                "FSQ %s with extended fields (%s) — retry with base fields",
+                r.status_code,
+                r.text[:160],
+            )
+            _extended_denied_until = time.monotonic() + _EXTENDED_RETRY_AFTER_SEC
+            params["fields"] = BASE_FIELDS
+            r = await _get(params, headers)
+
+        # Категория отвергнута — пробуем следующий вариант (и запоминаем его).
+        if (
+            r is not None
+            and r.status_code == 400
+            and "fsq_category_ids" in r.text
+            and idx + 1 < len(_CATEGORY_CANDIDATES)
+        ):
+            logger.warning(
+                "FSQ rejected category %s (%s) — trying next", category, r.text[:120]
+            )
+            _category_idx = idx + 1
+            continue
+        break
 
     if r is None:
         raise FoursquareError("network error")
@@ -173,6 +210,16 @@ async def fetch_places(
         results = r.json().get("results", [])
     except ValueError as e:
         raise FoursquareError(f"non-JSON response: {e}") from e
+
+    if category is None:
+        # Без серверного фильтра приходят любые POI — оставляем еду и напитки.
+        results = [
+            p
+            for p in results
+            if any(
+                _FOOD_RE.search(c.get("name") or "") for c in p.get("categories") or []
+            )
+        ]
 
     seen: set[str] = set()
     places = []
