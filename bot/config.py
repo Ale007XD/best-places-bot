@@ -41,17 +41,25 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
 
     # --- монетизация / геймификация ---
-    QUOTA_ENABLED: bool = True  # False = без лимитов и без paywall
+    # Стартовое значение; дальше админ переключает командой /money on|off (хранится в Redis).
+    # По умолчанию ВЫКЛ: после обновления никто не упрётся в paywall, пока вы сами не включите.
+    QUOTA_ENABLED: bool = False
     FREE_SEARCHES_PER_DAY: int = 5
     PRO_DAILY_LIMIT: int = 100  # fair-use потолок для Pro
     STREAK_BONUS_CAP: int = 5  # макс. прибавка к дневному лимиту за серию дней
     QUOTA_UTC_OFFSET_HOURS: int = 7  # когда «наступает» новый день (7 = Вьетнам)
     REFERRAL_BONUS: int = 5  # бонусных поисков обоим за приглашённого
     REFERRAL_MAX_REWARDED: int = 20  # потолок наград за рефералы на одного пользователя
+    VOTE_REWARD_EVERY: int = 3  # каждые N новых отметок «был здесь» = +1 бонусный поиск (0 = выкл.)
+    VOTE_REWARD_DAILY_CAP: int = 3  # максимум таких наград в день
     STARS_PRICE_PACK20: int = 50
     STARS_PRICE_PRO_WEEK: int = 100
     STARS_PRICE_PRO_MONTH: int = 300
     STARS_PRICE_FREEZE: int = 15
+
+    # Поиск по адресу/названию (OpenStreetMap Nominatim, текст запроса уходит на их сервер)
+    GEOCODER_ENABLED: bool = True
+    GEOCODER_URL: str = "https://nominatim.openstreetmap.org/search"
 
     # Дефолты экрана параметров (если у пользователя нет сохранённых)
     DEFAULT_RADIUS: int = 500

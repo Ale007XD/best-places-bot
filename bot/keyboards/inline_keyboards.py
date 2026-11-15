@@ -34,7 +34,9 @@ def _mark(text: str, selected: bool) -> str:
     return f"✅ {text}" if selected else text
 
 
-def get_params_keyboard(_, radius: int, min_rating: float) -> InlineKeyboardMarkup:
+def get_params_keyboard(
+    _, radius: int, min_rating: float, show_home: bool = False
+) -> InlineKeyboardMarkup:
     unit = _("unit_m")
     radius_row = [
         InlineKeyboardButton(
@@ -52,28 +54,37 @@ def get_params_keyboard(_, radius: int, min_rating: float) -> InlineKeyboardMark
         )
         for m in MIN_RATINGS
     ]
+    point_row = [InlineKeyboardButton(text=_("btn_other_point"), callback_data="pick_point")]
+    if show_home:  # поиск идёт в выбранной точке — даём вернуться «рядом со мной»
+        point_row.append(InlineKeyboardButton(text=_("btn_home"), callback_data="use_home"))
     return InlineKeyboardMarkup(
         inline_keyboard=[
             radius_row,
             rating_row,
+            point_row,
             [InlineKeyboardButton(text=_("search_btn"), callback_data="search_go")],
         ]
     )
 
 
-def get_results_keyboard(_, places: list[dict]) -> InlineKeyboardMarkup:
-    """Кнопка «открыть на карте» для каждого места + действия."""
+def get_results_keyboard(
+    _, places: list[dict], map_urls: list[str], share_urls: list[str]
+) -> InlineKeyboardMarkup:
+    """По строке на место: 🗺 карта · 📤 поделиться · 👍/👎 «был здесь»; внизу — действия."""
     rows = []
     for i, p in enumerate(places, start=1):
-        if p.get("lat") is None or p.get("lon") is None:
-            continue
-        name = str(p.get("name") or "—")
-        name = name if len(name) <= 28 else name[:27] + "…"
-        url = (
-            "https://www.google.com/maps/search/?api=1&query="
-            f"{p['lat']},{p['lon']}"
-        )
-        rows.append([InlineKeyboardButton(text=f"🗺 {i} · {name}", url=url)])
+        row = [
+            InlineKeyboardButton(text=f"🗺 {i}", url=map_urls[i - 1]),
+            InlineKeyboardButton(text=f"📤 {i}", url=share_urls[i - 1]),
+        ]
+        pid = p.get("place_id")
+        # callback_data ≤ 64 байт; у экзотических id голосование просто не показываем
+        if pid and len(f"vu:{pid}".encode()) <= 64:
+            row += [
+                InlineKeyboardButton(text=f"👍 {i}", callback_data=f"vu:{pid}"),
+                InlineKeyboardButton(text=f"👎 {i}", callback_data=f"vd:{pid}"),
+            ]
+        rows.append(row)
     rows.append(
         [
             InlineKeyboardButton(text=_("change_params_btn"), callback_data="change_params"),
@@ -81,6 +92,15 @@ def get_results_keyboard(_, places: list[dict]) -> InlineKeyboardMarkup:
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_geo_choices_keyboard(labels: list[str]) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"📍 {label}"[:60], callback_data=f"geo_{i}")]
+            for i, label in enumerate(labels)
+        ]
+    )
 
 
 def get_retry_keyboard(_) -> InlineKeyboardMarkup:
@@ -96,3 +116,27 @@ def get_retry_keyboard(_) -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+def get_paywall_keyboard(
+    _, prices: dict[str, int], invite_url: str, bonus: int
+) -> InlineKeyboardMarkup:
+    """Paywall / /buy: паки, Pro, заморозка серии и приглашение друга."""
+    rows = []
+    for key, price in prices.items():
+        label_key = f"btn_{key}"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=_(label_key).format(price=price), callback_data=f"buy_{key}"
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=_("btn_invite").format(bonus=bonus), url=invite_url
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)

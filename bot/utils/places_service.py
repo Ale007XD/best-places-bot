@@ -15,6 +15,7 @@ Flow:
    (флаг relaxed), чтобы пользователь не упирался в пустой ответ.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -24,6 +25,7 @@ from typing import Any, NamedTuple
 from redis.exceptions import RedisError
 
 from bot.config import settings
+from bot.services import community
 from bot.utils.foursquare_api import FoursquareError
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geospatial import calculate_distance
@@ -48,6 +50,16 @@ class SearchResult(NamedTuple):
     places: list[dict[str, Any]]
     relaxed: bool  # не хватило мест с нужным рейтингом — добавлены лучшие из остальных
     rating_available: bool  # есть ли хоть у одного места рейтинг
+    from_cache: bool = False  # ответ из кэша — внешний API не вызывался (бесплатно)
+    fsq_ok: bool = True  # основной провайдер ответил (для метрик качества)
+    used_osm: bool = False  # в выдачу попали данные OpenStreetMap
+
+
+class LoadInfo(NamedTuple):
+    raw: list[dict[str, Any]]
+    from_cache: bool
+    fsq_ok: bool = True
+    used_osm: bool = False
 
 
 def _make_cache_key(lat: float, lon: float, radius: int, lang_code: str) -> str:
@@ -70,6 +82,15 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
         dup_idx = None
         for i, q in enumerate(result):
             if name != _norm_name(q.get("name")):
+                continue
+            # Два разных объекта одного провайдера (разные id) — это разные заведения,
+            # например сеть с точками в одном здании. Склеиваем только дубли между источниками.
+            if (
+                p.get("source") == q.get("source")
+                and p.get("place_id")
+                and q.get("place_id")
+                and p["place_id"] != q["place_id"]
+            ):
                 continue
             if None in (p.get("lat"), p.get("lon"), q.get("lat"), q.get("lon")):
                 dup_idx = i
@@ -146,19 +167,22 @@ def select_places(
     return SearchResult(strict[:RESULT_LIMIT], relaxed, True)
 
 
-async def _load_raw(
-    lat: float, lon: float, radius: int, lang_code: str, redis_conn
-) -> list[dict[str, Any]]:
-    cache_key = _make_cache_key(lat, lon, radius, lang_code)
+_inflight: dict[str, asyncio.Lock] = {}
 
+
+async def _read_cache(redis_conn, key: str) -> list[dict[str, Any]] | None:
     try:
-        cached = await redis_conn.get(cache_key)
+        cached = await redis_conn.get(key)
         if cached:
-            logger.info("CACHE HIT")
             return json.loads(cached)
     except (RedisError, ValueError) as e:
         logger.warning("Cache read failed: %s", e)
+    return None
 
+
+async def _fetch_and_cache(
+    cache_key: str, lat: float, lon: float, radius: int, lang_code: str, redis_conn
+) -> LoadInfo:
     fsq_ok = True
     try:
         raw = await fsq_fetch(
@@ -174,12 +198,13 @@ async def _load_raw(
         raw, fsq_ok = [], False
 
     # Мало данных (редкий район или сбой FSQ) — дополняем бесплатным OSM.
+    used_osm = False
     if len(raw) < TOP_N and settings.OVERPASS_ENABLED:
-        raw = raw + await find_places_overpass(
-            lat, lon, radius, settings.OVERPASS_URL
-        )
+        osm = await find_places_overpass(lat, lon, radius, settings.OVERPASS_URL)
+        used_osm = bool(osm)
+        raw = raw + osm
 
-    # Совсем пусто — платные/ключевые аварийные провайдеры, если заданы.
+    # Совсем пусто — аварийные провайдеры с ключами, если заданы.
     if not raw and settings.MAPBOX_TOKEN:
         raw += await find_places_mapbox(
             lat=lat,
@@ -203,7 +228,34 @@ async def _load_raw(
             await redis_conn.setex(cache_key, ttl, json.dumps(raw))
         except (RedisError, TypeError) as e:
             logger.warning("Cache write failed: %s", e)
-    return raw
+    return LoadInfo(raw, False, fsq_ok, used_osm)
+
+
+async def _load_raw(
+    lat: float, lon: float, radius: int, lang_code: str, redis_conn
+) -> LoadInfo:
+    """
+    Кэш → (single-flight) Foursquare/фолбэки. Одинаковые параллельные запросы с промахом
+    кэша не плодят вызовы API: первый ходит во внешний API, остальные ждут и берут кэш.
+    """
+    cache_key = _make_cache_key(lat, lon, radius, lang_code)
+
+    cached = await _read_cache(redis_conn, cache_key)
+    if cached is not None:
+        logger.info("CACHE HIT")
+        return LoadInfo(cached, True)
+
+    if len(_inflight) > 1000:  # не копим замки бесконечно
+        for k in [k for k, lk in _inflight.items() if not lk.locked()]:
+            del _inflight[k]
+    lock = _inflight.setdefault(cache_key, asyncio.Lock())
+    async with lock:
+        cached = await _read_cache(redis_conn, cache_key)  # пока ждали, мог заполнить первый
+        if cached is not None:
+            return LoadInfo(cached, True)
+        return await _fetch_and_cache(
+            cache_key, lat, lon, radius, lang_code, redis_conn
+        )
 
 
 async def search_places(
@@ -214,5 +266,13 @@ async def search_places(
     lang_code: str,
     redis_conn,
 ) -> SearchResult:
-    raw = await _load_raw(lat, lon, radius, lang_code, redis_conn)
-    return select_places(raw, lat, lon, radius, min_rating)
+    info = await _load_raw(lat, lon, radius, lang_code, redis_conn)
+    # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
+    try:
+        places = await community.attach_votes(redis_conn, info.raw)
+    except RedisError as e:
+        logger.warning("attach_votes failed: %s", e)
+        places = info.raw
+    return select_places(places, lat, lon, radius, min_rating)._replace(
+        from_cache=info.from_cache, fsq_ok=info.fsq_ok, used_osm=info.used_osm
+    )

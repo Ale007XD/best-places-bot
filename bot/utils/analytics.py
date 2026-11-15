@@ -46,6 +46,57 @@ class Analytics:
         await self.r.hincrby(key, str(value), 1)
         await self.r.expire(key, STATS_TTL)
 
+    async def track_purchase(self, product: str, stars: int):
+        """Покупка за Stars: счётчик по товару + сумма Stars за день."""
+        today = self._get_today_str()
+        key = f"stats:features:purchase:{today}"
+        await self.r.hincrby(key, product, 1)
+        await self.r.expire(key, STATS_TTL)
+        rkey = f"stats:stars:daily:{today}"
+        await self.r.incrby(rkey, stars)
+        await self.r.expire(rkey, STATS_TTL)
+
+    async def track_search_quality(
+        self,
+        *,
+        n_results: int,
+        rating_available: bool,
+        relaxed: bool,
+        from_cache: bool,
+        fsq_ok: bool,
+        used_osm: bool,
+        latency_ms: int,
+    ):
+        """Метрики качества: полнота выдачи, доля мест без рейтинга, причины фолбэка, задержка."""
+        key = f"stats:quality:{self._get_today_str()}"
+        async with self.r.pipeline(transaction=False) as pipe:
+            pipe.hincrby(key, "searches", 1)
+            pipe.hincrby(key, "latency_ms_sum", latency_ms)
+            if n_results >= 3:
+                pipe.hincrby(key, "results3", 1)
+            if not rating_available:
+                pipe.hincrby(key, "no_rating", 1)
+            if relaxed:
+                pipe.hincrby(key, "relaxed", 1)
+            if from_cache:
+                pipe.hincrby(key, "cache_hits", 1)
+            else:
+                pipe.hincrby(key, "api_searches", 1)  # прокси стоимости: поиски с обращением к API
+            if not fsq_ok:
+                pipe.hincrby(key, "fsq_failed", 1)
+            if used_osm:
+                pipe.hincrby(key, "osm_used", 1)
+            pipe.expire(key, STATS_TTL)
+            await pipe.execute()
+
+    async def track_search_failure(self):
+        key = f"stats:quality:{self._get_today_str()}"
+        await self.r.hincrby(key, "unavailable", 1)
+        await self.r.expire(key, STATS_TTL)
+
+    async def get_quality_stats(self) -> dict[str, str]:
+        return await self.r.hgetall(f"stats:quality:{self._get_today_str()}")
+
     async def get_today_stats(self) -> dict:
         """Gets today's statistics."""
         today = self._get_today_str()
@@ -57,6 +108,9 @@ class Analytics:
         pipe.get(f"stats:feedback:daily:{today}")
         pipe.hgetall(f"stats:features:radius:{today}")
         pipe.hgetall(f"stats:features:rating:{today}")
+        pipe.hgetall(f"stats:features:purchase:{today}")
+        pipe.get(f"stats:stars:daily:{today}")
+        pipe.hgetall(f"stats:features:paywall:{today}")
 
         results = await pipe.execute()
 
@@ -67,4 +121,7 @@ class Analytics:
             "feedback": int(results[3] or 0),
             "radius_usage": results[4],
             "rating_usage": results[5],
+            "purchases": results[6],
+            "stars": int(results[7] or 0),
+            "paywall": results[8],
         }
