@@ -82,6 +82,21 @@ def check_fsq_normalize() -> None:
     assert n["primary_type"] == "Coffee Shop" and n["vicinity"] == "1 Main St"
     # без премиум-полей рейтинг — None, а не 0
     assert _normalize_place({"fsq_place_id": "z", "name": "N"})["rating"] is None
+    # фото: prefix + размер + suffix; нет поля — None
+    ph = _normalize_place({"fsq_place_id": "z", "photos": [{"prefix": "https://i/", "suffix": "/a.jpg"}]})
+    assert ph["photo_url"] == "https://i/600x400/a.jpg"
+    assert _normalize_place({"fsq_place_id": "z"})["photo_url"] is None
+
+    # платные данные скрываются в копиях, а не в оригинале; чужие источники не трогаем
+    from bot.utils.places_service import _strip_ratings
+
+    src = [
+        {"source": "fsq", "rating": 4.5, "user_ratings_total": 9, "photo_url": "https://x"},
+        {"source": "osm", "rating": None, "photo_url": "https://y"},
+    ]
+    out = _strip_ratings(src)
+    assert out[0]["rating"] is None and out[0]["photo_url"] is None and src[0]["rating"] == 4.5
+    assert out[1]["photo_url"] == "https://y"
 
 
 def check_select() -> None:
@@ -211,17 +226,25 @@ async def check_community_and_money() -> None:
         assert (await quota.get_config(r)).enabled is settings.QUOTA_ENABLED is False  # дефолт: выкл
         await quota.set_config(r, enabled=False)
         st = await quota.get_status(r, 900_012)
-        assert st.unlimited and st.can_search and not st.money_enabled
+        assert st.unlimited and st.can_rate and not st.money_enabled
         await quota.set_config(r, enabled=True, free=1)
         st = await quota.get_status(r, 900_012)
         assert not st.unlimited and st.limit == 1 and st.money_enabled
         await quota.consume(r, 900_012, st)
-        assert not (await quota.get_status(r, 900_012)).can_search
+        assert not (await quota.get_status(r, 900_012)).can_rate
     finally:
         await r.delete(quota.CFG_KEY)
         await _wipe_pattern(r, "place:*smoke:p*")
         await _wipe(r, uid, 900_011, 900_012)
         await r.aclose()
+
+
+def check_text_helpers() -> None:
+    from bot.utils.textfmt import clean, esc, truncate
+
+    assert clean("\u202eab\u200bc\n d") == "abc d" and esc("<&>") == "&lt;&amp;&gt;"
+    assert truncate("x" * 50, 10) == "x" * 9 + "…" and truncate("short", 10) == "short"
+    assert not truncate("x" * 10 + "\u200d" + "y" * 30, 11).endswith("\u200d…")
 
 
 def check_keyboards() -> None:
@@ -234,12 +257,21 @@ def check_keyboards() -> None:
             assert len((b.callback_data or "").encode()) <= 64
     assert len(kb.get_params_keyboard(_, 500, 4.0, show_home=True).inline_keyboard[2]) == 2
 
-    places = [{"place_id": "a" * 24, "lat": 1, "lon": 2}, {"place_id": "osm:relation/123456789012", "lat": 1, "lon": 2}]
-    rk = kb.get_results_keyboard(_, places, ["https://m/1", "https://m/2"], ["https://s/1", "https://s/2"])
-    assert [len(r) for r in rk.inline_keyboard] == [4, 4, 2]
-    for row in rk.inline_keyboard:
-        for b in row:
-            assert len((b.callback_data or "").encode()) <= 64
+    # тизер использован → вместо строки рейтинга одна кнопка «🔒 … открыть»
+    locked = kb.get_params_keyboard(_, 500, 4.0, rating_locked=True).inline_keyboard
+    assert [b.callback_data for b in locked[1]] == ["unlock"]
+    # кнопки под заголовком выдачи: с апселлом и без
+    assert [len(r) for r in kb.get_results_actions_keyboard(_, False).inline_keyboard] == [2]
+    assert [len(r) for r in kb.get_results_actions_keyboard(_, True).inline_keyboard] == [1, 2]
+
+    from bot.services import cards
+
+    for pid, rows in (("a" * 24, 2), ("osm:relation/123456789012", 2), ("x" * 80, 1), (None, 1)):
+        ck = cards.card_keyboard("ru", {"name": "n", "lat": 1, "lon": 2, "place_id": pid}, "https://t.me/b")
+        assert len(ck.inline_keyboard) == rows, pid
+        for row in ck.inline_keyboard:
+            for b in row:
+                assert len((b.callback_data or "").encode()) <= 64
 
 
 async def check_redis() -> None:
@@ -278,16 +310,16 @@ async def check_quota() -> None:
         await quota.set_config(r, enabled=True)  # по умолчанию монетизация выключена
 
         st = await quota.get_status(r, uid)
-        assert st.limit == free and st.can_search and not st.is_pro, st
+        assert st.limit == free and st.can_rate and not st.is_pro, st
 
         for _ in range(free):
             assert await quota.consume(r, uid, st) == "free"
         st = await quota.get_status(r, uid)
-        assert not st.can_search and await quota.consume(r, uid, st) is None
+        assert not st.can_rate and await quota.consume(r, uid, st) is None
 
         await quota.add_credits(r, uid, 2)
         st = await quota.get_status(r, uid)
-        assert st.can_search and await quota.consume(r, uid, st) == "credit"
+        assert st.can_rate and await quota.consume(r, uid, st) == "credit"
         assert (await quota.get_status(r, uid)).credits == 1
 
         await quota.grant_pro(r, uid, 7)
@@ -332,6 +364,7 @@ if __name__ == "__main__":
     check_dedup()
     check_keyboards()
     check_overpass_and_fill()
+    check_text_helpers()
     check_links_and_points()
     asyncio.run(check_parse_point())
     asyncio.run(check_redis())

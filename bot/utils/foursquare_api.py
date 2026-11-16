@@ -14,10 +14,14 @@ Foursquare Places API (актуальный: places-api.foursquare.com).
 Один запрос на все категории. Фильтр по рейтингу здесь НЕ применяется:
 сырой список кэшируется и фильтруется локально.
 
-rating / stats / price — Premium-поля, они тарифицируются кредитами. Если кредитов
-нет (HTTP 429 «no API credits remaining») или поля недоступны по ключу (400/402/403/422),
-запрос автоматически повторяется с базовыми (Pro) полями, а на час расширенные поля
-отключаются. Тогда у мест нет рейтинга (rating=None), см. places_service.
+Уровни полей (тарифицируются по-разному):
+  base   — Pro-поля (имя, координаты, категории, адрес);
+  rating — + rating, stats, price (Premium, расходуют кредиты);
+  full   — + photos (Premium).
+Запрос идёт с самого богатого уровня из разрешённых и при отказе (нет кредитов —
+HTTP 429 «no API credits remaining», либо поле недоступно — 400/402/403/422) спускается
+ниже; отказавший уровень на час блокируется, чтобы не тратить запросы впустую.
+Бесплатным пользователям (want_ratings=False) сразу запрашивается base.
 
 При настоящей ошибке (ключ, кредиты на всё, сеть, 5xx, не-JSON) бросается
 FoursquareError — оркестратор отличает «сбой провайдера» от «мест нет».
@@ -27,7 +31,7 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 import httpx
 
@@ -54,24 +58,63 @@ _FOOD_RE = re.compile(
 
 BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance"
 EXTRA_FIELDS = "rating,stats,price"
+_TIER_FIELDS = {
+    "full": f"{BASE_FIELDS},{EXTRA_FIELDS},photos",
+    "rating": f"{BASE_FIELDS},{EXTRA_FIELDS}",
+    "base": BASE_FIELDS,
+}
+_TIER_ORDER = ("full", "rating", "base")
+RATED_TIERS = ("full", "rating")
+
+PHOTO_SIZE = "600x400"
 
 _auth_error_logged = False
-# Если ключ не может получать расширенные поля — час не тратим на заведомо неудачный запрос.
-_EXTENDED_RETRY_AFTER_SEC = 3600
-_extended_denied_until = 0.0
+# Отказавший уровень полей час не пробуем — не тратим вызовы впустую.
+_TIER_RETRY_AFTER_SEC = 3600
+_tier_blocked_until: dict[str, float] = {"full": 0.0, "rating": 0.0}
 
 
 class FoursquareError(Exception):
     """Провайдер недоступен или отверг запрос (в отличие от пустого, но успешного ответа)."""
 
 
+class FsqResult(NamedTuple):
+    places: list[dict[str, Any]]
+    tier: str  # какой уровень полей реально получен: "full" | "rating" | "base"
+
+    @property
+    def rated(self) -> bool:
+        return self.tier in RATED_TIERS
+
+
+def ratings_available() -> bool:
+    """Есть ли хоть один незаблокированный уровень с рейтингом (Premium-кредиты не отказали)."""
+    now = time.monotonic()
+    return any(_tier_blocked_until[t] <= now for t in RATED_TIERS)
+
+
+def _first_tier(want_ratings: bool) -> str:
+    if want_ratings:
+        now = time.monotonic()
+        for t in RATED_TIERS:
+            if _tier_blocked_until[t] <= now:
+                return t
+    return "base"
+
+
+def _next_tier(tier: str) -> str:
+    now = time.monotonic()
+    for t in _TIER_ORDER[_TIER_ORDER.index(tier) + 1 :]:
+        if t == "base" or _tier_blocked_until[t] <= now:
+            return t
+    return "base"
+
+
 def _is_credit_error(r: httpx.Response) -> bool:
     return r.status_code == 429 and "credit" in r.text.lower()
 
 
-async def _get(
-    params: dict[str, Any], headers: dict[str, str]
-) -> httpx.Response | None:
+async def _get(params: dict[str, Any], headers: dict[str, str]) -> httpx.Response | None:
     """GET с одним повтором на сетевую ошибку / 5xx / 429 (кроме «нет кредитов»)."""
     client = get_client()
     r: httpx.Response | None = None
@@ -88,6 +131,15 @@ async def _get(
         if attempt == 1:
             await asyncio.sleep(0.5)
     return r
+
+
+def _photo_url(p: dict[str, Any]) -> str | None:
+    """Первая фотография места (поле photos, Premium): prefix + WxH + suffix."""
+    for ph in p.get("photos") or []:
+        prefix, suffix = ph.get("prefix"), ph.get("suffix")
+        if prefix and suffix:
+            return f"{prefix}{PHOTO_SIZE}{suffix}"
+    return None
 
 
 def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
@@ -110,6 +162,7 @@ def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
         "lat": p.get("latitude"),
         "lon": p.get("longitude"),
         "vicinity": loc.get("formatted_address") or loc.get("address"),
+        "photo_url": _photo_url(p),
         "source": "fsq",
     }
 
@@ -122,12 +175,13 @@ async def fetch_places(
     radius: int,
     lang_code: str,
     limit: int = 50,
-) -> list[dict[str, Any]]:
+    want_ratings: bool = True,
+) -> FsqResult:
     """
     Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу.
-    [] — успешный ответ без мест. FoursquareError — сбой провайдера.
+    Пустой список — успешный ответ без мест. FoursquareError — сбой провайдера.
     """
-    global _auth_error_logged, _extended_denied_until, _category_idx
+    global _auth_error_logged, _category_idx
 
     if not api_key:
         raise FoursquareError("FSQ_API_KEY is empty")
@@ -139,49 +193,54 @@ async def fetch_places(
         "Accept-Language": lang_code,
     }
 
+    tier = _first_tier(want_ratings)
+    idx = _category_idx
     r: httpx.Response | None = None
     category: str | None = None
-    for idx in range(_category_idx, len(_CATEGORY_CANDIDATES)):
+    while True:
         category = _CATEGORY_CANDIDATES[idx]
-        extended = time.monotonic() >= _extended_denied_until
         params: dict[str, Any] = {
             "ll": f"{lat},{lon}",
             "radius": radius,
             "limit": limit,
-            "fields": f"{BASE_FIELDS},{EXTRA_FIELDS}" if extended else BASE_FIELDS,
+            "fields": _TIER_FIELDS[tier],
         }
         if category:
             params["fsq_category_ids"] = category
 
         r = await _get(params, headers)
+        if r is None:
+            break
 
-        # Расширенные поля недоступны (нет кредитов / тариф) — повторяем с базовыми.
+        # Категория отвергнута — следующий вариант (и запоминаем его).
         if (
-            extended
-            and r is not None
+            r.status_code == 400
+            and "fsq_category_ids" in r.text
+            and idx + 1 < len(_CATEGORY_CANDIDATES)
+        ):
+            logger.warning("FSQ rejected category %s (%s) — trying next", category, r.text[:120])
+            idx += 1
+            _category_idx = idx
+            continue
+
+        # Поля уровня недоступны (нет кредитов / тариф) — спускаемся на уровень ниже.
+        if (
+            tier != "base"
             and (r.status_code in (400, 402, 403, 422) or _is_credit_error(r))
             and "fsq_category_ids" not in r.text
         ):
             logger.warning(
-                "FSQ %s with extended fields (%s) — retry with base fields",
-                r.status_code,
-                r.text[:160],
+                "FSQ %s on tier '%s' (%s) — stepping down", r.status_code, tier, r.text[:160]
             )
-            _extended_denied_until = time.monotonic() + _EXTENDED_RETRY_AFTER_SEC
-            params["fields"] = BASE_FIELDS
-            r = await _get(params, headers)
-
-        # Категория отвергнута — пробуем следующий вариант (и запоминаем его).
-        if (
-            r is not None
-            and r.status_code == 400
-            and "fsq_category_ids" in r.text
-            and idx + 1 < len(_CATEGORY_CANDIDATES)
-        ):
-            logger.warning(
-                "FSQ rejected category %s (%s) — trying next", category, r.text[:120]
-            )
-            _category_idx = idx + 1
+            until = time.monotonic() + _TIER_RETRY_AFTER_SEC
+            if _is_credit_error(r):
+                # Кредиты — на весь аккаунт: платные уровни (с рейтингом и с фото) недоступны оба.
+                for t in RATED_TIERS:
+                    _tier_blocked_until[t] = until
+                tier = "base"
+            else:
+                _tier_blocked_until[tier] = until  # недоступно именно это поле (например, photos)
+                tier = _next_tier(tier)
             continue
         break
 
@@ -216,9 +275,7 @@ async def fetch_places(
         results = [
             p
             for p in results
-            if any(
-                _FOOD_RE.search(c.get("name") or "") for c in p.get("categories") or []
-            )
+            if any(_FOOD_RE.search(c.get("name") or "") for c in p.get("categories") or [])
         ]
 
     seen: set[str] = set()
@@ -230,4 +287,4 @@ async def fetch_places(
         if pid:
             seen.add(pid)
         places.append(_normalize_place(p))
-    return places
+    return FsqResult(places, tier)

@@ -66,6 +66,7 @@ class Analytics:
         fsq_ok: bool,
         used_osm: bool,
         latency_ms: int,
+        rated: bool = False,
     ):
         """Метрики качества: полнота выдачи, доля мест без рейтинга, причины фолбэка, задержка."""
         key = f"stats:quality:{self._get_today_str()}"
@@ -78,6 +79,8 @@ class Analytics:
                 pipe.hincrby(key, "no_rating", 1)
             if relaxed:
                 pipe.hincrby(key, "relaxed", 1)
+            if rated:
+                pipe.hincrby(key, "rated", 1)
             if from_cache:
                 pipe.hincrby(key, "cache_hits", 1)
             else:

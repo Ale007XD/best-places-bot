@@ -2,9 +2,12 @@
 """
 Квоты, серии (streak), бонусные поиски, Pro и рефералы. Всё хранится в Redis.
 
-Порядок списания при поиске (после успешного НЕ из кэша ответа):
-  дневной лимит (free: FREE_SEARCHES_PER_DAY + бонус серии; Pro: PRO_DAILY_LIMIT)
-  → бонусные поиски (user_credits: рефералы, награды серии, паки за Stars).
+Две «валюты» (тизер):
+  • поиск С РЕЙТИНГАМИ И ФОТО (Premium-поля Foursquare — стоят денег): дневной лимит
+    (free: FREE_SEARCHES_PER_DAY + бонус серии; Pro: PRO_DAILY_LIMIT), затем бонусные поиски
+    (user_credits: рефералы, награды серии, паки за Stars);
+  • БАЗОВЫЙ поиск (без рейтингов и фото) — доступен всегда, потолок BASE_DAILY_LIMIT в день.
+Списывается успешный поиск, сделавший обращение к API (не из кэша).
 
 Ответы из кэша ничего не стоят и не списываются. Пустой результат и ошибки — тоже.
 
@@ -76,6 +79,10 @@ def _used_key(uid: int, d: date) -> str:
     return f"quota:used:{uid}:{d.isoformat()}"
 
 
+def _base_key(uid: int, d: date) -> str:
+    return f"quota:base:{uid}:{d.isoformat()}"
+
+
 def _streak_view(h: dict, today: date) -> tuple[int, int, int]:
     """(показываемая серия, серия после сегодняшнего поиска, заморозки)."""
     days = int(h.get("days") or 0)
@@ -100,6 +107,8 @@ class Status(NamedTuple):
     streak_bonus: int
     freezes: int
     money_enabled: bool = True
+    base_used: int = 0
+    base_limit: int = 30
 
     @property
     def is_pro(self) -> bool:
@@ -114,8 +123,14 @@ class Status(NamedTuple):
         return self.free_left + self.credits
 
     @property
-    def can_search(self) -> bool:
+    def can_rate(self) -> bool:
+        """Можно ли сейчас получить поиск С РЕЙТИНГАМИ и фото (бесплатный тизер/кредиты/Pro)."""
         return self.unlimited or self.left_total > 0
+
+    @property
+    def can_search_base(self) -> bool:
+        """Базовый поиск (без рейтингов) — почти без ограничений, только потолок на день."""
+        return self.unlimited or self.base_used < self.base_limit
 
 
 async def get_status(r, uid: int) -> Status:
@@ -126,7 +141,8 @@ async def get_status(r, uid: int) -> Status:
         pipe.get(f"pro_until:{uid}")
         pipe.hgetall(f"streak:{uid}")
         pipe.hmget(CFG_KEY, "enabled", "free", "exempt")
-        used, credits, pro_until, streak, cfg_vals = await pipe.execute()
+        pipe.get(_base_key(uid, today))
+        used, credits, pro_until, streak, cfg_vals, base_used = await pipe.execute()
 
     cfg = _parse_config(cfg_vals)
 
@@ -147,6 +163,8 @@ async def get_status(r, uid: int) -> Status:
         streak_bonus=bonus,
         freezes=freezes,
         money_enabled=cfg.enabled,
+        base_used=int(base_used or 0),
+        base_limit=settings.BASE_DAILY_LIMIT,
     )
 
 
@@ -167,6 +185,15 @@ async def consume(r, uid: int, status: Status) -> Literal["free", "credit", "unl
         return "credit"
     await r.incr(f"user_credits:{uid}")
     return None
+
+
+async def consume_base(r, uid: int) -> int:
+    """Учитывает базовый поиск (без рейтингов, обращение к API). Возвращает счётчик за день."""
+    key = _base_key(uid, local_today())
+    n = int(await r.incr(key))
+    if n == 1:
+        await r.expire(key, 2 * _DAY)
+    return n
 
 
 # --- Серия ---

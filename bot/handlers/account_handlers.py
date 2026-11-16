@@ -142,7 +142,7 @@ def _is_admin(message: Message) -> bool:
 def _money_status_text(cfg: quota.Config) -> str:
     return (
         f"💰 Монетизация: {'ВКЛ ✅' if cfg.enabled else 'ВЫКЛ ⛔️'}\n"
-        f"🔎 Бесплатных поисков в день: {cfg.free_per_day} (+ бонус серии до "
+        f"⭐ Бесплатных поисков С РЕЙТИНГАМИ и фото в день (тизер): {cfg.free_per_day} (+ бонус серии до "
         f"{settings.STREAK_BONUS_CAP})\n"
         f"🥷 Админ без лимитов: {'да' if cfg.admin_exempt else 'нет (тест paywall)'}\n\n"
         "/money on · /money off · /money free N · /money exempt on|off"
@@ -169,6 +169,19 @@ async def cmd_money(message: Message, command: CommandObject, redis_conn):
         await message.answer("Не понял.\n\n" + _money_status_text(cfg))
         return
     await message.answer(_money_status_text(cfg))
+
+
+@router.callback_query(F.data == "unlock")
+async def cb_unlock(callback: CallbackQuery, bot: Bot, lang_code: str, redis_conn):
+    """«🔒 Рейтинги и фото»: показываем, чем открыть (Stars / бонусные поиски / приглашение)."""
+    await callback.answer()
+    msg = callback.message if isinstance(callback.message, Message) else None
+    if msg is None:
+        return
+    if not (await quota.get_config(redis_conn)).enabled:
+        await msg.answer(get_string("buy_disabled", lang=lang_code))
+        return
+    await show_paywall(msg, bot, lang_code, callback.from_user.id, "unlock_text")
 
 
 @router.message(Command("paysupport"))

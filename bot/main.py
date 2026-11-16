@@ -8,7 +8,12 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand
 
 from bot.config import settings
-from bot.handlers import account_handlers, community_handlers, user_handlers
+from bot.handlers import (
+    account_handlers,
+    community_handlers,
+    inline_handlers,
+    user_handlers,
+)
 from bot.middlewares.i18n import I18nMiddleware
 from bot.utils.analytics import Analytics
 from bot.utils.http import close_client
@@ -46,6 +51,7 @@ async def main():
     # account_handlers — первым: у user_handlers в конце есть catch-all хендлеры
     dp.include_router(account_handlers.router)
     dp.include_router(community_handlers.router)
+    dp.include_router(inline_handlers.router)
     dp.include_router(user_handlers.router)
 
     if not settings.FSQ_API_KEY:

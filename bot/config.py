@@ -44,9 +44,13 @@ class Settings(BaseSettings):
     # Стартовое значение; дальше админ переключает командой /money on|off (хранится в Redis).
     # По умолчанию ВЫКЛ: после обновления никто не упрётся в paywall, пока вы сами не включите.
     QUOTA_ENABLED: bool = False
-    FREE_SEARCHES_PER_DAY: int = 5
-    PRO_DAILY_LIMIT: int = 100  # fair-use потолок для Pro
-    STREAK_BONUS_CAP: int = 5  # макс. прибавка к дневному лимиту за серию дней
+    # Тизер: сколько поисков С РЕЙТИНГАМИ И ФОТО в день бесплатно (дальше — базовая выдача без
+    # них; расширенные поля Foursquare платные). Pro / бонусные поиски открывают рейтинги.
+    FREE_SEARCHES_PER_DAY: int = 1
+    BASE_DAILY_LIMIT: int = 30  # потолок базовых (без рейтингов) поисков в день — защита инфраструктуры
+    PHOTOS_ENABLED: bool = True
+    PRO_DAILY_LIMIT: int = 100  # fair-use потолок поисков с рейтингами для Pro
+    STREAK_BONUS_CAP: int = 2  # макс. прибавка к дневному лимиту поисков с рейтингами за серию дней
     QUOTA_UTC_OFFSET_HOURS: int = 7  # когда «наступает» новый день (7 = Вьетнам)
     REFERRAL_BONUS: int = 5  # бонусных поисков обоим за приглашённого
     REFERRAL_MAX_REWARDED: int = 20  # потолок наград за рефералы на одного пользователя

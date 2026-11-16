@@ -26,7 +26,7 @@ from redis.exceptions import RedisError
 
 from bot.config import settings
 from bot.services import community
-from bot.utils.foursquare_api import FoursquareError
+from bot.utils.foursquare_api import FoursquareError, ratings_available
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
@@ -53,6 +53,7 @@ class SearchResult(NamedTuple):
     from_cache: bool = False  # ответ из кэша — внешний API не вызывался (бесплатно)
     fsq_ok: bool = True  # основной провайдер ответил (для метрик качества)
     used_osm: bool = False  # в выдачу попали данные OpenStreetMap
+    rated: bool = False  # в ответе есть рейтинги/фото провайдера (Premium-уровень полей)
 
 
 class LoadInfo(NamedTuple):
@@ -60,11 +61,25 @@ class LoadInfo(NamedTuple):
     from_cache: bool
     fsq_ok: bool = True
     used_osm: bool = False
+    rated: bool = False
 
 
-def _make_cache_key(lat: float, lon: float, radius: int, lang_code: str) -> str:
-    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{lang_code}"
-    return f"places:v2:{hashlib.md5(raw.encode()).hexdigest()}"
+def _make_cache_key(
+    lat: float, lon: float, radius: int, lang_code: str, variant: str = "r"
+) -> str:
+    """variant: "r" — с рейтингами и фото (Premium-поля), "b" — базовый уровень."""
+    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{lang_code}:{variant}"
+    return f"places:v3:{hashlib.md5(raw.encode()).hexdigest()}"
+
+
+def _strip_ratings(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Скрывает платные данные Foursquare (рейтинг, число оценок, фото) в копиях мест."""
+    out = []
+    for p in raw:
+        if p.get("source") == "fsq":
+            p = {**p, "rating": None, "user_ratings_total": 0, "photo_url": None}
+        out.append(p)
+    return out
 
 
 def _norm_name(name: Any) -> str:
@@ -180,19 +195,44 @@ async def _read_cache(redis_conn, key: str) -> list[dict[str, Any]] | None:
     return None
 
 
+async def _cached(redis_conn, key_r: str, key_b: str, want_rated: bool) -> LoadInfo | None:
+    """
+    Запрос с рейтингами читает только «богатый» кэш. Базовый запрос читает свой кэш,
+    а при его отсутствии — богатый (рейтинги и фото при этом скрываются).
+    """
+    if want_rated:
+        raw = await _read_cache(redis_conn, key_r)
+        return LoadInfo(raw, True, rated=True) if raw is not None else None
+    raw = await _read_cache(redis_conn, key_b)
+    if raw is not None:
+        return LoadInfo(raw, True)
+    raw = await _read_cache(redis_conn, key_r)
+    return LoadInfo(_strip_ratings(raw), True) if raw is not None else None
+
+
 async def _fetch_and_cache(
-    cache_key: str, lat: float, lon: float, radius: int, lang_code: str, redis_conn
+    key_r: str,
+    key_b: str,
+    lat: float,
+    lon: float,
+    radius: int,
+    lang_code: str,
+    redis_conn,
+    want_rated: bool,
 ) -> LoadInfo:
     fsq_ok = True
+    rated = False
     try:
-        raw = await fsq_fetch(
+        res = await fsq_fetch(
             settings.FSQ_API_KEY,
             settings.FSQ_API_VERSION,
             lat,
             lon,
             radius,
             lang_code,
+            want_ratings=want_rated,
         )
+        raw, rated = res.places, res.rated
     except FoursquareError as e:
         logger.warning("Foursquare failed (%s) — using fallbacks", e)
         raw, fsq_ok = [], False
@@ -225,36 +265,44 @@ async def _fetch_and_cache(
     if raw:
         try:
             ttl = CACHE_TTL if fsq_ok else FALLBACK_CACHE_TTL
-            await redis_conn.setex(cache_key, ttl, json.dumps(raw))
+            await redis_conn.setex(key_r if rated else key_b, ttl, json.dumps(raw))
         except (RedisError, TypeError) as e:
             logger.warning("Cache write failed: %s", e)
-    return LoadInfo(raw, False, fsq_ok, used_osm)
+    return LoadInfo(raw, False, fsq_ok, used_osm, rated)
 
 
 async def _load_raw(
-    lat: float, lon: float, radius: int, lang_code: str, redis_conn
+    lat: float,
+    lon: float,
+    radius: int,
+    lang_code: str,
+    redis_conn,
+    with_ratings: bool = True,
 ) -> LoadInfo:
     """
     Кэш → (single-flight) Foursquare/фолбэки. Одинаковые параллельные запросы с промахом
     кэша не плодят вызовы API: первый ходит во внешний API, остальные ждут и берут кэш.
     """
-    cache_key = _make_cache_key(lat, lon, radius, lang_code)
+    key_r = _make_cache_key(lat, lon, radius, lang_code, "r")
+    key_b = _make_cache_key(lat, lon, radius, lang_code, "b")
+    # Если Premium-поля сейчас недоступны (нет кредитов) — это обычный базовый запрос.
+    want_rated = with_ratings and ratings_available()
 
-    cached = await _read_cache(redis_conn, cache_key)
-    if cached is not None:
-        logger.info("CACHE HIT")
-        return LoadInfo(cached, True)
+    hit = await _cached(redis_conn, key_r, key_b, want_rated)
+    if hit is not None:
+        logger.info("CACHE HIT (%s)", "rated" if want_rated else "base")
+        return hit
 
     if len(_inflight) > 1000:  # не копим замки бесконечно
         for k in [k for k, lk in _inflight.items() if not lk.locked()]:
             del _inflight[k]
-    lock = _inflight.setdefault(cache_key, asyncio.Lock())
+    lock = _inflight.setdefault(key_r if want_rated else key_b, asyncio.Lock())
     async with lock:
-        cached = await _read_cache(redis_conn, cache_key)  # пока ждали, мог заполнить первый
-        if cached is not None:
-            return LoadInfo(cached, True)
+        hit = await _cached(redis_conn, key_r, key_b, want_rated)  # мог заполнить первый
+        if hit is not None:
+            return hit
         return await _fetch_and_cache(
-            cache_key, lat, lon, radius, lang_code, redis_conn
+            key_r, key_b, lat, lon, radius, lang_code, redis_conn, want_rated
         )
 
 
@@ -265,8 +313,10 @@ async def search_places(
     min_rating: float,
     lang_code: str,
     redis_conn,
+    with_ratings: bool = True,
 ) -> SearchResult:
-    info = await _load_raw(lat, lon, radius, lang_code, redis_conn)
+    """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень)."""
+    info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings)
     # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
     try:
         places = await community.attach_votes(redis_conn, info.raw)
@@ -274,5 +324,8 @@ async def search_places(
         logger.warning("attach_votes failed: %s", e)
         places = info.raw
     return select_places(places, lat, lon, radius, min_rating)._replace(
-        from_cache=info.from_cache, fsq_ok=info.fsq_ok, used_osm=info.used_osm
+        from_cache=info.from_cache,
+        fsq_ok=info.fsq_ok,
+        used_osm=info.used_osm,
+        rated=info.rated,
     )

@@ -35,7 +35,11 @@ def _mark(text: str, selected: bool) -> str:
 
 
 def get_params_keyboard(
-    _, radius: int, min_rating: float, show_home: bool = False
+    _,
+    radius: int,
+    min_rating: float,
+    show_home: bool = False,
+    rating_locked: bool = False,
 ) -> InlineKeyboardMarkup:
     unit = _("unit_m")
     radius_row = [
@@ -54,6 +58,8 @@ def get_params_keyboard(
         )
         for m in MIN_RATINGS
     ]
+    if rating_locked:  # тизер использован: фильтр рейтинга недоступен — вместо него «открыть»
+        rating_row = [InlineKeyboardButton(text=_("rating_locked_btn"), callback_data="unlock")]
     point_row = [InlineKeyboardButton(text=_("btn_other_point"), callback_data="pick_point")]
     if show_home:  # поиск идёт в выбранной точке — даём вернуться «рядом со мной»
         point_row.append(InlineKeyboardButton(text=_("btn_home"), callback_data="use_home"))
@@ -67,24 +73,11 @@ def get_params_keyboard(
     )
 
 
-def get_results_keyboard(
-    _, places: list[dict], map_urls: list[str], share_urls: list[str]
-) -> InlineKeyboardMarkup:
-    """По строке на место: 🗺 карта · 📤 поделиться · 👍/👎 «был здесь»; внизу — действия."""
+def get_results_actions_keyboard(_, show_unlock: bool = False) -> InlineKeyboardMarkup:
+    """Кнопки под заголовком выдачи (у самих карточек — свои кнопки, см. services/cards.py)."""
     rows = []
-    for i, p in enumerate(places, start=1):
-        row = [
-            InlineKeyboardButton(text=f"🗺 {i}", url=map_urls[i - 1]),
-            InlineKeyboardButton(text=f"📤 {i}", url=share_urls[i - 1]),
-        ]
-        pid = p.get("place_id")
-        # callback_data ≤ 64 байт; у экзотических id голосование просто не показываем
-        if pid and len(f"vu:{pid}".encode()) <= 64:
-            row += [
-                InlineKeyboardButton(text=f"👍 {i}", callback_data=f"vu:{pid}"),
-                InlineKeyboardButton(text=f"👎 {i}", callback_data=f"vd:{pid}"),
-            ]
-        rows.append(row)
+    if show_unlock:
+        rows.append([InlineKeyboardButton(text=_("btn_unlock"), callback_data="unlock")])
     rows.append(
         [
             InlineKeyboardButton(text=_("change_params_btn"), callback_data="change_params"),

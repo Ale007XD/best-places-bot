@@ -29,14 +29,9 @@ from redis.exceptions import RedisError
 from bot.config import settings
 from bot.handlers import account_handlers as acc
 from bot.keyboards import inline_keyboards as kb
-from bot.services import community, quota
+from bot.services import cards, community, quota
 from bot.services.translator import SUPPORTED_LANGUAGES, get_string
-from bot.utils import geocoder, links
-from bot.utils.geospatial import (
-    bearing_to_direction,
-    calculate_bearing,
-    calculate_distance,
-)
+from bot.utils import geocoder
 from bot.utils.places_service import TOP_N, SearchResult, search_places
 
 logger = logging.getLogger(__name__)
@@ -91,10 +86,12 @@ async def _save_prefs(redis_conn, user_id: int, radius: int, min_rating: float):
         logger.warning("prefs save failed: %s", e)
 
 
-def _params_text(lang_code: str, radius: int, min_rating: float, label: str | None) -> str:
+def _params_text(lang_code: str, radius: int, min_rating: float, label: str | None, locked: bool = False) -> str:
     _ = _t(lang_code)
-    rating = _("rating_any_btn") if min_rating == 0 else f"{min_rating:.1f}+"
     where = _("where_point").format(label=label) if label else _("where_me")
+    if locked:  # фильтр рейтинга недоступен — не показываем его в сводке
+        return f"{_('params_prompt')}\n\n{where}\n📏 {radius} {_('unit_m')}"
+    rating = _("rating_any_btn") if min_rating == 0 else f"{min_rating:.1f}+"
     return f"{_('params_prompt')}\n\n{where}\n📏 {radius} {_('unit_m')}  ·  ⭐️ {rating}"
 
 
@@ -102,7 +99,9 @@ def _params_markup(lang_code: str, data: dict):
     radius = int(data.get("radius", settings.DEFAULT_RADIUS))
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     show_home = bool(data.get("point_label")) and "home_lat" in data
-    return kb.get_params_keyboard(_t(lang_code), radius, min_rating, show_home)
+    return kb.get_params_keyboard(
+        _t(lang_code), radius, min_rating, show_home, bool(data.get("rating_locked"))
+    )
 
 
 async def _ask_location(message: Message, state: FSMContext, lang_code: str):
@@ -123,13 +122,20 @@ async def _show_params(
     if "radius" not in data or "min_rating" not in data:
         radius, min_rating = await _load_prefs(redis_conn, user_id)
         await state.update_data(radius=radius, min_rating=min_rating)
-        data = await state.get_data()
+    # Тизер: когда поиски с рейтингами на сегодня кончились, фильтр рейтинга заперт (🔒).
+    try:
+        st = await quota.get_status(redis_conn, user_id)
+        await state.update_data(rating_locked=st.money_enabled and not st.can_rate)
+    except RedisError:
+        await state.update_data(rating_locked=False)
+    data = await state.get_data()
     await message.answer(
         _params_text(
             lang_code,
             int(data["radius"]),
             float(data["min_rating"]),
             data.get("point_label"),
+            bool(data.get("rating_locked")),
         ),
         reply_markup=_params_markup(lang_code, data),
     )
@@ -154,57 +160,27 @@ async def _apply_point(
     await _show_params(message, state, lang_code, redis_conn, user_id)
 
 
-def _format_card(
-    lang_code: str, i: int, user_lat: float, user_lon: float, place: dict
-) -> str:
-    _ = _t(lang_code)
-    name = html.escape(str(place.get("name") or "—"))
-    rating = place.get("rating")
-    rating_txt = f"{rating:.1f}" if isinstance(rating, int | float) else "—"
-    total = int(place.get("user_ratings_total") or 0)
-    ptype = html.escape(str(place.get("primary_type") or ""))
-    vicinity = html.escape(str(place.get("vicinity") or "—"))
-
-    geo = "—"
-    if place.get("lat") is not None and place.get("lon") is not None:
-        plat, plon = float(place["lat"]), float(place["lon"])
-        dist = calculate_distance(user_lat, user_lon, plat, plon)
-        direction = bearing_to_direction(
-            _, calculate_bearing(user_lat, user_lon, plat, plon)
-        )
-        geo = f"{dist} {_('unit_m')} · {direction}"
-
-    community_rating = place.get("rating_src") == "community"
-    stars = f"{'🥷' if community_rating else '⭐️'} {rating_txt}" + (
-        f" ({total})" if total else ""
-    )
-    votes = place.get("votes")
-    if votes and not community_rating:  # у «народного» рейтинга число голосов уже в скобках
-        stars += f" · 👍 {votes['up']} 👎 {votes['down']}"
-    if ptype:
-        stars += f" · 🍽 {ptype}"
-    return f"<b>{i}. {name}</b>\n{stars}\n🧭 {geo}\n🗺 {vicinity}"
-
-
-def _format_results(
+def _format_header(
     lang_code: str,
-    lat: float,
-    lon: float,
     result: SearchResult,
     min_rating: float,
-    label: str | None = None,
+    label: str | None,
+    upsell: bool,
 ) -> str:
+    """Заголовок выдачи (как на макете): «✨ Топ-3 места рядом с вами» + подзаголовок и пометки."""
     _ = _t(lang_code)
-    parts = []
     if label:
-        parts.append(f"📍 {html.escape(label)}")
-    if result.relaxed:
-        parts.append(f"ℹ️ {_('relaxed_note').format(rating=f'{min_rating:.1f}')}")
+        lines = [f"✨ <b>{_('results_title_point')}</b>", f"📍 {html.escape(label, quote=False)}"]
+    else:
+        lines = [f"✨ <b>{_('results_title')}</b>", _("results_subtitle")]
+    notes = []
+    if upsell:
+        notes.append(f"🔒 {_('upsell_note')}")
+    elif result.relaxed:
+        notes.append(f"ℹ️ {_('relaxed_note').format(rating=f'{min_rating:.1f}')}")
     elif not result.rating_available:
-        parts.append(f"ℹ️ {_('no_rating_note')}")
-    top = result.places[:TOP_N]
-    parts += [_format_card(lang_code, i, lat, lon, p) for i, p in enumerate(top, 1)]
-    return "\n\n".join(parts)
+        notes.append(f"ℹ️ {_('no_rating_note')}")
+    return "\n".join(lines + ([""] + notes if notes else []))
 
 
 # --- Команды ---
@@ -498,6 +474,7 @@ async def _refresh_params(callback: CallbackQuery, lang_code: str, data: dict):
                 int(data.get("radius", settings.DEFAULT_RADIUS)),
                 float(data.get("min_rating", settings.DEFAULT_MIN_RATING)),
                 data.get("point_label"),
+                bool(data.get("rating_locked")),
             ),
             reply_markup=_params_markup(lang_code, data),
         )
@@ -593,9 +570,11 @@ async def do_search(
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     label = data.get("point_label")
 
-    # Квота: проверяем ДО поиска, списываем ПОСЛЕ успешного ответа не из кэша.
+    # Тизер: «богатый» поиск (рейтинги + фото, платные поля Foursquare) — из бесплатного
+    # дневного лимита / бонусных поисков / Pro; иначе базовая выдача без них (почти безлимитно).
     quota_status = await quota.get_status(redis_conn, user_id)
-    if not quota_status.can_search:
+    entitled = quota_status.can_rate
+    if not entitled and not quota_status.can_search_base:
         if analytics:
             await analytics.track_feature_use("paywall", "shown")
         await acc.show_paywall(msg, bot, lang_code, user_id, "paywall_text")
@@ -606,7 +585,8 @@ async def do_search(
     if analytics:
         await analytics.track_user(user_id)
         await analytics.track_feature_use("radius", radius)
-        await analytics.track_feature_use("rating", min_rating)
+        if entitled:
+            await analytics.track_feature_use("rating", min_rating)
 
     status = await msg.answer(_("searching"))
 
@@ -616,9 +596,10 @@ async def do_search(
             lat=lat,
             lon=lon,
             radius=radius,
-            min_rating=min_rating,
+            min_rating=min_rating if entitled else 0.0,
             lang_code=lang_code,
             redis_conn=redis_conn,
+            with_ratings=entitled,
         )
     except Exception:
         logger.exception("search failed")
@@ -649,9 +630,12 @@ async def do_search(
             fsq_ok=result.fsq_ok,
             used_osm=result.used_osm,
             latency_ms=latency_ms,
+            rated=result.rated,
         )
 
-    text = _format_results(lang_code, lat, lon, result, min_rating, label)
+    # Апселл — только когда монетизация включена и платные данные скрыты из-за лимита.
+    upsell = quota_status.money_enabled and not quota_status.unlimited and not entitled
+    text = _format_header(lang_code, result, min_rating, label, upsell)
     st_after: quota.Status | None = None
 
     # Геймификация / монетизация (ошибки Redis здесь не должны ломать выдачу)
@@ -659,7 +643,10 @@ async def do_search(
     try:
         await community.remember_places(redis_conn, top)
         if not result.from_cache:
-            await quota.consume(redis_conn, user_id, quota_status)
+            if entitled and result.rated:
+                await quota.consume(redis_conn, user_id, quota_status)  # платные поля
+            else:
+                await quota.consume_base(redis_conn, user_id)
         streak = await quota.touch_streak(redis_conn, user_id)
         referrer_id = await quota.reward_referral_if_any(redis_conn, user_id)
 
@@ -678,8 +665,9 @@ async def do_search(
             )
         st_after = await quota.get_status(redis_conn, user_id)
         footer = acc.format_footer(lang_code, st_after, streak.days)
-        if notes or footer:
-            text += "\n\n" + "\n".join([*notes, footer] if footer else notes)
+        extra = [*notes, footer] if footer else notes
+        if extra:
+            text += "\n\n" + "\n".join(extra)
     except RedisError:
         logger.exception("quota bookkeeping failed")
         referrer_id = None
@@ -693,22 +681,22 @@ async def do_search(
     )
     text += f"\n\n{hint}"
 
+    # Заголовок выдачи (бывшее «Ищу…»), под ним — карточки: фото + название + рейтинг + кнопки.
+    await status.edit_text(
+        text,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+        reply_markup=kb.get_results_actions_keyboard(_, show_unlock=upsell),
+    )
     try:
         ref = await acc.ref_link(bot, user_id)
     except TelegramAPIError:  # getMe не ответил — выдачу не ломаем, просто без ссылки на бота
         logger.warning("ref link unavailable")
         ref = ""
-    await status.edit_text(
-        text,
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-        reply_markup=kb.get_results_keyboard(
-            _,
-            top,
-            [links.map_url(p) for p in top],
-            [links.share_url(p, ref, lang_code) for p in top],
-        ),
-    )
+    for i, place in enumerate(top, start=1):
+        await cards.send_place_card(
+            bot, msg.chat.id, redis_conn, lang_code, i, place, lat, lon, ref
+        )
     if referrer_id is not None:
         await acc.notify_referrer(bot, redis_conn, referrer_id)
 
