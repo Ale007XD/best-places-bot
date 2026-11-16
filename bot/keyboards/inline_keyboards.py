@@ -87,6 +87,32 @@ def get_results_actions_keyboard(_, show_unlock: bool = False) -> InlineKeyboard
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def get_compact_keyboard(
+    _, places: list[dict], map_urls: list[str], share_urls: list[str]
+) -> InlineKeyboardMarkup:
+    """Режим «одно сообщение»: по ряду на место — 🗺 · 📤 · 👍 · 👎 (номер = номер карточки)."""
+    rows = []
+    for i, p in enumerate(places, start=1):
+        row = [
+            InlineKeyboardButton(text=f"🗺 {i}", url=map_urls[i - 1]),
+            InlineKeyboardButton(text=f"📤 {i}", url=share_urls[i - 1]),
+        ]
+        pid = p.get("place_id")
+        if pid and len(f"vu:{pid}".encode()) <= 64:  # лимит callback_data
+            row += [
+                InlineKeyboardButton(text=f"👍 {i}", callback_data=f"vu:{pid}"),
+                InlineKeyboardButton(text=f"👎 {i}", callback_data=f"vd:{pid}"),
+            ]
+        rows.append(row)
+    rows.append(
+        [
+            InlineKeyboardButton(text=_("change_params_btn"), callback_data="change_params"),
+            InlineKeyboardButton(text=_("new_location_btn"), callback_data="new_search"),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def get_geo_choices_keyboard(labels: list[str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

@@ -31,7 +31,7 @@ from bot.handlers import account_handlers as acc
 from bot.keyboards import inline_keyboards as kb
 from bot.services import cards, community, quota
 from bot.services.translator import SUPPORTED_LANGUAGES, get_string
-from bot.utils import geocoder
+from bot.utils import geocoder, links
 from bot.utils.places_service import TOP_N, SearchResult, search_places
 
 logger = logging.getLogger(__name__)
@@ -635,7 +635,8 @@ async def do_search(
 
     # Апселл — только когда монетизация включена и платные данные скрыты из-за лимита.
     upsell = quota_status.money_enabled and not quota_status.unlimited and not entitled
-    text = _format_header(lang_code, result, min_rating, label, upsell)
+    head = _format_header(lang_code, result, min_rating, label, upsell)
+    tail: list[str] = []  # блоки под карточками: серия/лимит, подсказка, атрибуция
     st_after: quota.Status | None = None
 
     # Геймификация / монетизация (ошибки Redis здесь не должны ломать выдачу)
@@ -667,7 +668,7 @@ async def do_search(
         footer = acc.format_footer(lang_code, st_after, streak.days)
         extra = [*notes, footer] if footer else notes
         if extra:
-            text += "\n\n" + "\n".join(extra)
+            tail.append("\n".join(extra))
     except RedisError:
         logger.exception("quota bookkeeping failed")
         referrer_id = None
@@ -679,20 +680,45 @@ async def do_search(
     hint = (
         _("vote_hint_bonus").format(n=settings.VOTE_REWARD_EVERY) if bonus_on else _("vote_hint")
     )
-    text += f"\n\n{hint}"
+    tail.append(hint)
+    # Данные OpenStreetMap (ODbL) требуют указания источника.
+    if any(p.get("source") == "osm" for p in top):
+        tail.append("🗺 © OpenStreetMap contributors")
 
-    # Заголовок выдачи (бывшее «Ищу…»), под ним — карточки: фото + название + рейтинг + кнопки.
-    await status.edit_text(
-        text,
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-        reply_markup=kb.get_results_actions_keyboard(_, show_unlock=upsell),
-    )
     try:
         ref = await acc.ref_link(bot, user_id)
     except TelegramAPIError:  # getMe не ответил — выдачу не ломаем, просто без ссылки на бота
         logger.warning("ref link unavailable")
         ref = ""
+
+    if await cards.get_layout(redis_conn) == "compact":
+        # Один пост: заголовок, карточки-цитаты, хвост; кнопки — рядами под сообщением.
+        blocks = [
+            cards.build_caption(lang_code, i, p, lat, lon, compact=True)
+            for i, p in enumerate(top, start=1)
+        ]
+        await status.edit_text(
+            "\n\n".join([head, *blocks, *tail]),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+            reply_markup=kb.get_compact_keyboard(
+                _,
+                top,
+                [links.map_url(p) for p in top],
+                [links.share_url(p, ref, lang_code) for p in top],
+            ),
+        )
+        if referrer_id is not None:
+            await acc.notify_referrer(bot, redis_conn, referrer_id)
+        return
+
+    # Заголовок выдачи (бывшее «Ищу…»), под ним — карточки: фото + название + рейтинг + кнопки.
+    await status.edit_text(
+        "\n\n".join([head, *tail]),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+        reply_markup=kb.get_results_actions_keyboard(_, show_unlock=upsell),
+    )
     for i, place in enumerate(top, start=1):
         await cards.send_place_card(
             bot, msg.chat.id, redis_conn, lang_code, i, place, lat, lon, ref

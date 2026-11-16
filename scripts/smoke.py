@@ -157,6 +157,16 @@ def check_overpass_and_fill() -> None:
     assert n["primary_type"] == "Café" and n["place_id"] == "osm:way/7"
     assert osm_norm({"type": "node", "id": 1, "lat": 1, "lon": 2, "tags": {"amenity": "bar"}}) is None
 
+    # запрос: узлы и пути отдельно; список зеркал по умолчанию — по вики OSM, без «ушедших» адресов
+    from bot.config import settings as _st
+    from bot.utils import overpass_api
+
+    q = overpass_api.build_query(10.0, 106.0, 300, 5)
+    assert "node(around:300,10.0,106.0)" in q and "way(around:300,10.0,106.0)" in q and "out center 5" in q
+    mirrors = [u.strip() for u in _st.OVERPASS_URL.split(",")]
+    assert len(mirrors) >= 3 and all(u.startswith("https://") and u.endswith("/interpreter") for u in mirrors)
+    assert not any("kumi.systems" in u for u in mirrors) and overpass_api.cooldowns() == {}
+
     # мало мест с рейтингом → добираем ближайшими без рейтинга (флаг relaxed)
     raw = [_p("R", 4.8, 0.0003), _p("U1", None, 0.0002), _p("U2", None, 0.0004)]
     res = select_places(raw, 10.0, 106.0, 500, 4.5)

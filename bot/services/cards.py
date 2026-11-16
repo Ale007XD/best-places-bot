@@ -63,8 +63,13 @@ def build_caption(
     place: dict[str, Any],
     user_lat: float,
     user_lon: float,
+    compact: bool = False,
 ) -> str:
-    """Подпись карточки (idx=None — без номера, для inline). ≤ CAPTION_LIMIT, валидный HTML."""
+    """
+    Подпись карточки (idx=None — без номера, для inline). ≤ CAPTION_LIMIT, валидный HTML.
+    compact=True — карточка целиком в одной сворачиваемой цитате (для режима «одно сообщение»:
+    видны имя, рейтинг·расстояние и категория, остальное — «под катом»).
+    """
     _ = lambda key: get_string(key, lang=lang_code)
 
     full_name = clean(place.get("name")) or "—"
@@ -104,6 +109,13 @@ def build_caption(
     if extra:
         lines.append("<blockquote expandable>" + "\n".join(extra) + "</blockquote>")
 
+    if compact:
+        # без вложенных цитат: всё тело — одна expandable-цитата
+        body = "\n".join(
+            [ln for ln in lines if not ln.startswith("<blockquote")] + extra
+        )
+        return f"<blockquote expandable>{body}</blockquote>"
+
     caption = "\n".join(lines)
     if len(caption) > CAPTION_LIMIT:  # страховка: режем сворачиваемую часть
         caption = "\n".join(lines[:-1]) if extra else truncate(caption, CAPTION_LIMIT)
@@ -142,6 +154,24 @@ def card_keyboard(
             ]
         )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+LAYOUTS = ("cards", "compact")
+_UI_KEY = "cfg:ui"
+
+
+async def get_layout(r) -> str:
+    """Вид выдачи: настройка админа (Redis) → иначе RESULTS_LAYOUT из окружения."""
+    try:
+        value = await r.hget(_UI_KEY, "layout")
+    except Exception:  # noqa: BLE001 — выдача не должна зависеть от Redis-настроек
+        value = None
+    value = value or settings.RESULTS_LAYOUT
+    return value if value in LAYOUTS else "cards"
+
+
+async def set_layout(r, layout: str) -> None:
+    await r.hset(_UI_KEY, "layout", layout)
 
 
 def vote_label(icon: str, count: int, chosen: bool = False) -> str:

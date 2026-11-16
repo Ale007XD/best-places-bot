@@ -31,11 +31,14 @@ class Settings(BaseSettings):
     VIETMAP_API_KEY: str = ""  # аварийный фолбэк для Вьетнама
     # OpenStreetMap (Overpass): бесплатный фолбэк без ключа, места без рейтинга
     OVERPASS_ENABLED: bool = True
-    # Один или несколько адресов через запятую (зеркала на случай 502/таймаутов)
+    # Один или несколько адресов через запятую; пробуются по порядку. Список — из вики OSM:
+    # основной сервер, VK Maps (глобальный), private.coffee (бывший kumi.systems), Япония
+    # (тестовый, ближе к Азии; может отключаться). Свои — через OVERPASS_URL в .env.
     OVERPASS_URL: str = (
         "https://overpass-api.de/api/interpreter,"
-        "https://overpass.kumi.systems/api/interpreter,"
-        "https://overpass.private.coffee/api/interpreter"
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter,"
+        "https://overpass.private.coffee/api/interpreter,"
+        "https://overpass.osm.jp/api/interpreter"
     )
     ADMIN_ID: int = 0  # Telegram user_id: /feedback и /stats (0 = выключено)
     REDIS_URL: str = "redis://redis:6379/0"
@@ -49,6 +52,9 @@ class Settings(BaseSettings):
     FREE_SEARCHES_PER_DAY: int = 1
     BASE_DAILY_LIMIT: int = 30  # потолок базовых (без рейтингов) поисков в день — защита инфраструктуры
     PHOTOS_ENABLED: bool = True
+    # Вид выдачи: "cards" — заголовок + карточки-фото (по одному сообщению на место),
+    # "compact" — одно сообщение со сворачиваемыми цитатами. Админ переключает: /layout.
+    RESULTS_LAYOUT: str = "cards"
     PRO_DAILY_LIMIT: int = 100  # fair-use потолок поисков с рейтингами для Pro
     STREAK_BONUS_CAP: int = 2  # макс. прибавка к дневному лимиту поисков с рейтингами за серию дней
     QUOTA_UTC_OFFSET_HOURS: int = 7  # когда «наступает» новый день (7 = Вьетнам)

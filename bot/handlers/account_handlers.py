@@ -15,9 +15,10 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
+from bot import diag
 from bot.config import settings
 from bot.keyboards import inline_keyboards as kb
-from bot.services import products, quota
+from bot.services import cards, products, quota
 from bot.services.translator import get_string
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,37 @@ def _money_status_text(cfg: quota.Config) -> str:
         f"{settings.STREAK_BONUS_CAP})\n"
         f"🥷 Админ без лимитов: {'да' if cfg.admin_exempt else 'нет (тест paywall)'}\n\n"
         "/money on · /money off · /money free N · /money exempt on|off"
+    )
+
+
+@router.message(Command("diag"))
+async def cmd_diag(message: Message, command: CommandObject, bot: Bot, redis_conn):
+    """Админ: проверка Redis, Telegram, Foursquare, зеркал Overpass и Nominatim.
+    `/diag premium` дополнительно проверяет платные поля Foursquare (тратит 1 Premium-вызов)."""
+    if not _is_admin(message):
+        return
+    status = await message.answer("⏳ Проверяю сервисы…")
+    checks = await diag.run_diagnostics(
+        premium=(command.args or "").strip().lower() == "premium",
+        bot=bot,
+        redis_conn=redis_conn,
+    )
+    await status.edit_text(diag.format_report(checks), disable_web_page_preview=True)
+
+
+@router.message(Command("layout"))
+async def cmd_layout(message: Message, command: CommandObject, redis_conn):
+    """Админ: вид выдачи — cards (фото-карточки) или compact (одно сообщение с цитатами)."""
+    if not _is_admin(message):
+        return
+    arg = (command.args or "").strip().lower()
+    if arg in cards.LAYOUTS:
+        await cards.set_layout(redis_conn, arg)
+    cur = await cards.get_layout(redis_conn)
+    await message.answer(
+        f"🖼 Вид выдачи: {cur}\n"
+        "cards — заголовок + фото-карточки; compact — одно сообщение со сворачиваемыми цитатами.\n\n"
+        "/layout cards · /layout compact"
     )
 
 
