@@ -71,7 +71,7 @@ def build_caption(
     видны имя, рейтинг·расстояние и категория, остальное — «под катом»).
     """
     def _(key: str) -> str:
-    return get_string(key, lang=lang_code)
+        return get_string(key, lang=lang_code)
 
     full_name = clean(place.get("name")) or "—"
     name = truncate(full_name, NAME_MAX)
@@ -133,7 +133,7 @@ def card_keyboard(
 ) -> InlineKeyboardMarkup:
     """🗺 Карта · 📤 Поделиться / 👍 · 👎 (со счётчиками; mine — «up»/«down» отмечает ✅)."""
     def _(key: str) -> str:
-    return get_string(key, lang=lang_code)
+        return get_string(key, lang=lang_code)
     rows = [
         [
             InlineKeyboardButton(text=_("btn_map"), url=links.map_url(place)),

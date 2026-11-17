@@ -258,7 +258,8 @@ def check_text_helpers() -> None:
 
 
 def check_keyboards() -> None:
-    _ = lambda k: get_string(k, lang="ru")
+    def _(k):
+        return get_string(k, lang="ru")
     m = kb.get_params_keyboard(_, 500, 4.0)
     texts = [b.text for row in m.inline_keyboard for b in row]
     assert sum(t.startswith("✅") for t in texts) == 2, texts
