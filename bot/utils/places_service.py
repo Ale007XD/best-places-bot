@@ -40,6 +40,14 @@ FALLBACK_CACHE_TTL = 120  # если Foursquare сбоил — кэшируем 
 TOP_N = 3  # сколько мест показываем
 RESULT_LIMIT = 10  # сколько возвращаем наверх (с запасом)
 DEDUP_DISTANCE_M = 75
+# «Тосты» и «Тосты, винное бистро» — одно заведение с разным оформлением имени.
+# Имена не равны, но ядра вложены друг в друга: допускаем больший разброс координат.
+DEDUP_FUZZY_DISTANCE_M = 120
+_GENERIC_WORDS = frozenset({
+    "бар", "бистро", "кафе", "ресторан", "паб", "пиццерия", "кофейня", "столовая",
+    "винный", "винное", "винотека", "cafe", "bar", "pub", "restaurant", "bistro",
+    "wine", "coffee", "the", "и",
+})
 
 
 class SearchUnavailable(Exception):
@@ -86,6 +94,17 @@ def _norm_name(name: Any) -> str:
     return re.sub(r"[\W_]+", "", str(name or "").casefold())
 
 
+def _core_tokens(name: Any) -> frozenset[str]:
+    """Значимые слова названия без «бар/бистро/кафе…» (для нечёткого сравнения)."""
+    toks = re.findall(r"[^\W_]+", str(name or "").casefold().replace("ё", "е"))
+    return frozenset([t for t in toks if t not in _GENERIC_WORDS] or toks)
+
+
+def _fuzzy_same_name(a: Any, b: Any) -> bool:
+    ta, tb = _core_tokens(a), _core_tokens(b)
+    return bool(ta and tb and (ta <= tb or tb <= ta))
+
+
 def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Убирает дубли: то же имя (без регистра/пунктуации) и ближе DEDUP_DISTANCE_M.
 
@@ -96,12 +115,15 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
         name = _norm_name(p.get("name"))
         dup_idx = None
         for i, q in enumerate(result):
-            if name != _norm_name(q.get("name")):
+            exact = name == _norm_name(q.get("name"))
+            if not exact and not _fuzzy_same_name(p.get("name"), q.get("name")):
                 continue
-            # Два разных объекта одного провайдера (разные id) — это разные заведения,
-            # например сеть с точками в одном здании. Склеиваем только дубли между источниками.
+            limit = DEDUP_DISTANCE_M if exact else DEDUP_FUZZY_DISTANCE_M
+            # Два разных объекта одного провайдера (разные id) с ОДИНАКОВЫМ именем — это
+            # разные заведения (сеть в одном здании). Разные оформления имени — дубль.
             if (
-                p.get("source") == q.get("source")
+                exact
+                and p.get("source") == q.get("source")
                 and p.get("place_id")
                 and q.get("place_id")
                 and p["place_id"] != q["place_id"]
@@ -113,7 +135,7 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
             d = calculate_distance(
                 float(p["lat"]), float(p["lon"]), float(q["lat"]), float(q["lon"])
             )
-            if d <= DEDUP_DISTANCE_M:
+            if d <= limit:
                 dup_idx = i
                 break
         if dup_idx is None:
