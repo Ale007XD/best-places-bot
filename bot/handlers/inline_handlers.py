@@ -63,7 +63,8 @@ def _note(lang: str, key: str) -> InlineQueryResultArticle:
 def _result_for(
     place: dict, lang: str, lat: float, lon: float, ref: str, bot_username: str
 ) -> InlineQueryResultArticle:
-    _ = lambda key: get_string(key, lang=lang)
+    def _(key: str) -> str:
+    return get_string(key, lang=lang)
     name = truncate(clean(place.get("name")) or "—", 60)
 
     meta = []

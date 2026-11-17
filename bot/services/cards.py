@@ -70,7 +70,8 @@ def build_caption(
     compact=True — карточка целиком в одной сворачиваемой цитате (для режима «одно сообщение»:
     видны имя, рейтинг·расстояние и категория, остальное — «под катом»).
     """
-    _ = lambda key: get_string(key, lang=lang_code)
+    def _(key: str) -> str:
+    return get_string(key, lang=lang_code)
 
     full_name = clean(place.get("name")) or "—"
     name = truncate(full_name, NAME_MAX)
@@ -131,7 +132,8 @@ def card_keyboard(
     mine: str | None = None,
 ) -> InlineKeyboardMarkup:
     """🗺 Карта · 📤 Поделиться / 👍 · 👎 (со счётчиками; mine — «up»/«down» отмечает ✅)."""
-    _ = lambda key: get_string(key, lang=lang_code)
+    def _(key: str) -> str:
+    return get_string(key, lang=lang_code)
     rows = [
         [
             InlineKeyboardButton(text=_("btn_map"), url=links.map_url(place)),
