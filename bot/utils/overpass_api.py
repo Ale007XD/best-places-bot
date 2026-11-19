@@ -47,11 +47,13 @@ def cooldowns() -> dict[str, int]:
 
 def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
     tags = el.get("tags") or {}
-    name = tags.get("name")
+    name = tags.get("name") or ""
     center = el.get("center") or {}
     lat = el.get("lat", center.get("lat"))
     lon = el.get("lon", center.get("lon"))
-    if not name or lat is None or lon is None:
+    # Без названия, но с типом заведения — оставляем (в глубинке единственное кафе нередко
+    # безымянное): оркестратор подпишет «Кафе без названия» и покажет после именованных.
+    if lat is None or lon is None or not (name or tags.get("amenity")):
         return None
 
     street = " ".join(
@@ -60,6 +62,7 @@ def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "place_id": f"osm:{el.get('type')}/{el.get('id')}",
         "name": name,
+        "unnamed": not name,
         "rating": None,
         "user_ratings_total": 0,
         "primary_type": _TYPES.get(tags.get("amenity", ""), tags.get("amenity", "")),
@@ -86,7 +89,7 @@ def build_query(lat: float, lon: float, radius: int, limit: int = 300, kind: str
     обрезал бы произвольные места, а не дальние: он с запасом, ближайшие выбираем локально.
     """
     amenities = _KIND_AMENITIES.get(kind, _KIND_AMENITIES["all"])
-    flt = f'["amenity"~"^({amenities})$"]["name"]'
+    flt = f'["amenity"~"^({amenities})$"]'
     around = f"(around:{int(radius)},{lat},{lon})"
     return f"[out:json][timeout:8];(node{around}{flt};way{around}{flt};);out center {limit};"
 

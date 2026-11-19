@@ -125,5 +125,9 @@
   "kind_restaurant_btn": "🍝 餐厅",
   "kind_bar_btn": "🍸 酒吧",
   "inline_radius_btn": "📏 {radius} 米 · 设置",
-  "inline_help_text": "🔎 内联模式：在任意聊天中输入 {bot}，机器人会显示最近的 3 个地点。\n\n• 位置：您在 Telegram 中的位置（手机端会请求授权），或您最后一次发给机器人的位置。只需向机器人发送一次位置即可。\n• 半径：“500m”、“1km”、“2km”、“3km”。当前默认：{radius} 米（与机器人设置一致）。\n• 类别：“cafe”、“restaurant”、“bar”。\n• 也支持地址、坐标和 Google 地图链接。\n\n示例：{bot} cafe 1km"
+  "inline_help_text": "🔎 内联模式：在任意聊天中输入 {bot}，机器人会显示最近的 3 个地点。\n\n• 位置：您在 Telegram 中的位置（手机端会请求授权），或您最后一次发给机器人的位置。只需向机器人发送一次位置即可。\n• 半径：“500m”、“1km”、“2km”、“3km”。当前默认：{radius} 米（与机器人设置一致）。\n• 类别：“cafe”、“restaurant”、“bar”。\n• 也支持地址、坐标和 Google 地图链接。\n\n示例：{bot} cafe 1km",
+  "unnamed_cafe": "无名咖啡馆",
+  "unnamed_restaurant": "无名餐厅",
+  "unnamed_bar": "无名酒吧",
+  "unnamed_place": "无名场所"
 }

@@ -16,7 +16,8 @@ def map_url(place: dict[str, Any]) -> str:
     адрес» и центрируем карту на координатах места (`/@lat,lon,18z`) — так находится именно
     это заведение, а не тёзка в другом городе.
     """
-    name = str(place.get("name") or "").strip()
+    # Подпись «Кафе без названия» — не название: ищем по координатам.
+    name = "" if place.get("unnamed") else str(place.get("name") or "").strip()
     addr = str(place.get("vicinity") or "").strip()
     lat, lon = place.get("lat"), place.get("lon")
 

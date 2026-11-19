@@ -17,7 +17,7 @@ import httpx
 from bot.config import settings
 from bot.utils import foursquare_api as fsq
 from bot.utils import geoapify_api as gp
-from bot.utils import overpass_api
+from bot.utils import links, overpass_api
 from bot.utils import places_service as ps
 from bot.utils.attribution import attribution
 
@@ -257,6 +257,40 @@ async def main() -> None:
     r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
     # мусор FSQ не «выигрывает» по числу мест у двух настоящих мест Geoapify
     assert r.provider == "geoapify" and len(r.places) == 2, (r.provider, r.places)
+
+    # 12. безымянные места: берутся с типом, ранжируются после именованных, подписываются
+    # на языке пользователя, не склеиваются между собой, ссылка на карту — по координатам
+    nf = gp._normalize({"properties": {"lat": 1.0, "lon": 2.0, "categories": ["catering.cafe"]}})
+    assert nf and nf["unnamed"] and nf["name"] == "" and nf["primary_type"] == "Café"
+    assert gp._normalize({"properties": {"lat": 1.0, "lon": 2.0, "categories": ["catering"]}}) is None
+
+    def anon(i: int, dlat: float, ptype: str) -> dict:
+        return {**_pl(i, dlat, "osm"), "name": "", "unnamed": True, "primary_type": ptype}
+
+    mixed_places = [anon(1, 0.0001, "Café"), anon(2, 0.0002, "Bar"), _pl(3, 0.0009, "osm")]
+    assert len(ps._deduplicate(mixed_places)) == 3  # безымянные не склеиваются
+    res = ps.select_places(mixed_places, LAT, LON, 500, 0)
+    assert res.places[0]["place_id"] == "osm3", res.places  # именованное — первым
+    labeled = ps._label_unnamed(res.places, "ru")
+    assert [p["name"] for p in labeled[1:]] == ["Кафе без названия", "Бар без названия"], labeled
+    assert ps._label_unnamed(res.places, "en")[1]["name"] == "Unnamed café"
+    assert "query=" in links.map_url({**labeled[1], "name": "Кафе без названия"}) and \
+        "/@" not in links.map_url(labeled[1])
+    # безымянных много, именованных мало → провайдер не считается «достаточным»
+    await redis.flushall()
+    c = Calls()
+    install(c, gp_places=[anon(i, 0.0001 * i, "Café") for i in range(1, 6)] + [_pl(9, 0.0005, "osm")],
+            op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 500, 0, "ru", redis, with_ratings=False)
+    assert r.provider == "fsq" and len(c.fsq) == 1, (r.provider, c.fsq)
+    await redis.flushall()
+    c = Calls()
+    install(c, gp_places=[anon(1, 0.0001, "Café"), _pl(9, 0.0005, "osm")], op_places=[], fsq_places=[])
+    r = await ps.search_places(LAT, LON, 500, 0, "ru", redis, with_ratings=False)
+    assert r.provider == "geoapify" and [p["name"] for p in r.places] == ["OSM 9", "Кафе без названия"], (
+        r.provider,
+        r.places,
+    )
 
     print("providers ok")
 

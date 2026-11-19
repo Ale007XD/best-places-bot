@@ -32,6 +32,7 @@ def _install_stubs() -> None:
     _stub("bot.config", settings=None)
     _stub("bot.services")
     _stub("bot.services.community", attach_votes=None)
+    _stub("bot.services.translator", get_string=lambda key, lang="ru": key)
     _stub("bot.utils", __path__=[str(ROOT / "bot" / "utils")])
     _stub(
         "bot.utils.foursquare_api",

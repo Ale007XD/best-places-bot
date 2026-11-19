@@ -149,7 +149,10 @@ def check_overpass_and_fill() -> None:
     )
     assert n and n["lat"] == 1.0 and n["rating"] is None and n["vicinity"] == "5 S"
     assert n["primary_type"] == "Café" and n["place_id"] == "osm:way/7"
-    assert osm_norm({"type": "node", "id": 1, "lat": 1, "lon": 2, "tags": {"amenity": "bar"}}) is None
+    # безымянное заведение с типом — остаётся (подпишет оркестратор); без типа и имени — нет
+    un = osm_norm({"type": "node", "id": 1, "lat": 1, "lon": 2, "tags": {"amenity": "bar"}})
+    assert un and un["unnamed"] and un["name"] == "" and un["primary_type"] == "Bar"
+    assert osm_norm({"type": "node", "id": 2, "lat": 1, "lon": 2, "tags": {}}) is None
 
     # запрос: узлы и пути отдельно; список зеркал по умолчанию — по вики OSM, без «ушедших» адресов
     from bot.config import settings as _st

@@ -66,22 +66,24 @@ def _place_id(props: dict[str, Any]) -> str | None:
 
 def _normalize(feature: dict[str, Any]) -> dict[str, Any] | None:
     props = feature.get("properties") or {}
-    name = props.get("name")
+    name = props.get("name") or ""
     lat, lon = props.get("lat"), props.get("lon")
     if lat is None or lon is None:  # запасной путь: GeoJSON-геометрия [lon, lat]
         coords = (feature.get("geometry") or {}).get("coordinates") or []
         if len(coords) >= 2:
             lon, lat = coords[0], coords[1]
-    if not name or lat is None or lon is None:
-        return None
+    primary_type = _primary_type(props.get("categories") or [])
+    if lat is None or lon is None or not (name or primary_type):
+        return None  # безымянное место берём только с понятным типом («Кафе без названия»)
 
     street = " ".join(x for x in (props.get("housenumber"), props.get("street")) if x)
     return {
         "place_id": _place_id(props),
         "name": name,
+        "unnamed": not name,
         "rating": None,
         "user_ratings_total": 0,
-        "primary_type": _primary_type(props.get("categories") or []),
+        "primary_type": primary_type,
         "lat": lat,
         "lon": lon,
         "vicinity": street or props.get("address_line2") or None,

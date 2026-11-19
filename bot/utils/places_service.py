@@ -35,13 +35,14 @@ from redis.exceptions import RedisError
 
 from bot.config import settings
 from bot.services import community
+from bot.services.translator import get_string
 from bot.utils.foursquare_api import FoursquareError, ratings_available
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geoapify_api import find_places_geoapify
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
-from bot.utils.querytools import matches_kind
+from bot.utils.querytools import classify_kind, matches_kind
 from bot.utils.vietmap_api import find_places_vietmap
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,29 @@ def drop_suspect_pins(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [p for p in places if id(p) not in bad]
 
 
+def _named(raw: list[dict[str, Any]]) -> int:
+    """Сколько мест с названием: безымянные не считаются «достаточным» результатом."""
+    return sum(1 for p in raw if not p.get("unnamed"))
+
+
+_UNNAMED_KEYS = {
+    "cafe": "unnamed_cafe",
+    "restaurant": "unnamed_restaurant",
+    "bar": "unnamed_bar",
+}
+
+
+def _label_unnamed(places: list[dict[str, Any]], lang_code: str) -> list[dict[str, Any]]:
+    """Безымянным местам — подпись «Кафе без названия» на языке пользователя (в копиях)."""
+    out = []
+    for p in places:
+        if p.get("unnamed") and not p.get("name"):
+            key = _UNNAMED_KEYS.get(classify_kind(p), "unnamed_place")
+            p = {**p, "name": get_string(key, lang=lang_code)}
+        out.append(p)
+    return out
+
+
 def _norm_name(name: Any) -> str:
     return re.sub(r"[\W_]+", "", str(name or "").casefold())
 
@@ -183,6 +207,9 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for p in places:
         name = _norm_name(p.get("name"))
+        if not name:  # безымянные не склеиваем: у них нечего сравнивать
+            result.append(p)
+            continue
         dup_idx = None
         for i, q in enumerate(result):
             exact = name == _norm_name(q.get("name"))
@@ -247,7 +274,12 @@ def select_places(
     ]
 
     def rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return sorted(items, key=lambda p: _score(p, lat, lon, radius), reverse=True)
+        # Безымянные — только после именованных (они добирают выдачу, если именованных мало).
+        return sorted(
+            items,
+            key=lambda p: (not p.get("unnamed"), _score(p, lat, lon, radius)),
+            reverse=True,
+        )
 
     rated = [p for p in places if p.get("rating") is not None]
 
@@ -399,9 +431,9 @@ async def _load_raw(
         # Битые координаты провайдера отсекаем ДО подсчёта: иначе провайдер с мусором
         # «выигрывает» у провайдера с меньшим, но настоящим числом мест.
         info = info._replace(raw=drop_suspect_pins(info.raw))
-        if best is None or len(info.raw) > len(best.raw):
+        if best is None or (_named(info.raw), len(info.raw)) > (_named(best.raw), len(best.raw)):
             best = info
-        return info if len(info.raw) >= TOP_N else None
+        return info if _named(info.raw) >= TOP_N else None
 
     order = _base_providers(skip=frozenset({"fsq"}) if want_rated else frozenset())
     if want_rated:
@@ -464,7 +496,9 @@ async def search_places(
     except RedisError as e:
         logger.warning("attach_votes failed: %s", e)
         places = info.raw
-    return select_places(places, lat, lon, radius, min_rating, kind)._replace(
+    selected = select_places(places, lat, lon, radius, min_rating, kind)
+    return selected._replace(
+        places=_label_unnamed(selected.places, lang_code),
         from_cache=info.from_cache,
         fsq_ok=info.fsq_ok,
         used_osm=info.used_osm,
