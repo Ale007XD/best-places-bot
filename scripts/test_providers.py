@@ -64,6 +64,11 @@ def install(calls: Calls, *, gp_places, op_places, fsq_places, fsq_rated=True) -
     ps.fsq_fetch = fake_fsq
     ps.ratings_available = lambda: True
 
+    async def fake_reverse(lat, lon, api_key, **_kw):
+        return None
+
+    ps.reverse_region = fake_reverse
+
 
 async def keys(redis) -> list[str]:
     return [k async for k in redis.scan_iter("places:*")]
@@ -321,6 +326,49 @@ async def main() -> None:
     )
     r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
     assert r.provider == "geoapify" and len(r.places) == 2, (r.provider, r.places)
+
+    # 15. «эхо» координат запроса (float32-округление) отбрасывается, настоящие места — нет
+    q_lat, q_lon = 14.7072, 107.6918
+    echo32 = {**_pl(1, 0.0, "fsq"), "lat": 14.707197189331055, "lon": 107.6917953491211}
+    echo7 = {**_pl(2, 0.0, "fsq"), "lat": 14.7071976, "lon": 107.6917952}
+    real = {**_pl(3, 0.0, "fsq"), "lat": 14.70678, "lon": 107.68980}
+    kept = ps.drop_query_echo([echo32, echo7, real], q_lat, q_lon)
+    assert [p["place_id"] for p in kept] == ["fsq3"], kept
+
+    # 16. регион адреса не из региона точки → foreign_region; сверка без диакритики/city
+    pin_text = "Ho Chi Minh City | Vietnam | Ho Chi Minh City, Vietnam"
+    ph = {**_pl(1, 0.0, "fsq"), "vicinity": "85 (Phạm Văn Chiêu), Hồ Chí Minh"}
+    kt = {**_pl(2, 0.0, "fsq"), "vicinity": "12 Nguyen Hue, Kon Tum Province"}
+    noreg = {**_pl(3, 0.0, "fsq"), "vicinity": "5 Le Loi"}
+    parens = {**_pl(4, 0.0, "fsq"), "vicinity": "36 (35, Linh Dong, Thu Duc), Ho Chi Minh"}
+    flagged = ps.flag_foreign_region([ph, kt, noreg, parens], pin_text)
+    assert [bool(p.get("foreign_region")) for p in flagged] == [False, True, False, False], flagged
+    assert ps.flag_foreign_region([kt], None) == [kt]  # нет данных о регионе — не трогаем
+
+    # 17. foreign_region идёт строго после остальных, но добирает выдачу (не удаляется)
+    top_foreign = {**_pl(1, 0.0005, "fsq", 4.9), "foreign_region": True}
+    low_local = _pl(2, 0.0010, "fsq", 4.0)
+    sel = ps.select_places([top_foreign, low_local], LAT, LON, 500, 0.0)
+    assert [p["place_id"] for p in sel.places] == ["fsq2", "fsq1"], sel.places
+
+    # 18. поиск: FSQ-эхо отброшено, место из чужого региона ушло в конец
+    await redis.flushall()
+
+    async def fake_reverse_hcm(lat, lon, api_key, **_kw):
+        return pin_text
+
+    c = Calls()
+    install(c, gp_places=[], op_places=[], fsq_places=[
+        {**top_foreign, "foreign_region": None, "vicinity": "1 Foo, Kon Tum Province"},
+        {**low_local, "vicinity": "2 Bar, Hồ Chí Minh"},
+        {**_pl(3, 0.0, "fsq", 4.5), "lat": LAT, "lon": LON, "vicinity": "3 Baz, Hồ Chí Minh"},
+        _pl(4, 0.0015, "fsq", 4.2),
+    ])
+    ps.reverse_region = fake_reverse_hcm
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
+    ids = [p["place_id"] for p in r.places]
+    assert r.provider == "fsq" and "fsq3" not in ids and ids[-1] == "fsq1", (r.provider, ids)
+    assert await redis.get("region:v1:10.777:106.701") == pin_text
 
     print("providers ok")
 

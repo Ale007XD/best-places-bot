@@ -29,6 +29,7 @@ import json
 import logging
 import math
 import re
+import unicodedata
 from typing import Any, NamedTuple
 
 from redis.exceptions import RedisError
@@ -38,7 +39,7 @@ from bot.services import community
 from bot.services.translator import get_string
 from bot.utils.foursquare_api import FoursquareError, ratings_available
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
-from bot.utils.geoapify_api import find_places_geoapify
+from bot.utils.geoapify_api import find_places_geoapify, reverse_region
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
@@ -202,6 +203,96 @@ def drop_distance_mismatch(
     return kept
 
 
+_ECHO_TOLERANCE_DEG = 1e-5  # ~1 м; округление координаты запроса до float32 даёт до ~5e-6°
+_REGION_NOISE = re.compile(r"\b(thanh pho|chang wat|tinh|tp|city|province|prefecture)\b")
+REGION_CACHE_PREFIX = "region:v1:"
+
+
+def drop_query_echo(places: list[dict[str, Any]], lat: float, lon: float) -> list[dict[str, Any]]:
+    """Отбрасывает места, чьи координаты в точности равны точке запроса (≤ ~1 м).
+
+    Foursquare для части мест с неопределённой геометрией возвращает «эхо» координат запроса
+    (fsq_distance=0), хотя адрес — в другом городе. Настоящее заведение так точно в точку
+    пользователя не попадает (исключение: точка задана самим заведением — оно отсекается,
+    это допустимая потеря).
+    """
+    kept = []
+    for p in places:
+        if (
+            p.get("lat") is not None
+            and p.get("lon") is not None
+            and abs(float(p["lat"]) - lat) <= _ECHO_TOLERANCE_DEG
+            and abs(float(p["lon"]) - lon) <= _ECHO_TOLERANCE_DEG
+        ):
+            logger.warning("Query echo dropped: %r at (%s, %s)", p.get("name"), p["lat"], p["lon"])
+            continue
+        kept.append(p)
+    return kept
+
+
+def _fold_region(text: Any) -> str:
+    """«Hồ Chí Minh City» → «ho chi minh»: без диакритики, регистра и слов city/province."""
+    s = unicodedata.normalize("NFKD", str(text or "")).replace("đ", "d").replace("Đ", "D")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch)).casefold()
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return re.sub(r"\s+", " ", _REGION_NOISE.sub(" ", s)).strip()
+
+
+def _place_region(vicinity: Any) -> str | None:
+    """Последний сегмент адреса («…, Hồ Chí Minh») в нормализованном виде; нет — None."""
+    v = re.sub(r"\([^)]*\)", " ", str(vicinity or ""))
+    if "," not in v:
+        return None
+    region = _fold_region(v.rsplit(",", 1)[1])
+    return region if len(region.replace(" ", "")) >= 3 else None
+
+
+def flag_foreign_region(places: list[dict[str, Any]], pin_text: str | None) -> list[dict[str, Any]]:
+    """Помечает foreign_region у мест, чей регион из адреса не найден среди названий региона
+    точки пользователя. Не удаляет: после переименований регионов (реформа 2025) возможны
+    ложные срабатывания, поэтому такие места лишь уходят в конец выдачи."""
+    pin = _fold_region(pin_text).replace(" ", "")
+    if not pin:
+        return places
+    out = []
+    for p in places:
+        region = _place_region(p.get("vicinity"))
+        if region and region.replace(" ", "") not in pin:
+            logger.warning(
+                "Foreign region demoted: %r region=%r pin=%r", p.get("name"), region, pin_text
+            )
+            p = {**p, "foreign_region": True}
+        out.append(p)
+    return out
+
+
+async def _pin_region(lat: float, lon: float, redis_conn) -> str | None:
+    """Названия региона точки пользователя (Geoapify reverse), кэш по ячейке ~110 м."""
+    clat, clon = _cell(lat, lon)
+    key = f"{REGION_CACHE_PREFIX}{clat}:{clon}"
+    try:
+        cached = await redis_conn.get(key)
+        if cached:
+            return cached if isinstance(cached, str) else cached.decode()
+    except RedisError as e:
+        logger.warning("Region cache read failed: %s", e)
+    text = await reverse_region(lat, lon, settings.GEOAPIFY_API_KEY)
+    if text:
+        try:
+            await redis_conn.setex(key, settings.OSM_CACHE_TTL, text)
+        except RedisError as e:
+            logger.warning("Region cache write failed: %s", e)
+    return text or None
+
+
+async def _demote_foreign(
+    places: list[dict[str, Any]], lat: float, lon: float, redis_conn
+) -> list[dict[str, Any]]:
+    if not settings.GEOAPIFY_API_KEY or not any(_place_region(p.get("vicinity")) for p in places):
+        return places
+    return flag_foreign_region(places, await _pin_region(lat, lon, redis_conn))
+
+
 def _named(raw: list[dict[str, Any]]) -> int:
     """Сколько мест с названием: безымянные не считаются «достаточным» результатом."""
     return sum(1 for p in raw if not p.get("unnamed"))
@@ -307,7 +398,32 @@ def select_places(
     min_rating: float,
     kind: str = "all",
 ) -> SearchResult:
-    """Чистая функция: дедуп → радиус → категория → фильтр по рейтингу → ранжирование."""
+    """Чистая функция: дедуп → радиус → категория → фильтр по рейтингу → ранжирование.
+
+    Места с foreign_region (адрес в другом регионе, чем точка пользователя) идут строго
+    после остальных и только добирают выдачу.
+    """
+    local = [p for p in raw if not p.get("foreign_region")]
+    foreign = [p for p in raw if p.get("foreign_region")]
+    res = _select(local, lat, lon, radius, min_rating, kind)
+    if foreign and len(res.places) < RESULT_LIMIT:
+        extra = _select(foreign, lat, lon, radius, 0.0, kind)
+        room = RESULT_LIMIT - len(res.places)
+        res = res._replace(
+            places=res.places + extra.places[:room],
+            rating_available=res.rating_available or extra.rating_available,
+        )
+    return res
+
+
+def _select(
+    raw: list[dict[str, Any]],
+    lat: float,
+    lon: float,
+    radius: int,
+    min_rating: float,
+    kind: str,
+) -> SearchResult:
     places = [
         p
         for p in _deduplicate(raw)
@@ -450,7 +566,7 @@ async def _fsq_provider(
             for p in res.places[:3]
         ),
     )
-    places = drop_distance_mismatch(res.places, lat, lon)
+    places = drop_query_echo(drop_distance_mismatch(res.places, lat, lon), lat, lon)
     return LoadInfo(places, False, True, False, res.rated, "fsq")
 
 
@@ -493,6 +609,8 @@ async def _load_raw(
     for name in order:
         if name == "fsq":
             info = await _fsq_provider(lat, lon, radius, lang_code, want_rated)
+            if info is not None:
+                info = info._replace(raw=await _demote_foreign(info.raw, lat, lon, redis_conn))
         else:
             info = await _osm_provider(name, lat, lon, radius, lang_code, redis_conn, kind)
         if (done := consider(info)) is not None:

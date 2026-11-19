@@ -24,6 +24,7 @@ from bot.utils.http import get_client
 logger = logging.getLogger(__name__)
 
 DEFAULT_URL = "https://api.geoapify.com/v2/places"
+REVERSE_URL = "https://api.geoapify.com/v1/geocode/reverse"
 _TIMEOUT_SEC = 8.0
 
 # kind → категории Geoapify (через запятую; места могут иметь несколько категорий)
@@ -130,3 +131,31 @@ async def find_places_geoapify(
     places = [p for f in features if (p := _normalize(f))]
     logger.info("Geoapify: %s places", len(places))
     return places
+
+
+async def reverse_region(
+    lat: float, lon: float, api_key: str, url: str = REVERSE_URL
+) -> str | None:
+    """Административные названия точки (область, город, район, страна) одной строкой.
+
+    Нужны только для сверки региона адреса места с регионом пользователя.
+    None — сбой; "" — ответ без данных. Ключ в логи не попадает.
+    """
+    if not api_key:
+        return None
+    params = {"lat": lat, "lon": lon, "format": "json", "lang": "en", "apiKey": api_key}
+    try:
+        r = await get_client().get(url, params=params, timeout=_TIMEOUT_SEC)
+        r.raise_for_status()
+        results = r.json().get("results") or []
+    except httpx.HTTPStatusError as e:
+        logger.warning("Geoapify reverse HTTP %s", e.response.status_code)
+        return None
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Geoapify reverse failed: %s", type(e).__name__)
+        return None
+    if not results:
+        return ""
+    props = results[0]
+    keys = ("state", "city", "county", "district", "suburb", "country", "formatted")
+    return " | ".join(str(props[k]) for k in keys if props.get(k))
