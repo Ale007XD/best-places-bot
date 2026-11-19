@@ -229,6 +229,35 @@ async def main() -> None:
     assert sent[0]["sort"] == "DISTANCE" and "sort" not in sent[1], sent
     assert len(res.places) == 1 and used_sort is False
 
+    # 11. «битые пины»: разные заведения в одной точке с адресами на разных улицах (случай:
+    # три места из разных районов Хошимина, все в 431 м от точки в Кон Туме)
+    assert ps._street_key("85 (Phạm Văn Chiêu), Hồ Chí Minh") == "phạm văn chiêu"
+    assert ps._street_key("90 (Huỳnh Mẫn Đạt Q5), Hồ Chí Minh") == "huỳnh mẫn đạt"
+    assert ps._street_key("148i (Lý Chính Thắng), Hồ Chí Minh") == "lý chính thắng"
+    assert ps._street_key(None) is None and ps._street_key("12") is None
+
+    def pin(i: int, street: str | None) -> dict:
+        return {**_pl(i, 0.004, "fsq"), "vicinity": street}
+
+    junk = [
+        pin(1, "85 (Phạm Văn Chiêu), Hồ Chí Minh"),
+        pin(2, "148i (Lý Chính Thắng), Hồ Chí Minh"),
+        pin(3, "90 (Huỳnh Mẫn Đạt Q5), Hồ Chí Minh"),
+    ]
+    assert ps.drop_suspect_pins(junk) == []
+    court = [pin(i, f"{i} Nguyen Hue, Ho Chi Minh") for i in range(1, 4)]  # фудкорт: одна улица
+    assert ps.drop_suspect_pins(court) == court
+    assert ps.drop_suspect_pins([pin(1, None), pin(2, "5 Le Loi")]) != []  # адреса нет — не трогаем
+    mixed = junk + [_pl(9, 0.001, "fsq")]
+    assert [p["place_id"] for p in ps.drop_suspect_pins(mixed)] == ["fsq9"]
+
+    await redis.flushall()
+    c = Calls()
+    install(c, gp_places=gp5[:2], op_places=[], fsq_places=junk)
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
+    # мусор FSQ не «выигрывает» по числу мест у двух настоящих мест Geoapify
+    assert r.provider == "geoapify" and len(r.places) == 2, (r.provider, r.places)
+
     print("providers ok")
 
 

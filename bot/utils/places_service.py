@@ -117,6 +117,49 @@ def _make_cache_key(
     return f"places:v4:{hashlib.md5(raw.encode()).hexdigest()}"
 
 
+_PIN_DECIMALS = 5  # ~1 м: «одна и та же точка»
+
+
+def _street_key(vicinity: Any) -> str | None:
+    """Улица без номера дома: «85 (Phạm Văn Chiêu), Hồ Chí Minh» → «phạm văn chiêu».
+
+    None — улицу выделить нельзя (адреса нет): такое место не считается противоречащим.
+    """
+    first = str(vicinity or "").split(",", 1)[0].replace("(", " ").replace(")", " ")
+    tokens = [t for t in first.casefold().split() if not any(ch.isdigit() for ch in t)]
+    return " ".join(tokens) or None
+
+
+def drop_suspect_pins(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Убирает места с «битыми» координатами провайдера.
+
+    Признак: несколько РАЗНЫХ заведений в одной точке (с точностью ~1 м), у которых адреса на
+    разных улицах — такое бывает, когда провайдер не смог определить положение и поставил
+    все записи в одну координату (нередко за сотни км от реального адреса). Заведения в
+    одном здании (фудкорт, торговый центр) имеют общую улицу и не затрагиваются.
+    """
+    groups: dict[tuple[float, float], list[dict[str, Any]]] = {}
+    for p in places:
+        if p.get("lat") is None or p.get("lon") is None:
+            continue
+        key = (round(float(p["lat"]), _PIN_DECIMALS), round(float(p["lon"]), _PIN_DECIMALS))
+        groups.setdefault(key, []).append(p)
+
+    bad: set[int] = set()
+    for (lat, lon), group in groups.items():
+        streets = {k for p in group if (k := _street_key(p.get("vicinity")))}
+        if len(group) >= 2 and len(streets) >= 2:
+            bad.update(id(p) for p in group)
+            logger.warning(
+                "Suspect pins dropped: %s places at (%s, %s) with different streets: %s",
+                len(group),
+                lat,
+                lon,
+                "; ".join(str(p.get("name")) for p in group),
+            )
+    return [p for p in places if id(p) not in bad]
+
+
 def _norm_name(name: Any) -> str:
     return re.sub(r"[\W_]+", "", str(name or "").casefold())
 
@@ -353,6 +396,9 @@ async def _load_raw(
             first_ok = info is not None
         if info is None:
             return None
+        # Битые координаты провайдера отсекаем ДО подсчёта: иначе провайдер с мусором
+        # «выигрывает» у провайдера с меньшим, но настоящим числом мест.
+        info = info._replace(raw=drop_suspect_pins(info.raw))
         if best is None or len(info.raw) > len(best.raw):
             best = info
         return info if len(info.raw) >= TOP_N else None
