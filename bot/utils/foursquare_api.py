@@ -165,6 +165,8 @@ def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
         "primary_type": (cats[0].get("name") if cats else None) or "",
         "lat": p.get("latitude"),
         "lon": p.get("longitude"),
+        # Расстояние от точки запроса по версии самого FSQ — для сверки с координатами.
+        "fsq_distance": p.get("distance"),
         "vicinity": loc.get("formatted_address") or loc.get("address"),
         "photo_url": _photo_url(p),
         "source": "fsq",

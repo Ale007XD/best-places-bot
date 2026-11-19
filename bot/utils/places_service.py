@@ -118,7 +118,8 @@ def _make_cache_key(
     return f"places:v4:{hashlib.md5(raw.encode()).hexdigest()}"
 
 
-_PIN_DECIMALS = 5  # ~1 м: «одна и та же точка»
+_SAME_PIN_M = 3  # заведения ближе этого — «одна и та же точка» (с запасом на округление)
+_FSQ_DISTANCE_TOLERANCE_M = 150  # допустимое расхождение расстояния FSQ и по координатам
 
 
 def _street_key(vicinity: Any) -> str | None:
@@ -139,26 +140,66 @@ def drop_suspect_pins(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     все записи в одну координату (нередко за сотни км от реального адреса). Заведения в
     одном здании (фудкорт, торговый центр) имеют общую улицу и не затрагиваются.
     """
-    groups: dict[tuple[float, float], list[dict[str, Any]]] = {}
-    for p in places:
-        if p.get("lat") is None or p.get("lon") is None:
-            continue
-        key = (round(float(p["lat"]), _PIN_DECIMALS), round(float(p["lon"]), _PIN_DECIMALS))
-        groups.setdefault(key, []).append(p)
+    located = [p for p in places if p.get("lat") is not None and p.get("lon") is not None]
+    # Кластеры «одной точки» (single linkage, _SAME_PIN_M): устойчиво к округлению координат.
+    parent = list(range(len(located)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, a in enumerate(located):
+        for j in range(i + 1, len(located)):
+            b = located[j]
+            if (
+                calculate_distance(
+                    float(a["lat"]), float(a["lon"]), float(b["lat"]), float(b["lon"])
+                )
+                <= _SAME_PIN_M
+            ):
+                parent[find(j)] = find(i)
+
+    clusters: dict[int, list[dict[str, Any]]] = {}
+    for i, p in enumerate(located):
+        clusters.setdefault(find(i), []).append(p)
 
     bad: set[int] = set()
-    for (lat, lon), group in groups.items():
+    for group in clusters.values():
         streets = {k for p in group if (k := _street_key(p.get("vicinity")))}
         if len(group) >= 2 and len(streets) >= 2:
             bad.update(id(p) for p in group)
             logger.warning(
                 "Suspect pins dropped: %s places at (%s, %s) with different streets: %s",
                 len(group),
-                lat,
-                lon,
+                group[0]["lat"],
+                group[0]["lon"],
                 "; ".join(str(p.get("name")) for p in group),
             )
     return [p for p in places if id(p) not in bad]
+
+
+def drop_distance_mismatch(
+    places: list[dict[str, Any]], lat: float, lon: float
+) -> list[dict[str, Any]]:
+    """Отбрасывает места, у которых расстояние по версии провайдера (fsq_distance) не
+    сходится с расстоянием по их координатам: значит, координаты или расстояние неверны."""
+    kept = []
+    for p in places:
+        fd = p.get("fsq_distance")
+        if fd is not None and p.get("lat") is not None and p.get("lon") is not None:
+            mine = calculate_distance(lat, lon, float(p["lat"]), float(p["lon"]))
+            if abs(float(fd) - mine) > _FSQ_DISTANCE_TOLERANCE_M:
+                logger.warning(
+                    "Distance mismatch dropped: %r provider=%sm by coordinates=%sm",
+                    p.get("name"),
+                    fd,
+                    mine,
+                )
+                continue
+        kept.append(p)
+    return kept
 
 
 def _named(raw: list[dict[str, Any]]) -> int:
@@ -400,7 +441,17 @@ async def _fsq_provider(
     except FoursquareError as e:
         logger.warning("Foursquare failed (%s)", e)
         return None
-    return LoadInfo(res.places, False, True, False, res.rated, "fsq")
+    # Короткая «улика» в логе: что именно вернул провайдер (имя, координаты, его расстояние).
+    logger.info(
+        "FSQ raw %s places; first: %s",
+        len(res.places),
+        " | ".join(
+            f"{p.get('name')!r} {p.get('lat')},{p.get('lon')} d={p.get('fsq_distance')}"
+            for p in res.places[:3]
+        ),
+    )
+    places = drop_distance_mismatch(res.places, lat, lon)
+    return LoadInfo(places, False, True, False, res.rated, "fsq")
 
 
 async def _load_raw(

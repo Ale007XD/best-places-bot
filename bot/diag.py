@@ -5,6 +5,8 @@
   • в Telegram (админ):      /diag   или   /diag premium  (+ проверка платных полей Foursquare,
                                                             тратит 1 Premium-вызов)
   • из контейнера на сервере: docker compose exec telegram-bot python -m bot.diag [premium]
+  • сырой ответ Foursquare:   python -m bot.diag raw [lat lon [radius]]  — что именно
+                              вернул провайдер: координаты, его расстояние, адрес.
   • категории Foursquare:     python -m bot.diag cats [lat lon]  — выводит категории
                               (id и название) реальных заведений рядом, с частотой; нужны
                               для серверного фильтра cafe/bar/restaurant у Foursquare.
@@ -26,6 +28,7 @@ from bot.config import settings
 from bot.utils import overpass_api as osm
 from bot.utils.foursquare_api import DINING_CATEGORY_ID, SEARCH_URL, fetch_places
 from bot.utils.geoapify_api import find_places_geoapify
+from bot.utils.geospatial import calculate_distance
 from bot.utils.http import close_client, get_client
 
 HCMC = (10.7769, 106.7009)  # центр Хошимина: заведомо плотная точка
@@ -152,6 +155,43 @@ def format_report(checks: list[Check]) -> str:
     return "\n".join(lines)
 
 
+async def fsq_raw(lat: float, lon: float, radius: int = 500) -> list[str]:
+    """Сырые места Foursquare рядом (до 10) со сверкой расстояния. Базовые поля — вызов Pro."""
+    r = await get_client().get(
+        SEARCH_URL,
+        params={
+            "ll": f"{lat},{lon}",
+            "radius": radius,
+            "limit": 10,
+            "fields": "fsq_place_id,name,latitude,longitude,distance,location,categories",
+            "fsq_category_ids": DINING_CATEGORY_ID,
+            "sort": "DISTANCE",
+        },
+        headers={
+            "Authorization": f"Bearer {settings.FSQ_API_KEY}",
+            "X-Places-Api-Version": settings.FSQ_API_VERSION,
+            "Accept": "application/json",
+        },
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    lines = []
+    for p in r.json().get("results", []):
+        plat, plon = p.get("latitude"), p.get("longitude")
+        mine = (
+            calculate_distance(lat, lon, float(plat), float(plon))
+            if plat is not None and plon is not None
+            else None
+        )
+        cats = p.get("categories") or [{}]
+        lines.append(
+            f"{p.get('name')!r} lat/lon={plat},{plon} fsq_distance={p.get('distance')} "
+            f"by_coords={mine} addr={(p.get('location') or {}).get('formatted_address')!r} "
+            f"cat={cats[0].get('name')!r} id={p.get('fsq_place_id')}"
+        )
+    return lines
+
+
 async def fsq_categories(lat: float, lon: float) -> list[tuple[int, dict]]:
     """Категории реальных заведений вокруг точки (по частоте). Базовые поля — вызов Pro."""
     r = await get_client().get(
@@ -183,6 +223,11 @@ async def _main() -> None:
     logging.basicConfig(level=logging.WARNING)
     args = sys.argv[1:]
     try:
+        if args[:1] == ["raw"]:
+            lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
+            radius = int(args[3]) if len(args) >= 4 else 500
+            print("\n".join(await fsq_raw(lat, lon, radius)) or "пусто")
+            return
         if args[:1] == ["cats"]:
             lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
             for n, cat in await fsq_categories(lat, lon):

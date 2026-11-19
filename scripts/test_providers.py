@@ -292,6 +292,36 @@ async def main() -> None:
         r.places,
     )
 
+    # 13. кластер «одной точки» устойчив к дрожанию координат (≈2 м), но не склеивает соседей в 10 м
+    jitter = [
+        {**pin(1, "85 (Phạm Văn Chiêu), Hồ Chí Minh"), "lat": LAT + 0.004},
+        {**pin(2, "148i (Lý Chính Thắng), Hồ Chí Minh"), "lat": LAT + 0.00402},
+        {**pin(3, "90 (Huỳnh Mẫn Đạt Q5), Hồ Chí Minh"), "lat": LAT + 0.00401},
+    ]
+    assert ps.drop_suspect_pins(jitter) == []
+    apart = [
+        {**pin(1, "85 (Phạm Văn Chiêu), Hồ Chí Minh"), "lat": LAT + 0.004},
+        {**pin(2, "148i (Lý Chính Thắng), Hồ Chí Minh"), "lat": LAT + 0.00410},  # ≈11 м
+    ]
+    assert len(ps.drop_suspect_pins(apart)) == 2
+
+    # 14. расстояние провайдера не сходится с координатами → место отбрасывается
+    far_hcm = {**_pl(1, 0.0, "fsq"), "lat": 10.8, "lon": 106.7, "fsq_distance": 431}  # координаты за сотни км
+    ok = {**_pl(2, 0.002, "fsq"), "fsq_distance": 222}  # 0.002° ≈ 222 м
+    no_info = _pl(3, 0.001, "fsq")
+    kept = ps.drop_distance_mismatch([{**far_hcm, "lat": 10.8}, ok, no_info], LAT, LON)
+    assert {p["place_id"] for p in kept} == {"fsq2", "fsq3"}, kept
+    await redis.flushall()
+    c = Calls()
+    install(
+        c,
+        gp_places=gp5[:2],
+        op_places=[],
+        fsq_places=[{**far_hcm, "place_id": f"far{i}", "name": f"Far {i}"} for i in range(3)],
+    )
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
+    assert r.provider == "geoapify" and len(r.places) == 2, (r.provider, r.places)
+
     print("providers ok")
 
 
