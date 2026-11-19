@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     GEOCODER_ENABLED: bool = True
     GEOCODER_URL: str = "https://nominatim.openstreetmap.org/search"
 
+    # Inline: сколько ближайших мест, радиус по умолчанию/потолок и срок жизни «последней
+    # точки» (inline-запрос не всегда несёт геопозицию — тогда берём присланную боту).
+    INLINE_RESULTS: int = 3
+    INLINE_DEFAULT_RADIUS: int = 500
+    INLINE_MAX_RADIUS: int = 3000
+    LASTLOC_TTL_HOURS: int = 6
+
     # Дефолты экрана параметров (если у пользователя нет сохранённых)
     DEFAULT_RADIUS: int = 500
     DEFAULT_MIN_RATING: float = 4.0

@@ -113,11 +113,17 @@
   "inline_open_bot": "📍 Open the bot",
   "inline_open_in_bot": "🥷 Bot",
   "inline_no_location_title": "Location needed",
-  "inline_no_location_desc": "Open the bot and send your location — or type an address",
+  "inline_no_location_desc": "Send the bot your location once (or type an address / coordinates)",
   "inline_busy_title": "⏳ Searching…",
   "inline_busy_desc": "Repeat the query in a second",
   "inline_error_title": "Couldn’t find places",
   "inline_error_desc": "Please try again a little later",
   "inline_nothing_title": "Nothing found",
-  "inline_nothing_desc": "Change the query or the point"
+  "inline_nothing_desc": "Change the query or the point",
+  "kind_all_btn": "🍽 All",
+  "kind_cafe_btn": "☕️ Cafés",
+  "kind_restaurant_btn": "🍝 Restaurants",
+  "kind_bar_btn": "🍸 Bars",
+  "inline_radius_btn": "📏 {radius} m · settings",
+  "inline_help_text": "🔎 Inline mode: type {bot} in any chat and the bot shows the 3 nearest places.\n\n• Point: your Telegram location (the mobile app asks for permission) or the last one you sent to the bot. Send the bot your location once — that is enough.\n• Radius: “500m”, “1km”, “2km”, “3km”. Default now: {radius} m (same as in the bot settings).\n• Category: “cafe”, “restaurant”, “bar”.\n• An address, coordinates or a Google Maps link work too.\n\nExample: {bot} cafe 1km"
 }

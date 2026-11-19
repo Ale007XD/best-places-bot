@@ -31,6 +31,7 @@ from bot.utils.foursquare_api import fetch_places as fsq_fetch
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
+from bot.utils.querytools import matches_kind
 from bot.utils.vietmap_api import find_places_vietmap
 
 logger = logging.getLogger(__name__)
@@ -167,10 +168,13 @@ def select_places(
     lon: float,
     radius: int,
     min_rating: float,
+    kind: str = "all",
 ) -> SearchResult:
-    """Чистая функция: дедуп → радиус → фильтр по рейтингу → ранжирование."""
+    """Чистая функция: дедуп → радиус → категория → фильтр по рейтингу → ранжирование."""
     places = [
-        p for p in _deduplicate(raw) if _within_radius(p, lat, lon, radius)
+        p
+        for p in _deduplicate(raw)
+        if _within_radius(p, lat, lon, radius) and matches_kind(p, kind)
     ]
 
     def rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -336,8 +340,12 @@ async def search_places(
     lang_code: str,
     redis_conn,
     with_ratings: bool = True,
+    kind: str = "all",
 ) -> SearchResult:
-    """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень)."""
+    """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень).
+
+    kind — фильтр категории (all/cafe/restaurant/bar), локальный: на кэш и расход API не влияет.
+    """
     info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings)
     # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
     try:
@@ -345,7 +353,7 @@ async def search_places(
     except RedisError as e:
         logger.warning("attach_votes failed: %s", e)
         places = info.raw
-    return select_places(places, lat, lon, radius, min_rating)._replace(
+    return select_places(places, lat, lon, radius, min_rating, kind)._replace(
         from_cache=info.from_cache,
         fsq_ok=info.fsq_ok,
         used_osm=info.used_osm,

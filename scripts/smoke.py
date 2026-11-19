@@ -262,15 +262,18 @@ def check_keyboards() -> None:
         return get_string(k, lang="ru")
     m = kb.get_params_keyboard(_, 500, 4.0)
     texts = [b.text for row in m.inline_keyboard for b in row]
-    assert sum(t.startswith("✅") for t in texts) == 2, texts
+    assert sum(t.startswith("✅") for t in texts) == 3, texts  # радиус, категория, рейтинг
     for row in m.inline_keyboard:
         for b in row:
             assert len((b.callback_data or "").encode()) <= 64
-    assert len(kb.get_params_keyboard(_, 500, 4.0, show_home=True).inline_keyboard[2]) == 2
+    assert len(kb.get_params_keyboard(_, 500, 4.0, show_home=True).inline_keyboard[3]) == 2
+    kinds = kb.get_params_keyboard(_, 500, 4.0, kind="bar").inline_keyboard[1]
+    assert [b.callback_data for b in kinds] == [f"kind_{k}" for k in kb.KINDS]
+    assert [b.text.startswith("✅") for b in kinds] == [False, False, False, True]
 
     # тизер использован → вместо строки рейтинга одна кнопка «🔒 … открыть»
     locked = kb.get_params_keyboard(_, 500, 4.0, rating_locked=True).inline_keyboard
-    assert [b.callback_data for b in locked[1]] == ["unlock"]
+    assert [b.callback_data for b in locked[2]] == ["unlock"]
     # кнопки под заголовком выдачи: с апселлом и без
     assert [len(r) for r in kb.get_results_actions_keyboard(_, False).inline_keyboard] == [2]
     assert [len(r) for r in kb.get_results_actions_keyboard(_, True).inline_keyboard] == [1, 2]

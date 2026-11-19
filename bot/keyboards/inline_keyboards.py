@@ -10,6 +10,8 @@ from aiogram.types import (
 
 RADII = (200, 500, 1000, 2000)
 MIN_RATINGS = (0.0, 4.0, 4.5)  # 0.0 = «любой»
+KINDS = ("all", "cafe", "restaurant", "bar")
+KIND_KEYS = {k: f"kind_{k}_btn" for k in KINDS}  # ключи локали
 
 
 def get_language_keyboard() -> InlineKeyboardMarkup:
@@ -40,6 +42,7 @@ def get_params_keyboard(
     min_rating: float,
     show_home: bool = False,
     rating_locked: bool = False,
+    kind: str = "all",
 ) -> InlineKeyboardMarkup:
     unit = _("unit_m")
     radius_row = [
@@ -47,6 +50,11 @@ def get_params_keyboard(
             text=_mark(f"{r} {unit}", r == radius), callback_data=f"radius_{r}"
         )
         for r in RADII
+    ]
+    kind_labels = {k: _(key) for k, key in KIND_KEYS.items()}
+    kind_row = [
+        InlineKeyboardButton(text=_mark(kind_labels[k], k == kind), callback_data=f"kind_{k}")
+        for k in KINDS
     ]
     rating_row = [
         InlineKeyboardButton(
@@ -66,6 +74,7 @@ def get_params_keyboard(
     return InlineKeyboardMarkup(
         inline_keyboard=[
             radius_row,
+            kind_row,
             rating_row,
             point_row,
             [InlineKeyboardButton(text=_("search_btn"), callback_data="search_go")],

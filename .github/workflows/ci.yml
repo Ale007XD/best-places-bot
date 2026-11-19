@@ -73,6 +73,12 @@ jobs:
       - name: Smoke test
         run: python -m scripts.smoke
 
+      - name: Inline, categories and dedup tests
+        run: |
+          pip install fakeredis==2.40.0
+          python -m scripts.test_inline
+          python -m scripts.test_dedup
+
   docker:
     runs-on: ubuntu-latest
     steps:

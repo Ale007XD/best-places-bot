@@ -11,7 +11,9 @@
   • текст: координаты, ссылка Google Maps (и короткая), адрес/название (Nominatim).
 Выбор временной точки НЕ перезаписывает «домашнюю»; вернуться — кнопка «📍 Рядом со мной».
 
-Параметры запоминаются в Redis (user_prefs:{id}) и подставляются при следующем поиске.
+Параметры (радиус, категория, мин. рейтинг) запоминаются в Redis (user_prefs:{id}) и
+подставляются при следующем поиске. Присланная «моя» геопозиция дублируется в
+user_lastloc:{id} (TTL LASTLOC_TTL_HOURS) — это точка-фолбэк для inline без геопозиции.
 """
 
 import html
@@ -33,6 +35,7 @@ from bot.services import cards, community, quota
 from bot.services.translator import SUPPORTED_LANGUAGES, get_string
 from bot.utils import geocoder, links
 from bot.utils.places_service import TOP_N, SearchResult, search_places
+from bot.utils.querytools import KINDS as _KINDS
 
 logger = logging.getLogger(__name__)
 
@@ -63,36 +66,48 @@ def _message_of(callback: CallbackQuery) -> Message | None:
     return callback.message if isinstance(callback.message, Message) else None
 
 
-async def _load_prefs(redis_conn, user_id: int) -> tuple[int, float]:
-    radius, min_rating = settings.DEFAULT_RADIUS, settings.DEFAULT_MIN_RATING
+async def _load_prefs(redis_conn, user_id: int) -> tuple[int, float, str]:
+    radius, min_rating, kind = settings.DEFAULT_RADIUS, settings.DEFAULT_MIN_RATING, "all"
     try:
         prefs = await redis_conn.hgetall(f"user_prefs:{user_id}")
         if prefs.get("radius") in {str(r) for r in kb.RADII}:
             radius = int(prefs["radius"])
         if prefs.get("min_rating") in {str(m) for m in kb.MIN_RATINGS}:
             min_rating = float(prefs["min_rating"])
+        if prefs.get("kind") in _KINDS:
+            kind = prefs["kind"]
     except RedisError as e:  # prefs — удобство, не критичный путь
         logger.warning("prefs load failed: %s", e)
-    return radius, min_rating
+    return radius, min_rating, kind
 
 
-async def _save_prefs(redis_conn, user_id: int, radius: int, min_rating: float):
+async def _save_prefs(redis_conn, user_id: int, radius: int, min_rating: float, kind: str = "all"):
     try:
         await redis_conn.hset(
             f"user_prefs:{user_id}",
-            mapping={"radius": radius, "min_rating": min_rating},
+            mapping={"radius": radius, "min_rating": min_rating, "kind": kind},
         )
     except RedisError as e:
         logger.warning("prefs save failed: %s", e)
 
 
-def _params_text(lang_code: str, radius: int, min_rating: float, label: str | None, locked: bool = False) -> str:
+def _params_text(
+    lang_code: str,
+    radius: int,
+    min_rating: float,
+    label: str | None,
+    locked: bool = False,
+    kind: str = "all",
+) -> str:
     _ = _t(lang_code)
     where = _("where_point").format(label=label) if label else _("where_me")
-    if locked:  # фильтр рейтинга недоступен — не показываем его в сводке
-        return f"{_('params_prompt')}\n\n{where}\n📏 {radius} {_('unit_m')}"
-    rating = _("rating_any_btn") if min_rating == 0 else f"{min_rating:.1f}+"
-    return f"{_('params_prompt')}\n\n{where}\n📏 {radius} {_('unit_m')}  ·  ⭐️ {rating}"
+    summary = f"📏 {radius} {_('unit_m')}"
+    if kind != "all":
+        summary += f"  ·  {_(kb.KIND_KEYS[kind])}"
+    if not locked:  # фильтр рейтинга недоступен — не показываем его в сводке
+        rating = _("rating_any_btn") if min_rating == 0 else f"{min_rating:.1f}+"
+        summary += f"  ·  ⭐️ {rating}"
+    return f"{_('params_prompt')}\n\n{where}\n{summary}"
 
 
 def _params_markup(lang_code: str, data: dict):
@@ -100,7 +115,12 @@ def _params_markup(lang_code: str, data: dict):
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     show_home = bool(data.get("point_label")) and "home_lat" in data
     return kb.get_params_keyboard(
-        _t(lang_code), radius, min_rating, show_home, bool(data.get("rating_locked"))
+        _t(lang_code),
+        radius,
+        min_rating,
+        show_home,
+        bool(data.get("rating_locked")),
+        data.get("kind", "all"),
     )
 
 
@@ -119,9 +139,9 @@ async def _show_params(
 ):
     await state.set_state(None)
     data = await state.get_data()
-    if "radius" not in data or "min_rating" not in data:
-        radius, min_rating = await _load_prefs(redis_conn, user_id)
-        await state.update_data(radius=radius, min_rating=min_rating)
+    if "radius" not in data or "min_rating" not in data or "kind" not in data:
+        radius, min_rating, kind = await _load_prefs(redis_conn, user_id)
+        await state.update_data(radius=radius, min_rating=min_rating, kind=kind)
     # Тизер: когда поиски с рейтингами на сегодня кончились, фильтр рейтинга заперт (🔒).
     try:
         st = await quota.get_status(redis_conn, user_id)
@@ -136,6 +156,7 @@ async def _show_params(
             float(data["min_rating"]),
             data.get("point_label"),
             bool(data.get("rating_locked")),
+            data.get("kind", "all"),
         ),
         reply_markup=_params_markup(lang_code, data),
     )
@@ -156,6 +177,12 @@ async def _apply_point(
     upd: dict = {"latitude": lat, "longitude": lon, "point_label": None if as_home else label}
     if as_home:
         upd.update(home_lat=lat, home_lon=lon)
+        try:  # фолбэк-точка для inline-запросов без геопозиции
+            await redis_conn.set(
+                f"user_lastloc:{user_id}", f"{lat},{lon}", ex=settings.LASTLOC_TTL_HOURS * 3600
+            )
+        except RedisError as e:
+            logger.warning("lastloc save failed: %s", e)
     await state.update_data(**upd)
     await _show_params(message, state, lang_code, redis_conn, user_id)
 
@@ -190,6 +217,7 @@ def _format_header(
 async def handle_start(
     message: Message,
     state: FSMContext,
+    bot: Bot,
     command: CommandObject,
     lang_code: str,
     lang_known: bool,
@@ -212,6 +240,20 @@ async def handle_start(
             reply_markup=kb.get_language_keyboard(),
         )
         return
+    if args == "inline_help" and message.from_user:  # кнопка над inline-выдачей
+        radius, _rating, _kind = await _load_prefs(redis_conn, message.from_user.id)
+        radius = (
+            radius if radius in kb.RADII else settings.INLINE_DEFAULT_RADIUS
+        )  # то же, что видит inline
+        try:
+            username = await acc.bot_username(bot)
+        except TelegramAPIError:
+            username = ""
+        await message.answer(
+            get_string("inline_help_text", lang=lang_code).format(
+                bot=f"@{username}" if username else "@bot", radius=radius
+            )
+        )
     await _ask_location(message, state, lang_code)
 
 
@@ -475,6 +517,7 @@ async def _refresh_params(callback: CallbackQuery, lang_code: str, data: dict):
                 float(data.get("min_rating", settings.DEFAULT_MIN_RATING)),
                 data.get("point_label"),
                 bool(data.get("rating_locked")),
+                data.get("kind", "all"),
             ),
             reply_markup=_params_markup(lang_code, data),
         )
@@ -493,6 +536,16 @@ async def set_radius(callback: CallbackQuery, state: FSMContext, lang_code: str)
     if radius not in kb.RADII:
         return
     await state.update_data(radius=radius)
+    await _refresh_params(callback, lang_code, await state.get_data())
+
+
+@router.callback_query(F.data.startswith("kind_"))
+async def set_kind(callback: CallbackQuery, state: FSMContext, lang_code: str):
+    await callback.answer()
+    kind = (callback.data or "").split("_", 1)[1]
+    if kind not in kb.KINDS:
+        return
+    await state.update_data(kind=kind)
     await _refresh_params(callback, lang_code, await state.get_data())
 
 
@@ -568,6 +621,9 @@ async def do_search(
     lat, lon = float(data["latitude"]), float(data["longitude"])
     radius = int(data.get("radius", settings.DEFAULT_RADIUS))
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
+    kind = data.get("kind", "all")
+    if kind not in kb.KINDS:
+        kind = "all"
     label = data.get("point_label")
 
     # Тизер: «богатый» поиск (рейтинги + фото, платные поля Foursquare) — из бесплатного
@@ -580,11 +636,13 @@ async def do_search(
         await acc.show_paywall(msg, bot, lang_code, user_id, "paywall_text")
         return
 
-    await _save_prefs(redis_conn, user_id, radius, min_rating)
+    await _save_prefs(redis_conn, user_id, radius, min_rating, kind)
 
     if analytics:
         await analytics.track_user(user_id)
         await analytics.track_feature_use("radius", radius)
+        if kind != "all":
+            await analytics.track_feature_use("kind", kind)
         if entitled:
             await analytics.track_feature_use("rating", min_rating)
 
@@ -600,6 +658,7 @@ async def do_search(
             lang_code=lang_code,
             redis_conn=redis_conn,
             with_ratings=entitled,
+            kind=kind,
         )
     except Exception:
         logger.exception("search failed")
