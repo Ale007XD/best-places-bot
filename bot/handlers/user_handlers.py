@@ -34,6 +34,7 @@ from bot.keyboards import inline_keyboards as kb
 from bot.services import cards, community, quota
 from bot.services.translator import SUPPORTED_LANGUAGES, get_string
 from bot.utils import geocoder, links
+from bot.utils.attribution import attribution
 from bot.utils.places_service import TOP_N, SearchResult, search_places
 from bot.utils.querytools import KINDS as _KINDS
 
@@ -740,9 +741,9 @@ async def do_search(
         _("vote_hint_bonus").format(n=settings.VOTE_REWARD_EVERY) if bonus_on else _("vote_hint")
     )
     tail.append(hint)
-    # Данные OpenStreetMap (ODbL) требуют указания источника.
-    if any(p.get("source") == "osm" for p in top):
-        tail.append("🗺 © OpenStreetMap contributors")
+    # Источник данных (OSM/ODbL, Geoapify, Foursquare) требует указания.
+    if credit := attribution(result.provider, top):
+        tail.append(credit)
 
     try:
         ref = await acc.ref_link(bot, user_id)

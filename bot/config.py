@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     FSQ_API_VERSION: str = "2025-06-17"
     MAPBOX_TOKEN: str = ""  # аварийный фолбэк, если Foursquare недоступен
     VIETMAP_API_KEY: str = ""  # аварийный фолбэк для Вьетнама
+    # Geoapify (данные OSM): базовый слой без рейтингов. Ключ — на geoapify.com (бесплатно
+    # 3 000 кредитов/день); без ключа провайдер пропускается.
+    GEOAPIFY_API_KEY: str = ""
+    GEOAPIFY_URL: str = "https://api.geoapify.com/v2/places"
+    # Порядок провайдеров БАЗОВОГО поиска; один запрос обслуживается ОДНИМ провайдером
+    # (первый с >= 3 местами, иначе тот, у кого мест больше) — данные разных источников не
+    # смешиваются (лицензии Foursquare и OSM/ODbL). fsq здесь — базовые поля, без кэша.
+    BASE_PROVIDERS: str = "geoapify,fsq,overpass"
+    # Кэш данных OSM/Geoapify (ODbL это допускает). Ответы Foursquare не хранятся вообще:
+    # правила Foursquare запрещают серверный кэш.
+    OSM_CACHE_TTL: int = 86400
     # OpenStreetMap (Overpass): бесплатный фолбэк без ключа, места без рейтинга
     OVERPASS_ENABLED: bool = True
     # Один или несколько адресов через запятую; пробуются по порядку. Список — из вики OSM:

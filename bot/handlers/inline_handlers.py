@@ -41,6 +41,7 @@ from bot.handlers import account_handlers as acc
 from bot.services import cards
 from bot.services.translator import get_string
 from bot.utils import geocoder, links
+from bot.utils.attribution import attribution
 from bot.utils.geospatial import calculate_distance
 from bot.utils.places_service import SearchUnavailable, search_places
 from bot.utils.querytools import parse_query, snap_radius
@@ -68,7 +69,13 @@ def _note(lang: str, key: str) -> InlineQueryResultArticle:
 
 
 def _result_for(
-    place: dict, lang: str, lat: float, lon: float, ref: str, bot_username: str
+    place: dict,
+    lang: str,
+    lat: float,
+    lon: float,
+    ref: str,
+    bot_username: str,
+    credit: str = "",
 ) -> InlineQueryResultArticle:
     def _(key: str) -> str:
         return get_string(key, lang=lang)
@@ -98,7 +105,8 @@ def _result_for(
         description=" · ".join(meta) or None,
         thumbnail_url=photo,
         input_message_content=InputTextMessageContent(
-            message_text=cards.build_caption(lang, None, place, lat, lon),
+            message_text=cards.build_caption(lang, None, place, lat, lon)
+            + (f"\n\n{credit}" if credit else ""),
             parse_mode="HTML",
             link_preview_options=LinkPreviewOptions(
                 url=photo, show_above_text=True, prefer_large_media=True
@@ -267,5 +275,6 @@ async def on_inline(
         return calculate_distance(lat, lon, float(p["lat"]), float(p["lon"]))
 
     nearest = sorted(places, key=_dist)[: settings.INLINE_RESULTS]
-    results = [_result_for(p, lang_code, lat, lon, ref, bot_username) for p in nearest]
+    credit = attribution(result.provider if result else "", nearest)
+    results = [_result_for(p, lang_code, lat, lon, ref, bot_username, credit) for p in nearest]
     await reply(results, cache=30 if from_user_location else 60)

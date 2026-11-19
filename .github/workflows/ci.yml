@@ -77,6 +77,7 @@ jobs:
         run: |
           pip install fakeredis==2.40.0
           python -m scripts.test_inline
+          python -m scripts.test_providers
           python -m scripts.test_dedup
 
   docker:

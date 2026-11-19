@@ -48,6 +48,10 @@ SEARCH_URL = "https://places-api.foursquare.com/places/search"
 DINING_CATEGORY_ID = "63be6904847c3692a84b9bb5"
 _CATEGORY_CANDIDATES: tuple[str | None, ...] = (DINING_CATEGORY_ID, None)
 _category_idx = 0  # индекс рабочего варианта; запоминается между запросами
+# Сортировка по расстоянию: без неё API отдаёт по релевантности, и в плотном центре лимит в
+# 50 мест съедают далёкие «раскрученные» заведения, а ближайшие не попадают в выдачу. Если
+# API отвергнет параметр (HTTP 400 про sort) — отключаем и работаем как раньше.
+_use_sort = True
 
 _FOOD_RE = re.compile(
     r"\b(restaurant|cafe|café|coffee|tea|bar|pub|bakery|diner|bistro|eatery|brewery|"
@@ -181,7 +185,7 @@ async def fetch_places(
     Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу.
     Пустой список — успешный ответ без мест. FoursquareError — сбой провайдера.
     """
-    global _auth_error_logged, _category_idx
+    global _auth_error_logged, _category_idx, _use_sort
 
     if not api_key:
         raise FoursquareError("FSQ_API_KEY is empty")
@@ -207,10 +211,23 @@ async def fetch_places(
         }
         if category:
             params["fsq_category_ids"] = category
+        if _use_sort:
+            params["sort"] = "DISTANCE"
 
         r = await _get(params, headers)
         if r is None:
             break
+
+        # Параметр sort отвергнут — отключаем его (запоминаем) и повторяем без него.
+        if (
+            _use_sort
+            and r.status_code == 400
+            and "sort" in r.text.lower()
+            and "fsq_category_ids" not in r.text
+        ):
+            logger.warning("FSQ rejected sort=DISTANCE (%s) — disabling", r.text[:120])
+            _use_sort = False
+            continue
 
         # Категория отвергнута — следующий вариант (и запоминаем его).
         if (

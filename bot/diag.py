@@ -5,21 +5,27 @@
   • в Telegram (админ):      /diag   или   /diag premium  (+ проверка платных полей Foursquare,
                                                             тратит 1 Premium-вызов)
   • из контейнера на сервере: docker compose exec telegram-bot python -m bot.diag [premium]
+  • категории Foursquare:     python -m bot.diag cats [lat lon]  — выводит категории
+                              (id и название) реальных заведений рядом, с частотой; нужны
+                              для серверного фильтра cafe/bar/restaurant у Foursquare.
 
 Проверяет: Redis, Telegram, Foursquare (базовый уровень и, по запросу, Premium),
 каждое зеркало Overpass (статус слотов + реальный маленький запрос) и Nominatim.
 """
 
 import asyncio
+import json
 import logging
 import sys
 import time
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from typing import NamedTuple
 
 from bot.config import settings
 from bot.utils import overpass_api as osm
-from bot.utils.foursquare_api import fetch_places
+from bot.utils.foursquare_api import DINING_CATEGORY_ID, SEARCH_URL, fetch_places
+from bot.utils.geoapify_api import find_places_geoapify
 from bot.utils.http import close_client, get_client
 
 HCMC = (10.7769, 106.7009)  # центр Хошимина: заведомо плотная точка
@@ -56,6 +62,15 @@ async def _foursquare(premium: bool) -> tuple[bool, str]:
     if premium and not res.rated:
         return False, detail + " — Premium недоступен (нет кредитов / тариф)"
     return bool(res.places), detail
+
+
+async def _geoapify() -> tuple[bool, str]:
+    places = await find_places_geoapify(
+        *HCMC, 300, settings.GEOAPIFY_API_KEY, limit=5, url=settings.GEOAPIFY_URL
+    )
+    if places is None:
+        return False, "ошибка (ключ / лимит / сеть) — подробности в логах бота"
+    return bool(places), f"{len(places)} мест"
 
 
 async def _overpass(url: str) -> tuple[bool, str]:
@@ -107,6 +122,8 @@ async def run_diagnostics(*, premium: bool = False, bot=None, redis_conn=None) -
     tasks.append(_timed("Foursquare (базовые поля)", lambda: _foursquare(False)))
     if premium:
         tasks.append(_timed("Foursquare (рейтинги+фото, Premium)", lambda: _foursquare(True)))
+    if settings.GEOAPIFY_API_KEY:
+        tasks.append(_timed("Geoapify (базовый слой)", _geoapify))
     for url in [u.strip() for u in settings.OVERPASS_URL.split(",") if u.strip()]:
         host = url.split("//", 1)[-1].split("/", 1)[0]
         tasks.append(_timed(f"Overpass {host}", lambda u=url: _overpass(u)))
@@ -119,6 +136,10 @@ def format_report(checks: list[Check]) -> str:
     lines = [
         f"{'✅' if c.ok else '❌'} {c.name} — {c.ms} мс\n    {c.detail}" for c in checks
     ]
+    if not settings.GEOAPIFY_API_KEY:
+        lines.append(
+            "ℹ️ GEOAPIFY_API_KEY не задан: базовый поиск идёт через Foursquare (без кэша) и Overpass."
+        )
     pauses = osm.cooldowns()
     if pauses:
         lines.append(
@@ -131,10 +152,43 @@ def format_report(checks: list[Check]) -> str:
     return "\n".join(lines)
 
 
+async def fsq_categories(lat: float, lon: float) -> list[tuple[int, dict]]:
+    """Категории реальных заведений вокруг точки (по частоте). Базовые поля — вызов Pro."""
+    r = await get_client().get(
+        SEARCH_URL,
+        params={
+            "ll": f"{lat},{lon}",
+            "radius": 500,
+            "limit": 50,
+            "fields": "fsq_place_id,name,categories",
+            "fsq_category_ids": DINING_CATEGORY_ID,
+        },
+        headers={
+            "Authorization": f"Bearer {settings.FSQ_API_KEY}",
+            "X-Places-Api-Version": settings.FSQ_API_VERSION,
+            "Accept": "application/json",
+            "Accept-Language": "en",
+        },
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    counter: Counter[str] = Counter()
+    for place in r.json().get("results", []):
+        for c in place.get("categories") or []:
+            counter[json.dumps({k: v for k, v in c.items() if k != "icon"}, ensure_ascii=False)] += 1
+    return [(n, json.loads(k)) for k, n in counter.most_common(60)]
+
+
 async def _main() -> None:
     logging.basicConfig(level=logging.WARNING)
+    args = sys.argv[1:]
     try:
-        print(format_report(await run_diagnostics(premium="premium" in sys.argv[1:])))
+        if args[:1] == ["cats"]:
+            lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
+            for n, cat in await fsq_categories(lat, lon):
+                print(n, json.dumps(cat, ensure_ascii=False))
+            return
+        print(format_report(await run_diagnostics(premium="premium" in args)))
     finally:
         await close_client()
 

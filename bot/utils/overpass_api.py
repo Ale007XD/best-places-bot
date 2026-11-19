@@ -71,9 +71,22 @@ def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def build_query(lat: float, lon: float, radius: int, limit: int = 60) -> str:
-    """Узлы и пути отдельно (не nwr): быстрее и без лишних отношений."""
-    flt = '["amenity"~"^(restaurant|cafe|bar|pub|fast_food)$"]["name"]'
+_KIND_AMENITIES = {
+    "all": "restaurant|cafe|bar|pub|fast_food",
+    "cafe": "cafe",
+    "restaurant": "restaurant|fast_food",
+    "bar": "bar|pub",
+}
+
+
+def build_query(lat: float, lon: float, radius: int, limit: int = 300, kind: str = "all") -> str:
+    """Узлы и пути отдельно (не nwr): быстрее и без лишних отношений.
+
+    Без сортировки Overpass отдаёт объекты по id (сначала узлы, потом пути), поэтому лимит
+    обрезал бы произвольные места, а не дальние: он с запасом, ближайшие выбираем локально.
+    """
+    amenities = _KIND_AMENITIES.get(kind, _KIND_AMENITIES["all"])
+    flt = f'["amenity"~"^({amenities})$"]["name"]'
     around = f"(around:{int(radius)},{lat},{lon})"
     return f"[out:json][timeout:8];(node{around}{flt};way{around}{flt};);out center {limit};"
 
@@ -96,9 +109,9 @@ async def query_server(url: str, query: str) -> list[dict[str, Any]] | None:
 
 
 async def find_places_overpass(
-    lat: float, lon: float, radius: int, url: str, limit: int = 60
-) -> list[dict[str, Any]]:
-    """Заведения вокруг точки. При любой ошибке — [] (фолбэк не должен ронять поиск).
+    lat: float, lon: float, radius: int, url: str, limit: int = 300, kind: str = "all"
+) -> list[dict[str, Any]] | None:
+    """Заведения вокруг точки. None — сбой (все зеркала на паузе / не ответили), [] — мест нет.
 
     url — один адрес или несколько через запятую (зеркала, пробуются по порядку).
     """
@@ -107,9 +120,9 @@ async def find_places_overpass(
     active = [u for u in urls if _cooldown_until.get(u, 0.0) <= now]
     if not active:
         logger.info("Overpass: all mirrors are cooling down — skipped")
-        return []
+        return None
 
-    query = build_query(lat, lon, radius, limit)
+    query = build_query(lat, lon, radius, limit, kind)
     started = time.monotonic()
     elements: list[dict[str, Any]] | None = None
     for u in active:
@@ -123,7 +136,7 @@ async def find_places_overpass(
 
     if elements is None:
         logger.error("Overpass: all %s tried servers failed", len(active))
-        return []
+        return None
 
     places = [p for el in elements if (p := _normalize(el))]
     logger.info("Overpass: %s places", len(places))

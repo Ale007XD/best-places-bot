@@ -51,6 +51,10 @@ def check_cache_key() -> None:
     k_en = _make_cache_key(10.0, 20.0, 500, "en")
     assert k_ru == k_ru2, "same args -> different key"
     assert k_ru != k_en, "lang must be part of the cache key"
+    # ячейка ~100 м: близкие точки делят ключ, дальние и другая категория — нет
+    assert _make_cache_key(10.7771, 106.7011, 200, "ru") == _make_cache_key(10.7774, 106.7014, 200, "ru")
+    assert _make_cache_key(10.7771, 106.7011, 200, "ru") != _make_cache_key(10.7791, 106.7011, 200, "ru")
+    assert _make_cache_key(10.0, 20.0, 200, "ru", kind="bar") != _make_cache_key(10.0, 20.0, 200, "ru")
 
 
 def _p(name, rating, dlat=0.0, source="fsq"):
@@ -87,16 +91,6 @@ def check_fsq_normalize() -> None:
     assert ph["photo_url"] == "https://i/600x400/a.jpg"
     assert _normalize_place({"fsq_place_id": "z"})["photo_url"] is None
 
-    # платные данные скрываются в копиях, а не в оригинале; чужие источники не трогаем
-    from bot.utils.places_service import _strip_ratings
-
-    src = [
-        {"source": "fsq", "rating": 4.5, "user_ratings_total": 9, "photo_url": "https://x"},
-        {"source": "osm", "rating": None, "photo_url": "https://y"},
-    ]
-    out = _strip_ratings(src)
-    assert out[0]["rating"] is None and out[0]["photo_url"] is None and src[0]["rating"] == 4.5
-    assert out[1]["photo_url"] == "https://y"
 
 
 def check_select() -> None:

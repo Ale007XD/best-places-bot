@@ -2,15 +2,23 @@
 """
 Оркестратор поиска.
 
+Принципы:
+• Один запрос обслуживается ОДНИМ провайдером — данные разных источников не смешиваются
+  (лицензии: Foursquare запрещает серверный кэш и интеграцию с ODbL-материалом).
+• Foursquare (рейтинги, фото, а также базовые поля) — всегда «живой» запрос, без кэша;
+  хранится только fsq_id в отметках пользователей. Единственное исключение — одновременные
+  дубли не схлопываются: общего ответа между пользователями нет.
+• Geoapify и Overpass (данные OSM, ODbL) кэшируются по ячейке ~100 м: запрос идёт из центра
+  ячейки с запасом радиуса, а расстояния считаются от точки пользователя.
+
 Flow:
-1. Кэш сырого списка (по точке/радиусу/языку — НЕ по рейтингу).
-2. Foursquare: один запрос на все категории (при нехватке кредитов на Premium-поля —
-   автоматически с базовыми, без рейтинга).
-3. Если мест меньше TOP_N или Foursquare сбоит — дополняем OpenStreetMap (Overpass,
-   бесплатно, без рейтинга). Mapbox/VietMap — только если совсем пусто и заданы ключи.
-   Если Foursquare сбоит и ничего не найдено — SearchUnavailable (не «мест нет»).
-4. Дедупликация (нормализованное имя + близость).
-5. Локальный фильтр по минимальному рейтингу и ранжирование.
+1. Платный поиск (with_ratings): Foursquare с рейтингами/фото. Если мест меньше TOP_N —
+   пробуем базовых провайдеров и берём того, у кого мест больше (без смешивания).
+2. Базовый поиск: провайдеры по BASE_PROVIDERS (geoapify, fsq, overpass) — первый, давший
+   >= TOP_N мест; иначе тот, у кого мест больше. Mapbox/VietMap — только если совсем пусто.
+   Все провайдеры сбоят — SearchUnavailable (это не «мест нет»).
+3. Дедупликация (нормализованное имя + близость).
+4. Локальный фильтр категории и минимального рейтинга, ранжирование.
    Если мест с нужным рейтингом меньше TOP_N, добираются лучшие из остальных
    (флаг relaxed), чтобы пользователь не упирался в пустой ответ.
 """
@@ -19,6 +27,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import re
 from typing import Any, NamedTuple
 
@@ -28,6 +37,7 @@ from bot.config import settings
 from bot.services import community
 from bot.utils.foursquare_api import FoursquareError, ratings_available
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
+from bot.utils.geoapify_api import find_places_geoapify
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
@@ -36,8 +46,13 @@ from bot.utils.vietmap_api import find_places_vietmap
 
 logger = logging.getLogger(__name__)
 
-CACHE_TTL = 600  # 10 минут
-FALLBACK_CACHE_TTL = 120  # если Foursquare сбоил — кэшируем ненадолго
+EMPTY_CACHE_TTL = 3600  # пустой, но успешный ответ OSM-провайдера — на час
+# Ячейка кэша: координаты округляются до 3 знаков (~110 м). Запрос идёт из ЦЕНТРА ячейки с
+# запасом на её половину диагонали (≤ ~80 м), чтобы любая точка внутри ячейки была покрыта.
+CELL_DECIMALS = 3
+FETCH_MARGIN_M = 80
+FETCH_RADII = (600, 1100)  # два «ведра» радиуса запроса — мало ключей, один ответ на все шаги
+OSM_PROVIDERS = frozenset({"geoapify", "overpass"})
 TOP_N = 3  # сколько мест показываем
 RESULT_LIMIT = 10  # сколько возвращаем наверх (с запасом)
 DEDUP_DISTANCE_M = 75
@@ -63,32 +78,43 @@ class SearchResult(NamedTuple):
     fsq_ok: bool = True  # основной провайдер ответил (для метрик качества)
     used_osm: bool = False  # в выдачу попали данные OpenStreetMap
     rated: bool = False  # в ответе есть рейтинги/фото провайдера (Premium-уровень полей)
+    provider: str = ""  # кто обслужил запрос: fsq | geoapify | overpass | mapbox | vietmap
 
 
 class LoadInfo(NamedTuple):
     raw: list[dict[str, Any]]
     from_cache: bool
-    fsq_ok: bool = True
+    fsq_ok: bool = True  # первый выбранный провайдер ответил (для метрик качества)
     used_osm: bool = False
     rated: bool = False
+    provider: str = ""
+
+
+def fetch_radius(radius: int) -> int:
+    """Радиус запроса к провайдеру: показ + запас на ячейку, по «вёдрам» (600 / 1100 / выше)."""
+    need = radius + FETCH_MARGIN_M
+    for r in FETCH_RADII:
+        if need <= r:
+            return r
+    return int(math.ceil(need / 100) * 100)
+
+
+def _cell(lat: float, lon: float) -> tuple[float, float]:
+    return round(lat, CELL_DECIMALS), round(lon, CELL_DECIMALS)
 
 
 def _make_cache_key(
-    lat: float, lon: float, radius: int, lang_code: str, variant: str = "r"
+    lat: float,
+    lon: float,
+    radius: int,
+    lang_code: str,
+    variant: str = "osm",
+    kind: str = "all",
 ) -> str:
-    """variant: "r" — с рейтингами и фото (Premium-поля), "b" — базовый уровень."""
-    raw = f"{round(lat, 4)}:{round(lon, 4)}:{radius}:{lang_code}:{variant}"
-    return f"places:v3:{hashlib.md5(raw.encode()).hexdigest()}"
-
-
-def _strip_ratings(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Скрывает платные данные Foursquare (рейтинг, число оценок, фото) в копиях мест."""
-    out = []
-    for p in raw:
-        if p.get("source") == "fsq":
-            p = {**p, "rating": None, "user_ratings_total": 0, "photo_url": None}
-        out.append(p)
-    return out
+    """Ключ кэша OSM-провайдера: ячейка, «ведро» радиуса, язык, провайдер, категория."""
+    clat, clon = _cell(lat, lon)
+    raw = f"{clat}:{clon}:{fetch_radius(radius)}:{lang_code}:{variant}:{kind}"
+    return f"places:v4:{hashlib.md5(raw.encode()).hexdigest()}"
 
 
 def _norm_name(name: Any) -> str:
@@ -221,33 +247,71 @@ async def _read_cache(redis_conn, key: str) -> list[dict[str, Any]] | None:
     return None
 
 
-async def _cached(redis_conn, key_r: str, key_b: str, want_rated: bool) -> LoadInfo | None:
-    """
-    Запрос с рейтингами читает только «богатый» кэш. Базовый запрос читает свой кэш,
-    а при его отсутствии — богатый (рейтинги и фото при этом скрываются).
-    """
-    if want_rated:
-        raw = await _read_cache(redis_conn, key_r)
-        return LoadInfo(raw, True, rated=True) if raw is not None else None
-    raw = await _read_cache(redis_conn, key_b)
+async def _write_cache(redis_conn, key: str, raw: list[dict[str, Any]]) -> None:
+    ttl = settings.OSM_CACHE_TTL if raw else EMPTY_CACHE_TTL
+    try:
+        await redis_conn.setex(key, ttl, json.dumps(raw))
+    except (RedisError, TypeError) as e:
+        logger.warning("Cache write failed: %s", e)
+
+
+def _base_providers(skip: frozenset[str] = frozenset()) -> list[str]:
+    """Провайдеры базового поиска по BASE_PROVIDERS — только доступные (ключ / включён)."""
+    out: list[str] = []
+    for name in (x.strip().lower() for x in settings.BASE_PROVIDERS.split(",")):
+        if name in skip or name in out:
+            continue
+        if (
+            (name == "geoapify" and settings.GEOAPIFY_API_KEY)
+            or (name == "overpass" and settings.OVERPASS_ENABLED)
+            or name == "fsq"
+        ):
+            out.append(name)
+    return out
+
+
+async def _osm_provider(
+    name: str, lat: float, lon: float, radius: int, lang_code: str, redis_conn, kind: str
+) -> LoadInfo | None:
+    """Geoapify / Overpass: кэш по ячейке (ODbL разрешает). None — сбой провайдера."""
+    key = _make_cache_key(lat, lon, radius, lang_code, name, kind)
+    raw = await _read_cache(redis_conn, key)
     if raw is not None:
-        return LoadInfo(raw, True)
-    raw = await _read_cache(redis_conn, key_r)
-    return LoadInfo(_strip_ratings(raw), True) if raw is not None else None
+        logger.info("CACHE HIT (%s)", name)
+        return LoadInfo(raw, True, True, True, False, name)
+
+    if len(_inflight) > 1000:  # не копим замки бесконечно
+        for k in [k for k, lk in _inflight.items() if not lk.locked()]:
+            del _inflight[k]
+    async with _inflight.setdefault(key, asyncio.Lock()):
+        raw = await _read_cache(redis_conn, key)  # мог заполнить первый
+        if raw is not None:
+            return LoadInfo(raw, True, True, True, False, name)
+        clat, clon = _cell(lat, lon)
+        frad = fetch_radius(radius)
+        if name == "geoapify":
+            raw = await find_places_geoapify(
+                clat,
+                clon,
+                frad,
+                settings.GEOAPIFY_API_KEY,
+                kind,
+                lang_code,
+                url=settings.GEOAPIFY_URL,
+            )
+        else:
+            raw = await find_places_overpass(clat, clon, frad, settings.OVERPASS_URL, kind=kind)
+        if raw is None:
+            return None
+        await _write_cache(redis_conn, key, raw)
+        return LoadInfo(raw, False, True, True, False, name)
 
 
-async def _fetch_and_cache(
-    key_r: str,
-    key_b: str,
-    lat: float,
-    lon: float,
-    radius: int,
-    lang_code: str,
-    redis_conn,
-    want_rated: bool,
-) -> LoadInfo:
-    fsq_ok = True
-    rated = False
+async def _fsq_provider(
+    lat: float, lon: float, radius: int, lang_code: str, want_ratings: bool
+) -> LoadInfo | None:
+    """Foursquare — всегда живой запрос, без кэша и без схлопывания между пользователями
+    (правила Foursquare запрещают хранить ответы). None — сбой провайдера."""
     try:
         res = await fsq_fetch(
             settings.FSQ_API_KEY,
@@ -256,45 +320,12 @@ async def _fetch_and_cache(
             lon,
             radius,
             lang_code,
-            want_ratings=want_rated,
+            want_ratings=want_ratings,
         )
-        raw, rated = res.places, res.rated
     except FoursquareError as e:
-        logger.warning("Foursquare failed (%s) — using fallbacks", e)
-        raw, fsq_ok = [], False
-
-    # Мало данных (редкий район или сбой FSQ) — дополняем бесплатным OSM.
-    used_osm = False
-    if len(raw) < TOP_N and settings.OVERPASS_ENABLED:
-        osm = await find_places_overpass(lat, lon, radius, settings.OVERPASS_URL)
-        used_osm = bool(osm)
-        raw = raw + osm
-
-    # Совсем пусто — аварийные провайдеры с ключами, если заданы.
-    if not raw and settings.MAPBOX_TOKEN:
-        raw += await find_places_mapbox(
-            lat=lat,
-            lon=lon,
-            radius=radius,
-            limit=10,
-            lang_code=lang_code,
-            access_token=settings.MAPBOX_TOKEN,
-        )
-    if not raw and settings.VIETMAP_API_KEY:
-        raw += await find_places_vietmap(
-            lat=lat, lon=lon, radius=radius, api_key=settings.VIETMAP_API_KEY
-        )
-
-    if not raw and not fsq_ok:
-        raise SearchUnavailable("Foursquare failed and fallbacks returned nothing")
-
-    if raw:
-        try:
-            ttl = CACHE_TTL if fsq_ok else FALLBACK_CACHE_TTL
-            await redis_conn.setex(key_r if rated else key_b, ttl, json.dumps(raw))
-        except (RedisError, TypeError) as e:
-            logger.warning("Cache write failed: %s", e)
-    return LoadInfo(raw, False, fsq_ok, used_osm, rated)
+        logger.warning("Foursquare failed (%s)", e)
+        return None
+    return LoadInfo(res.places, False, True, False, res.rated, "fsq")
 
 
 async def _load_raw(
@@ -304,32 +335,65 @@ async def _load_raw(
     lang_code: str,
     redis_conn,
     with_ratings: bool = True,
+    kind: str = "all",
 ) -> LoadInfo:
-    """
-    Кэш → (single-flight) Foursquare/фолбэки. Одинаковые параллельные запросы с промахом
-    кэша не плодят вызовы API: первый ходит во внешний API, остальные ждут и берут кэш.
-    """
-    key_r = _make_cache_key(lat, lon, radius, lang_code, "r")
-    key_b = _make_cache_key(lat, lon, radius, lang_code, "b")
+    """Выбирает ОДНОГО провайдера (см. docstring модуля) и возвращает его места как есть."""
     # Если Premium-поля сейчас недоступны (нет кредитов) — это обычный базовый запрос.
     want_rated = with_ratings and ratings_available()
 
-    hit = await _cached(redis_conn, key_r, key_b, want_rated)
-    if hit is not None:
-        logger.info("CACHE HIT (%s)", "rated" if want_rated else "base")
-        return hit
+    best: LoadInfo | None = None
+    attempted = 0
+    first_ok: bool | None = None
 
-    if len(_inflight) > 1000:  # не копим замки бесконечно
-        for k in [k for k, lk in _inflight.items() if not lk.locked()]:
-            del _inflight[k]
-    lock = _inflight.setdefault(key_r if want_rated else key_b, asyncio.Lock())
-    async with lock:
-        hit = await _cached(redis_conn, key_r, key_b, want_rated)  # мог заполнить первый
-        if hit is not None:
-            return hit
-        return await _fetch_and_cache(
-            key_r, key_b, lat, lon, radius, lang_code, redis_conn, want_rated
-        )
+    def consider(info: LoadInfo | None) -> LoadInfo | None:
+        """Запоминает результат; возвращает его, если мест достаточно."""
+        nonlocal best, attempted, first_ok
+        attempted += 1
+        if first_ok is None:
+            first_ok = info is not None
+        if info is None:
+            return None
+        if best is None or len(info.raw) > len(best.raw):
+            best = info
+        return info if len(info.raw) >= TOP_N else None
+
+    order = _base_providers(skip=frozenset({"fsq"}) if want_rated else frozenset())
+    if want_rated:
+        order.insert(0, "fsq")  # платный поиск начинается с Foursquare (рейтинги, фото)
+
+    for name in order:
+        if name == "fsq":
+            info = await _fsq_provider(lat, lon, radius, lang_code, want_rated)
+        else:
+            info = await _osm_provider(name, lat, lon, radius, lang_code, redis_conn, kind)
+        if (done := consider(info)) is not None:
+            return done._replace(fsq_ok=bool(first_ok))
+
+    # Совсем пусто — аварийные провайдеры с ключами, если заданы.
+    if best is None or not best.raw:
+        extra: list[dict[str, Any]] = []
+        provider = ""
+        if settings.MAPBOX_TOKEN:
+            extra = await find_places_mapbox(
+                lat=lat,
+                lon=lon,
+                radius=radius,
+                limit=10,
+                lang_code=lang_code,
+                access_token=settings.MAPBOX_TOKEN,
+            )
+            provider = "mapbox"
+        if not extra and settings.VIETMAP_API_KEY:
+            extra = await find_places_vietmap(
+                lat=lat, lon=lon, radius=radius, api_key=settings.VIETMAP_API_KEY
+            )
+            provider = "vietmap"
+        if extra:
+            return LoadInfo(extra, False, bool(first_ok), False, False, provider)
+
+    if best is None:
+        raise SearchUnavailable("all providers failed")
+    return best._replace(fsq_ok=bool(first_ok))
 
 
 async def search_places(
@@ -344,9 +408,10 @@ async def search_places(
 ) -> SearchResult:
     """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень).
 
-    kind — фильтр категории (all/cafe/restaurant/bar), локальный: на кэш и расход API не влияет.
+    kind — фильтр категории (all/cafe/restaurant/bar): на стороне провайдера для
+    Geoapify/Overpass (категория входит в ключ кэша), локально для остальных.
     """
-    info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings)
+    info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings, kind)
     # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
     try:
         places = await community.attach_votes(redis_conn, info.raw)
@@ -358,4 +423,5 @@ async def search_places(
         fsq_ok=info.fsq_ok,
         used_osm=info.used_osm,
         rated=info.rated,
+        provider=info.provider,
     )
