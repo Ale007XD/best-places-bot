@@ -287,7 +287,8 @@ def check_keyboards() -> None:
 
     from bot.services import cards
 
-    for pid, rows in (("a" * 24, 2), ("osm:relation/123456789012", 2), ("x" * 80, 1), (None, 1)):
+    # ряды: [карта · поделиться], [👍 · 👎], [🚫 Закрыто]; без допустимого place_id — только первый
+    for pid, rows in (("a" * 24, 3), ("osm:relation/123456789012", 3), ("x" * 80, 1), (None, 1)):
         ck = cards.card_keyboard("ru", {"name": "n", "lat": 1, "lon": 2, "place_id": pid}, "https://t.me/b")
         assert len(ck.inline_keyboard) == rows, pid
         for row in ck.inline_keyboard:
