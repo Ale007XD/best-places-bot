@@ -12,6 +12,9 @@ from pathlib import Path
 from bot.keyboards import inline_keyboards as kb
 from bot.services import specialties as sp
 
+HCMC = (10.78, 106.70)
+PHAN_RANG = (11.5778, 108.9945)
+
 
 def main() -> None:
     if len(sys.argv) > 1:
@@ -22,73 +25,80 @@ def main() -> None:
 
     data = sp.load()
     assert sp.validate(data) == [], sp.validate(data)
-    ids = {c["id"] for c in data["cities"]}
-    assert {"hcmc", "hanoi", "phan-rang"} <= ids, ids
+    assert {"ho_chi_minh", "hanoi", "phan_rang", "bangkok"} <= set(data["cities"])
 
-    # 1. определение города по точке
-    assert sp.detect_city(11.5778, 108.9945)["id"] == "phan-rang"  # Фанранг (центр)
-    assert sp.detect_city(10.78, 106.70)["id"] == "hcmc"
-    assert sp.detect_city(15.88, 108.33)["id"] == "hoi-an"  # ближе к центру Хойана, чем Дананга
+    # 1. определение города по точке (возвращается копия с id)
+    assert sp.detect_city(*PHAN_RANG)["id"] == "phan_rang"
+    assert sp.detect_city(*HCMC)["id"] == "ho_chi_minh"
+    assert sp.detect_city(13.75, 100.50)["id"] == "bangkok"
     assert sp.detect_city(14.707, 107.692) is None  # Кон Тум: города нет в таблице
+    assert "id" not in data["cities"]["phan_rang"]  # исходный словарь не изменяется
 
     # 2. непроверенные блюда скрыты по умолчанию (в словаре все verified=false)
-    assert sp.visible_dishes(sp.detect_city(10.78, 106.70), show_unverified=False) == []
-    assert sp.render("ru", sp.detect_city(10.78, 106.70), show_unverified=False) is None
-    assert not sp.has_dishes(10.78, 106.70)
+    hcmc = sp.detect_city(*HCMC)
+    assert sp.visible_dishes(hcmc, show_unverified=False) == []
+    assert sp.render("ru", hcmc, show_unverified=False) is None
+    assert not sp.has_dishes(*HCMC)
 
-    # 3. карточка: язык, экранирование, лимит сообщения
+    # 3. карточка: языки, лимит сообщения, формат блюда
     for lang in ("ru", "en", "zh"):
-        for c in data["cities"]:
-            text = sp.render(lang, c, show_unverified=True)
-            assert text and len(text) <= 4096, (lang, c["id"], len(text or ""))
-    ru = sp.render("ru", sp.detect_city(10.78, 106.70), show_unverified=True)
-    assert "<b>Cơm tấm</b> — Ком там" in ru and "Хошимин" in ru, ru
-    en = sp.render("en", sp.detect_city(10.78, 106.70), show_unverified=True)
-    assert "Broken rice" in en and "Ho Chi Minh City" in en
-    # название на местном языке совпало с переводом → не дублируется
+        for cid in data["cities"]:
+            text = sp.render(lang, {**data["cities"][cid], "id": cid}, show_unverified=True)
+            assert text and len(text) <= 4096, (lang, cid, len(text or ""))
+    ru = sp.render("ru", hcmc, show_unverified=True)
+    assert "<b>Cơm tấm</b> — Ком Там" in ru and "Хошимин" in ru and "💡" in ru, ru
+    en = sp.render("en", hcmc, show_unverified=True)
+    assert "Ho Chi Minh City" in en  # английских описаний в словаре пока нет → русские как запас
     th = sp.render("en", sp.detect_city(13.75, 100.50), show_unverified=True)
-    assert "<b>ผัดไทย</b> — Pad Thai" in th, th
+    assert "<b>ผัดกะเพรา</b>" in th, th
 
-    # 4. экранирование HTML из словаря
-    evil = copy.deepcopy(data["cities"][0])
-    evil["dishes"][0]["name"]["local"] = "A <script> & B"
+    # 4. экранирование HTML из словаря и английские поля, когда они есть
+    evil = copy.deepcopy(hcmc)
+    evil["specialties"][0]["title_local"] = "A <script> & B"
     out = sp.render("ru", evil, show_unverified=True)
     assert "<script>" not in out and "&lt;script&gt;" in out
+    tr = copy.deepcopy(hcmc)
+    tr["specialties"][0].update(title_en="Broken rice", short_desc_en="Broken rice with pork chop.")
+    assert "Broken rice with pork chop." in sp.render("en", tr, show_unverified=True)
+    assert sp.validate({**data, "cities": {"x": {**data["cities"]["hanoi"]}}}) == []
 
-    # 5. verified=true — только с источником; валидатор ловит типичные ошибки
-    bad = copy.deepcopy(data)
-    bad["cities"][0]["dishes"][0]["verified"] = True
-    assert any("sources" in e for e in sp.validate(bad)), sp.validate(bad)
-    bad = copy.deepcopy(data)
-    bad["cities"][0]["dishes"][0]["lol"] = 1
-    assert any("лишние ключи" in e for e in sp.validate(bad))
-    bad = copy.deepcopy(data)
-    bad["cities"][1]["id"] = bad["cities"][0]["id"]
-    assert any("дубль" in e for e in sp.validate(bad))
-    bad = copy.deepcopy(data)
-    bad["cities"][0]["dishes"][0]["kind"] = "pizza"
-    assert any("kind" in e for e in sp.validate(bad))
+    # 5. валидатор ловит типичные ошибки
+    def errs_of(mutate) -> list[str]:
+        bad = copy.deepcopy(data)
+        mutate(bad)
+        return sp.validate(bad)
+
+    def first(d):
+        return d["cities"]["hanoi"]["specialties"][0]
+
+    assert any("sources" in e for e in errs_of(lambda d: first(d).update(verified=True)))
+    assert any("лишние ключи" in e for e in errs_of(lambda d: first(d).update(lol=1)))
+    assert any("нет полей" in e for e in errs_of(lambda d: first(d).pop("how_to_eat")))
+    assert any("дубль" in e for e in errs_of(lambda d: d["cities"]["hanoi"]["specialties"].append(dict(first(d)))))
+    assert any("search_tokens" in e for e in errs_of(lambda d: first(d).update(search_tokens=[])))
+    assert any("center" in e for e in errs_of(lambda d: d["cities"]["hanoi"].update(center={"lat": 99, "lon": 0})))
+    assert any("schema_version" in e for e in errs_of(lambda d: d.update(schema_version="2.0")))
+    assert any("cities" in e for e in sp.validate({"schema_version": "1.0", "cities": []}))
 
     # 6. verified=true с источником показывается без флага
     ok = copy.deepcopy(data)
-    ok["cities"][0]["dishes"][0]["verified"] = True
-    ok["cities"][0]["dishes"][0]["sources"] = ["https://example.org/x"]
+    dish = ok["cities"]["ho_chi_minh"]["specialties"][0]
+    dish.update(verified=True, sources=["https://example.org/x"])
     assert sp.validate(ok) == []
-    city = sp.detect_city(10.78, 106.70, ok)
-    assert [d["id"] for d in sp.visible_dishes(city, show_unverified=False)] == ["com-tam"]
+    assert [d["id"] for d in sp.visible_dishes(sp.detect_city(*HCMC, ok), show_unverified=False)] == [dish["id"]]
 
     # 7. кнопка «Что попробовать здесь» только когда есть подборка
-    def tr(key):
+    def tr_key(key):
         return key
 
     def cbs(markup):
         return [b.callback_data for row in markup.inline_keyboard for b in row]
 
-    assert "try_here" not in cbs(kb.get_results_actions_keyboard(tr))
-    assert "try_here" in cbs(kb.get_results_actions_keyboard(tr, show_try=True))
+    assert "try_here" not in cbs(kb.get_results_actions_keyboard(tr_key))
+    assert "try_here" in cbs(kb.get_results_actions_keyboard(tr_key, show_try=True))
     place = {"place_id": "osm:node/1", "name": "X"}
-    assert "try_here" not in cbs(kb.get_compact_keyboard(tr, [place], ["u"], ["s"]))
-    assert "try_here" in cbs(kb.get_compact_keyboard(tr, [place], ["u"], ["s"], show_try=True))
+    assert "try_here" not in cbs(kb.get_compact_keyboard(tr_key, [place], ["u"], ["s"]))
+    assert "try_here" in cbs(kb.get_compact_keyboard(tr_key, [place], ["u"], ["s"], show_try=True))
     print("specialties ok")
 
 
