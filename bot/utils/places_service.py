@@ -116,7 +116,7 @@ def _make_cache_key(
     """Ключ кэша OSM-провайдера: ячейка, «ведро» радиуса, язык, провайдер, категория."""
     clat, clon = _cell(lat, lon)
     raw = f"{clat}:{clon}:{fetch_radius(radius)}:{lang_code}:{variant}:{kind}"
-    return f"places:v4:{hashlib.md5(raw.encode()).hexdigest()}"
+    return f"places:v5:{hashlib.md5(raw.encode()).hexdigest()}"
 
 
 _SAME_PIN_M = 3  # заведения ближе этого — «одна и та же точка» (с запасом на округление)

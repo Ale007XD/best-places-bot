@@ -176,15 +176,16 @@ def check_links_and_points() -> None:
     # открывает заведение по названию+адресу и центрирует карту, а не просто «голую» точку
     assert "Olivia" in url and "/@12.2335,109.1963,18z" in url and "query=12.2335" not in url, url
     assert links.map_url({"name": "X", "lat": None, "lon": None}).endswith("query=X")
-    # нет города в адресе → по координатам (нет тёзок за сотни км); город есть → по тексту
+    # есть название → поиск по тексту (карточка заведения); город из locality добавляется в запрос
     street_only = {"name": "Olivia", "vicinity": "14 Tran Quang Khai", "lat": 12.2335, "lon": 109.1963}
-    assert links.map_url(street_only).endswith("query=12.2335,109.1963"), links.map_url(street_only)
-    assert "/@12.2335" in links.map_url({**street_only, "locality": "Nha Trang"})
-    assert links.map_url({"name": "Olivia", "lat": 1.0, "lon": 2.0}).endswith("query=1.0,2.0")
+    assert "/@12.2335,109.1963" in links.map_url(street_only), links.map_url(street_only)
     assert "Nha%20Trang" in links.map_url({**street_only, "locality": "Nha Trang"})
-    paren = {"name": "Cafe", "vicinity": "85 (Phạm Văn Chiêu), Hồ Chí Minh", "lat": 1.0, "lon": 2.0}
-    assert "/@1.0,2.0" in links.map_url(paren)
-    assert links.map_url({**paren, "vicinity": "85 (Phạm Văn, Chiêu)"}).endswith("query=1.0,2.0")
+    name_only = links.map_url({"name": "Giai Dieu", "lat": 11.5, "lon": 108.9})
+    assert "/search/Giai%20Dieu/@11.5,108.9,18z" in name_only, name_only
+    # иероглифы в названии (тёзки в Китае) и безымянные места → по координатам
+    cjk = {"name": "Hiền Ký 賢記", "vicinity": "90 Huỳnh Mẫn Đạt, Hồ Chí Minh", "lat": 1.0, "lon": 2.0}
+    assert links.map_url(cjk).endswith("query=1.0,2.0"), links.map_url(cjk)
+    assert links.map_url({"name": "X", "unnamed": True, "lat": 1.0, "lon": 2.0}).endswith("query=1.0,2.0")
     assert "query=1.0,2.0" in links.map_url({"lat": 1.0, "lon": 2.0})
     sh = links.share_url(place, "https://t.me/bot?start=ref_1", "ru")
     assert sh.startswith("https://t.me/share/url?url=") and "ref_1" in sh.replace("%3D", "=")
