@@ -293,6 +293,23 @@ async def _demote_foreign(
     return flag_foreign_region(places, await _pin_region(lat, lon, redis_conn))
 
 
+async def _drop_closed(places: list[dict[str, Any]], redis_conn) -> list[dict[str, Any]]:
+    """Убирает закрытые места: помечены провайдером (FSQ date_closed) или жалобами пользователей.
+
+    Идёт ДО подсчёта провайдера: иначе закрытые места «засчитываются», а выдача пустеет."""
+    kept = [p for p in places if not p.get("closed_at")]
+    if len(kept) < len(places):
+        logger.info("Provider-closed places dropped: %s", len(places) - len(kept))
+    try:
+        crowd = await community.closed_ids(redis_conn, [p.get("place_id") for p in kept])
+    except RedisError as e:
+        logger.warning("closed_ids failed: %s", e)
+        return kept
+    if crowd:
+        logger.info("User-reported closed places dropped: %s", len(crowd))
+    return [p for p in kept if p.get("place_id") not in crowd]
+
+
 def _named(raw: list[dict[str, Any]]) -> int:
     """Сколько мест с названием: безымянные не считаются «достаточным» результатом."""
     return sum(1 for p in raw if not p.get("unnamed"))
@@ -613,6 +630,8 @@ async def _load_raw(
                 info = info._replace(raw=await _demote_foreign(info.raw, lat, lon, redis_conn))
         else:
             info = await _osm_provider(name, lat, lon, radius, lang_code, redis_conn, kind)
+        if info is not None:
+            info = info._replace(raw=await _drop_closed(info.raw, redis_conn))
         if (done := consider(info)) is not None:
             return done._replace(fsq_ok=bool(first_ok))
 

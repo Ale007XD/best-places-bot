@@ -163,7 +163,7 @@ async def fsq_raw(lat: float, lon: float, radius: int = 500) -> list[str]:
             "ll": f"{lat},{lon}",
             "radius": radius,
             "limit": 10,
-            "fields": "fsq_place_id,name,latitude,longitude,distance,location,categories",
+            "fields": "fsq_place_id,name,latitude,longitude,distance,location,categories,date_closed",
             "fsq_category_ids": DINING_CATEGORY_ID,
             "sort": "DISTANCE",
         },
@@ -187,7 +187,8 @@ async def fsq_raw(lat: float, lon: float, radius: int = 500) -> list[str]:
         lines.append(
             f"{p.get('name')!r} lat/lon={plat},{plon} fsq_distance={p.get('distance')} "
             f"by_coords={mine} addr={(p.get('location') or {}).get('formatted_address')!r} "
-            f"cat={cats[0].get('name')!r} id={p.get('fsq_place_id')}"
+            f"cat={cats[0].get('name')!r} closed={p.get('date_closed') or None!r} "
+            f"id={p.get('fsq_place_id')}"
         )
     return lines
 

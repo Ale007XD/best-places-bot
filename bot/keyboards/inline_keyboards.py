@@ -111,6 +111,7 @@ def get_compact_keyboard(
             row += [
                 InlineKeyboardButton(text=f"👍 {i}", callback_data=f"vu:{pid}"),
                 InlineKeyboardButton(text=f"👎 {i}", callback_data=f"vd:{pid}"),
+                InlineKeyboardButton(text=f"🚫 {i}", callback_data=f"cl:{pid}"),
             ]
         rows.append(row)
     rows.append(

@@ -234,6 +234,39 @@ async def main() -> None:
     assert sent[0]["sort"] == "DISTANCE" and "sort" not in sent[1], sent
     assert len(res.places) == 1 and used_sort is False
 
+    # 10b. FSQ: date_closed запрашивается; закрытое место помечается closed_at; отказ API от
+    # поля → повтор без него, поле отключается (поиск не ломается)
+    sent = []
+    answers = [
+        httpx.Response(400, text='{"message":"invalid field: date_closed"}'),
+        httpx.Response(200, json={"results": [
+            {"fsq_place_id": "a", "name": "A", "categories": [{"name": "Cafe"}], "date_closed": "2024-05-01"},
+            {"fsq_place_id": "b", "name": "B", "categories": [{"name": "Cafe"}], "date_closed": ""},
+        ]}),
+    ]
+    fsq._get = fake_get
+    try:
+        assert "date_closed" in fsq._TIER_FIELDS["base"]
+        res = await fsq.fetch_places("k", "v", 10.0, 106.0, 300, "en", want_ratings=False)
+    finally:
+        fsq._get = real_get
+        disabled = fsq._use_date_closed is False
+        fsq._use_date_closed = True
+    assert "date_closed" in sent[0]["fields"] and "date_closed" not in sent[1]["fields"], sent
+    assert disabled and len(res.places) == 2
+    sent = []
+    answers = [httpx.Response(200, json={"results": [
+        {"fsq_place_id": "a", "name": "A", "categories": [{"name": "Cafe"}], "date_closed": "2024-05-01"},
+        {"fsq_place_id": "b", "name": "B", "categories": [{"name": "Cafe"}], "date_closed": ""},
+    ]})]
+    fsq._get = fake_get
+    try:
+        res = await fsq.fetch_places("k", "v", 10.0, 106.0, 300, "en", want_ratings=False)
+    finally:
+        fsq._get = real_get
+    by_id = {p["place_id"]: p for p in res.places}
+    assert by_id["a"]["closed_at"] == "2024-05-01" and by_id["b"]["closed_at"] is None, by_id
+
     # 11. «битые пины»: разные заведения в одной точке с адресами на разных улицах (случай:
     # три места из разных районов Хошимина, все в 431 м от точки в Кон Туме)
     assert ps._street_key("85 (Phạm Văn Chiêu), Hồ Chí Minh") == "phạm văn chiêu"
@@ -369,6 +402,55 @@ async def main() -> None:
     ids = [p["place_id"] for p in r.places]
     assert r.provider == "fsq" and "fsq3" not in ids and ids[-1] == "fsq1", (r.provider, ids)
     assert await redis.get("region:v1:10.777:106.701") == pin_text
+
+    # 19. date_closed у FSQ: закрытое место убирается ДО подсчёта провайдера → выбор уходит
+    # к провайдеру, у которого хватает настоящих мест (а не «засчитывается» мёртвое место)
+    await redis.flushall()
+
+    async def fake_reverse_none(lat, lon, api_key, **_kw):
+        return None
+
+    ps.reverse_region = fake_reverse_none
+    closed_one = {**_pl(3, 0.0009, "fsq", 4.4), "closed_at": "2024-05-01"}
+    c = Calls()
+    install(c, gp_places=gp5, op_places=[], fsq_places=[
+        _pl(1, 0.0003, "fsq", 4.1), _pl(2, 0.0006, "fsq", 4.2), closed_one,
+    ])
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
+    assert r.provider == "geoapify" and len(c.fsq) == 1, (r.provider, len(c.fsq))
+    assert all(not p.get("closed_at") for p in r.places)
+
+    # 20. жалобы «🚫 Закрыто»: одна на человека; порог 2 разных людей; админ (вес=порог) сразу
+    from bot.services import community
+    three = [_pl(i, 0.0003 * i, "fsq", 4.0 + i / 10) for i in range(1, 4)]
+    res = await community.report_closed(redis, 1, "fsq1")
+    assert (res.total, res.hidden, res.first) == (1, False, True), res
+    res = await community.report_closed(redis, 1, "fsq1")
+    assert (res.total, res.hidden, res.first) == (1, False, False), res
+    assert await community.closed_ids(redis, ["fsq1", "fsq2", None]) == set()
+    c = Calls()
+    install(c, gp_places=gp5, op_places=[], fsq_places=three)
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
+    assert r.provider == "fsq" and len(r.places) == 3  # одной жалобы мало
+    res = await community.report_closed(redis, 2, "fsq1")
+    assert (res.total, res.hidden) == (2, True), res
+    assert await redis.ttl("place:closed:fsq1") > 0
+    assert await community.closed_ids(redis, ["fsq1", "fsq2"]) == {"fsq1"}
+    c = Calls()
+    install(c, gp_places=gp5, op_places=[], fsq_places=three)
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
+    assert r.provider == "geoapify", r.provider  # у FSQ осталось 2 именованных места
+    adm = await community.report_closed(redis, 99, "fsq2", weight=settings.CLOSED_REPORTS_THRESHOLD)
+    assert adm.hidden, adm
+
+    # 21. кнопка «🚫 Закрыто» в карточке и в компактной выдаче (callback_data ≤ 64 байт)
+    from bot.keyboards.inline_keyboards import get_compact_keyboard
+    from bot.services.cards import card_keyboard
+    kb = card_keyboard("ru", three[0], "https://t.me/bot?start=ref_1")
+    cl = [b for row in kb.inline_keyboard for b in row if (b.callback_data or "").startswith("cl:")]
+    assert len(cl) == 1 and cl[0].callback_data == "cl:fsq1" and "Закрыто" in cl[0].text, cl
+    ck = get_compact_keyboard(lambda k: k, three, ["u"] * 3, ["s"] * 3)
+    assert [b.callback_data for b in ck.inline_keyboard[0]][-1] == "cl:fsq1"
 
     print("providers ok")
 

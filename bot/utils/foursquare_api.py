@@ -52,6 +52,7 @@ _category_idx = 0  # индекс рабочего варианта; запом�
 # 50 мест съедают далёкие «раскрученные» заведения, а ближайшие не попадают в выдачу. Если
 # API отвергнет параметр (HTTP 400 про sort) — отключаем и работаем как раньше.
 _use_sort = True
+_use_date_closed = True  # date_closed — поле Pro; при отказе API отключаем и повторяем
 
 _FOOD_RE = re.compile(
     r"\b(restaurant|cafe|café|coffee|tea|bar|pub|bakery|diner|bistro|eatery|brewery|"
@@ -60,7 +61,7 @@ _FOOD_RE = re.compile(
     re.IGNORECASE,
 )
 
-BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance"
+BASE_FIELDS = "fsq_place_id,name,latitude,longitude,categories,location,distance,date_closed"
 EXTRA_FIELDS = "rating,stats,price"
 _TIER_FIELDS = {
     "full": f"{BASE_FIELDS},{EXTRA_FIELDS},photos",
@@ -167,6 +168,8 @@ def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
         "lon": p.get("longitude"),
         # Расстояние от точки запроса по версии самого FSQ — для сверки с координатами.
         "fsq_distance": p.get("distance"),
+        # Дата пометки «закрыто навсегда» в базе FSQ (пусто — не закрыто).
+        "closed_at": p.get("date_closed") or None,
         "vicinity": loc.get("formatted_address") or loc.get("address"),
         "photo_url": _photo_url(p),
         "source": "fsq",
@@ -187,7 +190,7 @@ async def fetch_places(
     Все заведения (restaurant/cafe/bar) вокруг точки, без фильтра по рейтингу.
     Пустой список — успешный ответ без мест. FoursquareError — сбой провайдера.
     """
-    global _auth_error_logged, _category_idx, _use_sort
+    global _auth_error_logged, _category_idx, _use_sort, _use_date_closed
 
     if not api_key:
         raise FoursquareError("FSQ_API_KEY is empty")
@@ -209,7 +212,9 @@ async def fetch_places(
             "ll": f"{lat},{lon}",
             "radius": radius,
             "limit": limit,
-            "fields": _TIER_FIELDS[tier],
+            "fields": _TIER_FIELDS[tier]
+            if _use_date_closed
+            else _TIER_FIELDS[tier].replace(",date_closed", ""),
         }
         if category:
             params["fsq_category_ids"] = category
@@ -219,6 +224,17 @@ async def fetch_places(
         r = await _get(params, headers)
         if r is None:
             break
+
+        # Поле date_closed отвергнуто — работаем без него (запоминаем).
+        if (
+            _use_date_closed
+            and r.status_code in (400, 422)
+            and "date_closed" in r.text
+            and "fsq_category_ids" not in r.text
+        ):
+            logger.warning("FSQ rejected date_closed (%s) — disabling", r.text[:120])
+            _use_date_closed = False
+            continue
 
         # Параметр sort отвергнут — отключаем его (запоминаем) и повторяем без него.
         if (

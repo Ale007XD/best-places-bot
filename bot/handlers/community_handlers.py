@@ -13,6 +13,7 @@ from aiogram.types import (
 )
 from redis.exceptions import RedisError
 
+from bot.config import settings
 from bot.services import community
 from bot.services.cards import vote_label
 from bot.services.translator import get_string
@@ -80,3 +81,58 @@ async def vote(callback: CallbackQuery, lang_code: str, redis_conn, analytics=No
 
     if analytics and res.changed:
         await analytics.track_feature_use("vote", direction)
+
+
+def _mark_closed(markup: InlineKeyboardMarkup, pid: str) -> InlineKeyboardMarkup:
+    """Кнопка «🚫 Закрыто» этой карточки получает ✅ (жалоба принята)."""
+    rows = []
+    for row in markup.inline_keyboard:
+        new_row = []
+        for b in row:
+            if b.callback_data == f"cl:{pid}" and not (b.text or "").endswith("✅"):
+                b = InlineKeyboardButton(text=f"{b.text} ✅", callback_data=b.callback_data)
+            new_row.append(b)
+        rows.append(new_row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data.startswith("cl:"))
+async def closed_report(callback: CallbackQuery, lang_code: str, redis_conn, analytics=None):
+    """«🚫 Закрыто»: жалоба на место. Порог CLOSED_REPORTS_THRESHOLD разных людей (админ — сразу)."""
+    pid = (callback.data or "")[3:]
+    uid = callback.from_user.id
+    if not pid or not await redis_conn.set(f"throttle:closed:{uid}", 1, nx=True, px=600):
+        await callback.answer()
+        return
+
+    is_admin = bool(settings.ADMIN_ID) and uid == settings.ADMIN_ID
+    weight = settings.CLOSED_REPORTS_THRESHOLD if is_admin else 1
+    try:
+        res = await community.report_closed(redis_conn, uid, pid, weight)
+    except RedisError:
+        logger.exception("closed report failed")
+        await callback.answer()
+        return
+
+    if res.hidden:
+        text = get_string("closed_hidden", lang=lang_code)
+    elif res.first:
+        text = get_string("closed_thanks", lang=lang_code).format(
+            n=res.total, need=settings.CLOSED_REPORTS_THRESHOLD
+        )
+    else:
+        text = get_string("closed_already", lang=lang_code)
+    if res.rewarded:
+        text += "\n" + get_string("vote_reward", lang=lang_code)
+    await callback.answer(text)
+
+    msg = callback.message if isinstance(callback.message, Message) else None
+    if msg is not None and msg.reply_markup is not None:
+        try:
+            await msg.edit_reply_markup(reply_markup=_mark_closed(msg.reply_markup, pid))
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                logger.warning("closed markup update failed: %s", e)
+
+    if analytics and res.first:
+        await analytics.track_feature_use("closed_report", "hidden" if res.hidden else "pending")

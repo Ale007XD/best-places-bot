@@ -155,6 +155,7 @@ def card_keyboard(
                 ),
             ]
         )
+        rows.append([InlineKeyboardButton(text=_("btn_closed"), callback_data=f"cl:{pid}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

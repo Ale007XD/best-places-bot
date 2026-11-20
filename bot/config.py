@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     REFERRAL_MAX_REWARDED: int = 20  # потолок наград за рефералы на одного пользователя
     VOTE_REWARD_EVERY: int = 3  # каждые N новых отметок «был здесь» = +1 бонусный поиск (0 = выкл.)
     VOTE_REWARD_DAILY_CAP: int = 3  # максимум таких наград в день
+    CLOSED_REPORTS_THRESHOLD: int = 2  # жалоб «закрыто» от разных людей, после которых место скрывается (админ — сразу)
+    CLOSED_TTL_DAYS: int = 60  # сколько дней действует скрытие
     STARS_PRICE_PACK20: int = 50
     STARS_PRICE_PRO_WEEK: int = 100
     STARS_PRICE_PRO_MONTH: int = 300

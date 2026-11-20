@@ -10,6 +10,7 @@
   place:votes:{pid}   — hash up/down (счётчики)
   place:voters:{pid}  — hash uid → "u"/"d" (один голос на пользователя, его можно изменить)
   place:meta:{pid}    — название/координаты/адрес (для будущих топов района)
+  place:closed:{pid}  — hash uid → вес жалобы «закрыто» (1; у админа = порог), TTL CLOSED_TTL_DAYS
   user_votes:{uid}    — сколько мест пользователь отметил впервые
   vote_rewards:{uid}:{день} — выдано наград за отметки сегодня
 """
@@ -87,6 +88,40 @@ async def record_vote(r, uid: int, pid: str, direction: str) -> VoteResult:
     first = prev is None
     rewarded = await _maybe_reward(r, uid) if first else False
     return VoteResult(up, down, changed, first, rewarded)
+
+
+class ClosedResult(NamedTuple):
+    total: int  # сумма весов жалоб
+    hidden: bool  # набран порог: место скрывается из выдачи
+    first: bool  # первая жалоба этого пользователя на это место
+    rewarded: bool
+
+
+async def report_closed(r, uid: int, pid: str, weight: int = 1) -> ClosedResult:
+    """Жалоба «место закрыто». Одна на пользователя и место; TTL отсчитывается от последней новой."""
+    key = f"place:closed:{pid}"
+    first = await r.hget(key, str(uid)) is None
+    if first:
+        async with r.pipeline(transaction=True) as pipe:
+            pipe.hset(key, str(uid), max(int(weight), 1))
+            pipe.expire(key, settings.CLOSED_TTL_DAYS * _DAY)
+            await pipe.execute()
+    total = sum(int(v) for v in (await r.hvals(key)))
+    rewarded = await _maybe_reward(r, uid) if first else False
+    return ClosedResult(total, total >= settings.CLOSED_REPORTS_THRESHOLD, first, rewarded)
+
+
+async def closed_ids(r, pids: list[str | None]) -> set[str]:
+    """place_id из списка, набравшие порог жалоб «закрыто»."""
+    ids = [p for p in dict.fromkeys(pids) if p]
+    if not ids:
+        return set()
+    async with r.pipeline(transaction=False) as pipe:
+        for pid in ids:
+            pipe.hvals(f"place:closed:{pid}")
+        rows = await pipe.execute()
+    need = settings.CLOSED_REPORTS_THRESHOLD
+    return {pid for pid, vals in zip(ids, rows, strict=True) if sum(int(v) for v in vals) >= need}
 
 
 async def _maybe_reward(r, uid: int) -> bool:
