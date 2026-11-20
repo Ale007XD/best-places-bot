@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     VOTE_REWARD_DAILY_CAP: int = 3  # максимум таких наград в день
     CLOSED_REPORTS_THRESHOLD: int = 2  # жалоб «закрыто» от разных людей, после которых место скрывается (админ — сразу)
     CLOSED_TTL_DAYS: int = 60  # сколько дней действует скрытие
+    SPECIALTIES_SHOW_UNVERIFIED: bool = False  # показывать непроверенные блюда (только для проверки словаря)
     STARS_PRICE_PACK20: int = 50
     STARS_PRICE_PRO_WEEK: int = 100
     STARS_PRICE_PRO_MONTH: int = 300

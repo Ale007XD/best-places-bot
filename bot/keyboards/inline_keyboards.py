@@ -82,11 +82,15 @@ def get_params_keyboard(
     )
 
 
-def get_results_actions_keyboard(_, show_unlock: bool = False) -> InlineKeyboardMarkup:
+def get_results_actions_keyboard(
+    _, show_unlock: bool = False, show_try: bool = False
+) -> InlineKeyboardMarkup:
     """Кнопки под заголовком выдачи (у самих карточек — свои кнопки, см. services/cards.py)."""
     rows = []
     if show_unlock:
         rows.append([InlineKeyboardButton(text=_("btn_unlock"), callback_data="unlock")])
+    if show_try:
+        rows.append([InlineKeyboardButton(text=_("try_here_btn"), callback_data="try_here")])
     rows.append(
         [
             InlineKeyboardButton(text=_("change_params_btn"), callback_data="change_params"),
@@ -97,7 +101,11 @@ def get_results_actions_keyboard(_, show_unlock: bool = False) -> InlineKeyboard
 
 
 def get_compact_keyboard(
-    _, places: list[dict], map_urls: list[str], share_urls: list[str]
+    _,
+    places: list[dict],
+    map_urls: list[str],
+    share_urls: list[str],
+    show_try: bool = False,
 ) -> InlineKeyboardMarkup:
     """Режим «одно сообщение»: по ряду на место — 🗺 · 📤 · 👍 · 👎 (номер = номер карточки)."""
     rows = []
@@ -114,6 +122,8 @@ def get_compact_keyboard(
                 InlineKeyboardButton(text=f"🚫 {i}", callback_data=f"cl:{pid}"),
             ]
         rows.append(row)
+    if show_try:
+        rows.append([InlineKeyboardButton(text=_("try_here_btn"), callback_data="try_here")])
     rows.append(
         [
             InlineKeyboardButton(text=_("change_params_btn"), callback_data="change_params"),

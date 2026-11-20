@@ -31,7 +31,7 @@ from redis.exceptions import RedisError
 from bot.config import settings
 from bot.handlers import account_handlers as acc
 from bot.keyboards import inline_keyboards as kb
-from bot.services import cards, community, quota
+from bot.services import cards, community, quota, specialties
 from bot.services.translator import SUPPORTED_LANGUAGES, get_string
 from bot.utils import geocoder, links
 from bot.utils.attribution import attribution
@@ -578,6 +578,22 @@ async def change_params(
     await _show_params(msg, state, lang_code, redis_conn, callback.from_user.id)
 
 
+@router.callback_query(F.data == "try_here")
+async def try_here(callback: CallbackQuery, state: FSMContext, lang_code: str):
+    """Бесплатная карточка «Что попробовать здесь» по городу точки поиска (без внешних запросов)."""
+    msg = _message_of(callback)
+    data = await state.get_data()
+    if msg is None or "latitude" not in data or "longitude" not in data:
+        await callback.answer(get_string("try_here_none", lang=lang_code), show_alert=True)
+        return
+    text = specialties.render_for_point(lang_code, float(data["latitude"]), float(data["longitude"]))
+    if text is None:
+        await callback.answer(get_string("try_here_none", lang=lang_code), show_alert=True)
+        return
+    await callback.answer()
+    await msg.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+
+
 @router.callback_query(F.data == "new_search")
 async def new_search(callback: CallbackQuery, state: FSMContext, lang_code: str):
     await callback.answer()
@@ -696,6 +712,7 @@ async def do_search(
     # Апселл — только когда монетизация включена и платные данные скрыты из-за лимита.
     upsell = quota_status.money_enabled and not quota_status.unlimited and not entitled
     head = _format_header(lang_code, result, min_rating, label, upsell)
+    show_try = specialties.has_dishes(lat, lon)  # есть подборка «что попробовать» для этого города
     tail: list[str] = []  # блоки под карточками: серия/лимит, подсказка, атрибуция
     st_after: quota.Status | None = None
 
@@ -766,6 +783,7 @@ async def do_search(
                 top,
                 [links.map_url(p) for p in top],
                 [links.share_url(p, ref, lang_code) for p in top],
+                show_try=show_try,
             ),
         )
         if referrer_id is not None:
@@ -777,7 +795,7 @@ async def do_search(
         "\n\n".join([head, *tail]),
         parse_mode="HTML",
         disable_web_page_preview=True,
-        reply_markup=kb.get_results_actions_keyboard(_, show_unlock=upsell),
+        reply_markup=kb.get_results_actions_keyboard(_, show_unlock=upsell, show_try=show_try),
     )
     for i, place in enumerate(top, start=1):
         await cards.send_place_card(

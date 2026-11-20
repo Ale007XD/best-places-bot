@@ -1,0 +1,628 @@
+{
+  "version": 1,
+  "cities": [
+    {
+      "id": "hcmc",
+      "country": "VN",
+      "lat": 10.7769,
+      "lon": 106.7009,
+      "radius_km": 30,
+      "name": {
+        "ru": "Хошимин",
+        "en": "Ho Chi Minh City",
+        "vi": "Thành phố Hồ Chí Minh",
+        "zh": "胡志明市"
+      },
+      "dishes": [
+        {
+          "id": "com-tam",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Cơm tấm",
+            "ru": "Ком там",
+            "en": "Broken rice"
+          },
+          "desc": {
+            "ru": "Рис из дроблёных зёрен с жареной свиной отбивной, яичным пирожком и рыбным соусом.",
+            "en": "Broken rice with grilled pork chop, egg meatloaf and fish-sauce dressing."
+          },
+          "aliases": [
+            "com tam",
+            "cơm tấm",
+            "cơm sườn"
+          ],
+          "sources": []
+        },
+        {
+          "id": "hu-tieu-nam-vang",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Hủ tiếu Nam Vang",
+            "ru": "Хы тьеу Нам Ванг",
+            "en": "Hủ tiếu noodle soup"
+          },
+          "desc": {
+            "ru": "Суп с рисовой лапшой в южном стиле: свинина, креветки, лёгкий слегка сладковатый бульон.",
+            "en": "Southern-style rice noodle soup with pork, shrimp and a light, slightly sweet broth."
+          },
+          "aliases": [
+            "hu tieu",
+            "hủ tiếu",
+            "hu tieu nam vang"
+          ],
+          "sources": []
+        },
+        {
+          "id": "banh-xeo",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Bánh xèo",
+            "ru": "Банх сео",
+            "en": "Crispy rice pancake"
+          },
+          "desc": {
+            "ru": "Хрустящий блин из рисовой муки с куркумой, креветками и свининой; заворачивают в листья салата с зеленью.",
+            "en": "Crispy turmeric rice pancake with shrimp and pork, wrapped in lettuce and herbs."
+          },
+          "aliases": [
+            "banh xeo",
+            "bánh xèo"
+          ],
+          "sources": []
+        },
+        {
+          "id": "banh-mi",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "Bánh mì",
+            "ru": "Банх ми",
+            "en": "Vietnamese baguette sandwich"
+          },
+          "desc": {
+            "ru": "Хрустящий багет с паштетом, мясом или колбасой, маринованными овощами, зеленью и соусом.",
+            "en": "Crispy baguette with pâté, meat or cold cuts, pickled vegetables, herbs and sauce."
+          },
+          "aliases": [
+            "banh mi",
+            "bánh mì"
+          ],
+          "sources": []
+        },
+        {
+          "id": "ca-phe-sua-da",
+          "verified": false,
+          "kind": "drink",
+          "name": {
+            "local": "Cà phê sữa đá",
+            "ru": "Ка фе суа да",
+            "en": "Iced milk coffee"
+          },
+          "desc": {
+            "ru": "Крепкий вьетнамский кофе с подслащённым сгущённым молоком и льдом.",
+            "en": "Strong Vietnamese coffee with sweetened condensed milk, served over ice."
+          },
+          "aliases": [
+            "ca phe sua da",
+            "cà phê sữa đá",
+            "ca phe sua"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "hanoi",
+      "country": "VN",
+      "lat": 21.0285,
+      "lon": 105.8542,
+      "radius_km": 25,
+      "name": {
+        "ru": "Ханой",
+        "en": "Hanoi",
+        "vi": "Hà Nội",
+        "zh": "河内"
+      },
+      "dishes": [
+        {
+          "id": "pho-bo",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Phở bò",
+            "ru": "Фо бо",
+            "en": "Beef pho"
+          },
+          "desc": {
+            "ru": "Говяжий суп с рисовой лапшой; в северном стиле — прозрачный бульон и немного зелени.",
+            "en": "Beef and rice noodle soup; the northern style has a clear broth and few herbs."
+          },
+          "aliases": [
+            "pho",
+            "phở",
+            "pho bo",
+            "phở bò"
+          ],
+          "sources": []
+        },
+        {
+          "id": "bun-cha",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Bún chả",
+            "ru": "Бун ча",
+            "en": "Grilled pork with noodles"
+          },
+          "desc": {
+            "ru": "Рисовая лапша с котлетками из свинины на углях в сладко-кислом бульоне, подаётся с зеленью.",
+            "en": "Rice noodles with charcoal-grilled pork patties in a sweet-sour broth, served with herbs."
+          },
+          "aliases": [
+            "bun cha",
+            "bún chả"
+          ],
+          "sources": []
+        },
+        {
+          "id": "cha-ca",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Chả cá",
+            "ru": "Ча ка",
+            "en": "Turmeric fish with dill"
+          },
+          "desc": {
+            "ru": "Рыба, обжаренная с куркумой и укропом; подаётся с лапшой, арахисом и зеленью.",
+            "en": "Fish fried with turmeric and dill, served with noodles, peanuts and herbs."
+          },
+          "aliases": [
+            "cha ca",
+            "chả cá",
+            "cha ca la vong",
+            "chả cá lã vọng"
+          ],
+          "sources": []
+        },
+        {
+          "id": "banh-cuon",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "Bánh cuốn",
+            "ru": "Банх куон",
+            "en": "Steamed rice rolls"
+          },
+          "desc": {
+            "ru": "Тонкие паровые блины из рисового теста со свининой и древесными грибами, с соусом нуок тям.",
+            "en": "Thin steamed rice-batter rolls filled with pork and wood-ear mushrooms, served with dipping sauce."
+          },
+          "aliases": [
+            "banh cuon",
+            "bánh cuốn"
+          ],
+          "sources": []
+        },
+        {
+          "id": "ca-phe-trung",
+          "verified": false,
+          "kind": "drink",
+          "name": {
+            "local": "Cà phê trứng",
+            "ru": "Ка фе чунг",
+            "en": "Egg coffee"
+          },
+          "desc": {
+            "ru": "Кофе с густой пенкой из взбитого желтка и сахара — десертный напиток родом из Ханоя.",
+            "en": "Coffee topped with a thick cream of whipped egg yolk and sugar; a dessert-like drink from Hanoi."
+          },
+          "aliases": [
+            "ca phe trung",
+            "cà phê trứng",
+            "egg coffee"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "phan-rang",
+      "country": "VN",
+      "lat": 11.5667,
+      "lon": 108.9833,
+      "radius_km": 12,
+      "name": {
+        "ru": "Фанранг",
+        "en": "Phan Rang",
+        "vi": "Phan Rang – Tháp Chàm",
+        "zh": "潘郎"
+      },
+      "dishes": [
+        {
+          "id": "banh-trang-nuong",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "Bánh tráng nướng",
+            "ru": "Банх чанг нынг",
+            "en": "Grilled rice paper"
+          },
+          "desc": {
+            "ru": "Рисовая лепёшка, запечённая на углях с яйцом, луком, колбасой и соусами — уличная «вьетнамская пицца».",
+            "en": "Rice paper grilled over charcoal with egg, spring onion, sausage and sauces — a street snack often called Vietnamese pizza."
+          },
+          "aliases": [
+            "banh trang nuong",
+            "bánh tráng nướng"
+          ],
+          "sources": []
+        },
+        {
+          "id": "banh-can",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "Bánh căn",
+            "ru": "Банх кан",
+            "en": "Mini rice pancakes"
+          },
+          "desc": {
+            "ru": "Маленькие рисовые «пирожки» на глиняной сковороде с яйцом или морепродуктами; подаются с рыбным соусом.",
+            "en": "Small rice-flour cakes cooked in a clay mould with egg or seafood, served with fish sauce."
+          },
+          "aliases": [
+            "banh can",
+            "bánh căn"
+          ],
+          "sources": []
+        },
+        {
+          "id": "thit-cuu",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Thịt cừu",
+            "ru": "Тхит кыу",
+            "en": "Mutton and lamb dishes"
+          },
+          "desc": {
+            "ru": "Блюда из баранины — на гриле, тушёные, в горшочке; овцеводство характерно для провинции Ниньтхуан.",
+            "en": "Mutton and lamb dishes — grilled, stewed or in a hotpot; sheep farming is typical for Ninh Thuận province."
+          },
+          "aliases": [
+            "thit cuu",
+            "thịt cừu",
+            "cừu nướng",
+            "cuu nuong",
+            "lẩu cừu"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "nha-trang",
+      "country": "VN",
+      "lat": 12.2388,
+      "lon": 109.1967,
+      "radius_km": 15,
+      "name": {
+        "ru": "Нячанг",
+        "en": "Nha Trang",
+        "vi": "Nha Trang",
+        "zh": "芽庄"
+      },
+      "dishes": [
+        {
+          "id": "bun-ca-nha-trang",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Bún cá",
+            "ru": "Бун ка",
+            "en": "Fish noodle soup"
+          },
+          "desc": {
+            "ru": "Суп с рисовой лапшой и кусочками рыбы; популярное в Нячанге блюдо из морской рыбы.",
+            "en": "Rice noodle soup with fish pieces, a popular sea-fish dish in Nha Trang."
+          },
+          "aliases": [
+            "bun ca",
+            "bún cá"
+          ],
+          "sources": []
+        },
+        {
+          "id": "nem-nuong",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Nem nướng",
+            "ru": "Нем ныонг",
+            "en": "Grilled pork sausage rolls"
+          },
+          "desc": {
+            "ru": "Свиные колбаски на углях, которые заворачивают в рисовую бумагу с зеленью и макают в густой соус.",
+            "en": "Charcoal-grilled pork sausages rolled in rice paper with herbs and dipped in a thick sauce."
+          },
+          "aliases": [
+            "nem nuong",
+            "nem nướng"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "da-nang",
+      "country": "VN",
+      "lat": 16.0544,
+      "lon": 108.2022,
+      "radius_km": 15,
+      "name": {
+        "ru": "Дананг",
+        "en": "Da Nang",
+        "vi": "Đà Nẵng",
+        "zh": "岘港"
+      },
+      "dishes": [
+        {
+          "id": "mi-quang",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Mì Quảng",
+            "ru": "Ми Куанг",
+            "en": "Quang noodles"
+          },
+          "desc": {
+            "ru": "Широкая рисовая лапша с небольшим количеством бульона, свининой, креветками, арахисом и рисовым крекером.",
+            "en": "Wide rice noodles with a little broth, pork, shrimp, peanuts and a rice cracker."
+          },
+          "aliases": [
+            "mi quang",
+            "mì quảng"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "hoi-an",
+      "country": "VN",
+      "lat": 15.8801,
+      "lon": 108.338,
+      "radius_km": 7,
+      "name": {
+        "ru": "Хойан",
+        "en": "Hoi An",
+        "vi": "Hội An",
+        "zh": "会安"
+      },
+      "dishes": [
+        {
+          "id": "cao-lau",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Cao lầu",
+            "ru": "Као лау",
+            "en": "Cao lau noodles"
+          },
+          "desc": {
+            "ru": "Плотная лапша с ломтиками свинины, зеленью и хрустящими гренками — блюдо, которое связывают с Хойаном.",
+            "en": "Chewy noodles with sliced pork, herbs and crispy croutons — a dish associated with Hoi An."
+          },
+          "aliases": [
+            "cao lau",
+            "cao lầu"
+          ],
+          "sources": []
+        },
+        {
+          "id": "com-ga-hoi-an",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "Cơm gà",
+            "ru": "Ком га",
+            "en": "Chicken rice"
+          },
+          "desc": {
+            "ru": "Рис, сваренный с куриным бульоном, с рваной курицей, луком и зеленью.",
+            "en": "Rice cooked in chicken broth with shredded chicken, onion and herbs."
+          },
+          "aliases": [
+            "com ga",
+            "cơm gà"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "da-lat",
+      "country": "VN",
+      "lat": 11.9404,
+      "lon": 108.4583,
+      "radius_km": 12,
+      "name": {
+        "ru": "Далат",
+        "en": "Da Lat",
+        "vi": "Đà Lạt",
+        "zh": "大叻"
+      },
+      "dishes": [
+        {
+          "id": "banh-trang-nuong-da-lat",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "Bánh tráng nướng",
+            "ru": "Банх чанг нынг",
+            "en": "Grilled rice paper"
+          },
+          "desc": {
+            "ru": "Рисовая лепёшка на углях с яйцом, сыром, колбасой и соусами; вечерняя уличная еда Далата.",
+            "en": "Rice paper grilled over charcoal with egg, cheese, sausage and sauces; an evening street snack in Da Lat."
+          },
+          "aliases": [
+            "banh trang nuong",
+            "bánh tráng nướng"
+          ],
+          "sources": []
+        },
+        {
+          "id": "sua-dau-nanh",
+          "verified": false,
+          "kind": "drink",
+          "name": {
+            "local": "Sữa đậu nành",
+            "ru": "Суа дау нань",
+            "en": "Warm soy milk"
+          },
+          "desc": {
+            "ru": "Тёплое соевое молоко, которое в Далате пьют в прохладные вечера.",
+            "en": "Warm soy milk, a popular drink for the cool evenings in Da Lat."
+          },
+          "aliases": [
+            "sua dau nanh",
+            "sữa đậu nành"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "bangkok",
+      "country": "TH",
+      "lat": 13.7563,
+      "lon": 100.5018,
+      "radius_km": 30,
+      "name": {
+        "ru": "Бангкок",
+        "en": "Bangkok",
+        "vi": "Bangkok",
+        "zh": "曼谷"
+      },
+      "dishes": [
+        {
+          "id": "pad-thai",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "ผัดไทย",
+            "ru": "Пад тай",
+            "en": "Pad Thai"
+          },
+          "desc": {
+            "ru": "Жареная рисовая лапша с яйцом, тофу или креветками, арахисом и ростками фасоли.",
+            "en": "Stir-fried rice noodles with egg, tofu or shrimp, peanuts and bean sprouts."
+          },
+          "aliases": [
+            "pad thai",
+            "ผัดไทย"
+          ],
+          "sources": []
+        },
+        {
+          "id": "tom-yum-kung",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "ต้มยำกุ้ง",
+            "ru": "Том ям кунг",
+            "en": "Tom yum goong"
+          },
+          "desc": {
+            "ru": "Острый кисло-пряный суп с креветками, лемонграссом, галангалом и листьями каффир-лайма.",
+            "en": "Hot-and-sour soup with shrimp, lemongrass, galangal and kaffir lime leaves."
+          },
+          "aliases": [
+            "tom yum",
+            "tom yum goong",
+            "ต้มยำกุ้ง"
+          ],
+          "sources": []
+        },
+        {
+          "id": "khao-man-gai",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "ข้าวมันไก่",
+            "ru": "Кхао ман кай",
+            "en": "Chicken rice"
+          },
+          "desc": {
+            "ru": "Отварная курица с рисом, сваренным в курином бульоне, и острым соусом.",
+            "en": "Poached chicken over rice cooked in chicken fat and broth, with a spicy dipping sauce."
+          },
+          "aliases": [
+            "khao man gai",
+            "ข้าวมันไก่"
+          ],
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "chiang-mai",
+      "country": "TH",
+      "lat": 18.7883,
+      "lon": 98.9853,
+      "radius_km": 12,
+      "name": {
+        "ru": "Чиангмай",
+        "en": "Chiang Mai",
+        "vi": "Chiang Mai",
+        "zh": "清迈"
+      },
+      "dishes": [
+        {
+          "id": "khao-soi",
+          "verified": false,
+          "kind": "restaurant",
+          "name": {
+            "local": "ข้าวซอย",
+            "ru": "Кхао сой",
+            "en": "Khao soi"
+          },
+          "desc": {
+            "ru": "Карри-суп с кокосовым молоком и яичной лапшой; сверху хрустящая лапша, подаётся с лаймом и маринованной зеленью.",
+            "en": "Coconut curry noodle soup with egg noodles, topped with crispy noodles and served with lime and pickled greens."
+          },
+          "aliases": [
+            "khao soi",
+            "ข้าวซอย"
+          ],
+          "sources": []
+        },
+        {
+          "id": "sai-oua",
+          "verified": false,
+          "kind": "street",
+          "name": {
+            "local": "ไส้อั่ว",
+            "ru": "Сай уа",
+            "en": "Northern Thai sausage"
+          },
+          "desc": {
+            "ru": "Пряная колбаса севера Таиланда с травами и пастой карри, жарится на гриле.",
+            "en": "Northern Thai herb-and-curry-paste sausage, grilled."
+          },
+          "aliases": [
+            "sai oua",
+            "sai ua",
+            "ไส้อั่ว"
+          ],
+          "sources": []
+        }
+      ]
+    }
+  ]
+}

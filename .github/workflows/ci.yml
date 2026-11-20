@@ -79,6 +79,7 @@ jobs:
           python -m scripts.test_inline
           python -m scripts.test_providers
           python -m scripts.test_dedup
+          python -m scripts.test_specialties
 
   docker:
     runs-on: ubuntu-latest
