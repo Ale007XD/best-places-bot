@@ -452,6 +452,24 @@ async def main() -> None:
     ck = get_compact_keyboard(lambda k: k, three, ["u"] * 3, ["s"] * 3)
     assert [b.callback_data for b in ck.inline_keyboard[0]][-1] == "cl:fsq1"
 
+    # 22. place:meta только для OSM/Geoapify: FSQ-данные (имя, координаты, адрес) не сохраняем
+    await redis.flushall()
+    await community.remember_places(redis, [
+        {"place_id": "osm:node/1", "name": "A", "lat": 1.0, "lon": 2.0},
+        {"place_id": "gp:abc", "name": "B", "lat": 1.0, "lon": 2.0},
+        {"place_id": "4b5a1d2ef964a5207bb528e3", "name": "FSQ", "lat": 1.0, "lon": 2.0},
+        {"place_id": "poi.123", "name": "Mapbox", "lat": 1.0, "lon": 2.0},
+    ])
+    metas = sorted([k async for k in redis.scan_iter("place:meta:*")])
+    assert metas == ["place:meta:gp:abc", "place:meta:osm:node/1"], metas
+    # чистка старых записей: без apply только считает
+    await redis.hset("place:meta:4b5a1d2ef964a5207bb528e3", mapping={"name": "FSQ"})
+    assert await community.purge_foreign_meta(redis) == (3, 1)
+    assert await redis.exists("place:meta:4b5a1d2ef964a5207bb528e3") == 1
+    assert await community.purge_foreign_meta(redis, apply=True) == (3, 1)
+    assert await redis.exists("place:meta:4b5a1d2ef964a5207bb528e3") == 0
+    assert await community.purge_foreign_meta(redis) == (2, 0)
+
     print("providers ok")
 
 

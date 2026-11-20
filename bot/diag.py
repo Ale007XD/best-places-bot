@@ -7,6 +7,8 @@
   • из контейнера на сервере: docker compose exec telegram-bot python -m bot.diag [premium]
   • сырой ответ Foursquare:   python -m bot.diag raw [lat lon [radius]]  — что именно
                               вернул провайдер: координаты, его расстояние, адрес.
+  • чистка Redis:             python -m bot.diag purge-meta [--apply]  — place:meta:* мест не из
+                              OSM/Geoapify (без --apply только считает).
   • категории Foursquare:     python -m bot.diag cats [lat lon]  — выводит категории
                               (id и название) реальных заведений рядом, с частотой; нужны
                               для серверного фильтра cafe/bar/restaurant у Foursquare.
@@ -25,6 +27,7 @@ from collections.abc import Awaitable, Callable
 from typing import NamedTuple
 
 from bot.config import settings
+from bot.services import community
 from bot.utils import overpass_api as osm
 from bot.utils.foursquare_api import DINING_CATEGORY_ID, SEARCH_URL, fetch_places
 from bot.utils.geoapify_api import find_places_geoapify
@@ -228,6 +231,17 @@ async def _main() -> None:
             lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
             radius = int(args[3]) if len(args) >= 4 else 500
             print("\n".join(await fsq_raw(lat, lon, radius)) or "пусто")
+            return
+        if args[:1] == ["purge-meta"]:
+            import redis.asyncio as aioredis
+
+            r = aioredis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            try:
+                total, foreign = await community.purge_foreign_meta(r, apply="--apply" in args)
+            finally:
+                await r.aclose()
+            done = "удалено" if "--apply" in args else "найдено (без --apply не удаляю)"
+            print(f"place:meta: всего {total}, не из OSM/Geoapify — {done}: {foreign}")
             return
         if args[:1] == ["cats"]:
             lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC

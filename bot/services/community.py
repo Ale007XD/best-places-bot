@@ -139,13 +139,38 @@ async def _maybe_reward(r, uid: int) -> bool:
     return True
 
 
+# Данные мест сохраняем только из открытых источников (OSM/Geoapify). Foursquare (и аварийные
+# Mapbox/VietMap) запрещают хранить свои ответы — у них остаётся лишь id для отметок.
+_STORABLE_PREFIXES = ("osm:", "gp:")
+
+
+def is_storable_place_id(pid: str | None) -> bool:
+    return bool(pid) and str(pid).startswith(_STORABLE_PREFIXES)
+
+
+async def purge_foreign_meta(r, apply: bool = False) -> tuple[int, int]:
+    """Находит (и при apply=True удаляет) place:meta:* мест не из OSM/Geoapify.
+
+    Возвращает (всего записей, из них чужих)."""
+    total = foreign = 0
+    async for key in r.scan_iter("place:meta:*", count=500):
+        total += 1
+        pid = key.split("place:meta:", 1)[1] if isinstance(key, str) else key.decode()[11:]
+        if is_storable_place_id(pid):
+            continue
+        foreign += 1
+        if apply:
+            await r.delete(key)
+    return total, foreign
+
+
 async def remember_places(r, places: list[dict[str, Any]]) -> None:
-    """Сохраняет данные показанных мест — чтобы по голосам потом строить топы района."""
+    """Сохраняет данные показанных мест (только OSM/Geoapify) — для топов района по голосам."""
     async with r.pipeline(transaction=False) as pipe:
         n = 0
         for p in places:
             pid = p.get("place_id")
-            if not pid:
+            if not is_storable_place_id(pid):
                 continue
             meta = {
                 k: str(p[k])
