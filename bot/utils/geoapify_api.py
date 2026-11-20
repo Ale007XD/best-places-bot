@@ -88,6 +88,10 @@ def _normalize(feature: dict[str, Any]) -> dict[str, Any] | None:
         "lat": lat,
         "lon": lon,
         "vicinity": street or props.get("address_line2") or None,
+        "locality": next(
+            (props[k] for k in ("city", "town", "village", "county", "state") if props.get(k)),
+            None,
+        ),
         "photo_url": None,
         "source": "osm",
     }

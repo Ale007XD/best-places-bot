@@ -102,6 +102,10 @@ async def main() -> None:
 
     # 6. парсер: остаток текста сохраняется для названия/геокодера
     assert parse_query("бар Тост 500м") == (500, "bar", "Тост")
+    # «рядом» — служебное слово: не попадает в название и не ломает радиус/категорию
+    assert parse_query("рядом 1км") == (1000, "all", ""), parse_query("рядом 1км")
+    assert parse_query("Nearby cafe 500m") == (500, "cafe", "")
+    assert parse_query("рядом") == (None, "all", "")
     assert snap_radius(1) == 200 and snap_radius(2999) == 3000 and snap_radius(10**6) == 3000
 
     # 7. категории в select_places: фильтр до ранжирования, other — только в «all»

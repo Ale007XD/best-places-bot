@@ -69,6 +69,10 @@ def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
         "lat": lat,
         "lon": lon,
         "vicinity": tags.get("addr:full") or street or None,
+        "locality": next(
+            (tags[k] for k in ("addr:city", "addr:town", "addr:village", "addr:province") if tags.get(k)),
+            None,
+        ),
         "photo_url": tags["image"] if str(tags.get("image", "")).startswith("http") else None,
         "source": "osm",
     }

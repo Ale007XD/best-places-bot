@@ -24,6 +24,9 @@ _KIND_WORDS: dict[str, str] = {
     "บาร์": "bar", "酒吧": "bar",
 }
 
+# «Рядом» — служебное слово («рядом 500м»): точка и так берётся текущая, в название не идёт.
+_NEAR_WORDS = frozenset({"рядом", "near", "nearby", "附近", "gần", "ใกล้"})
+
 # Классификация по названию категории провайдера (FSQ — на языке запроса; OSM — наши метки).
 # Порядок важен: «Wine Bar», «Coffee Bar» → bar/cafe проверяются раньше «restaurant».
 _BAR_RE = re.compile(
@@ -97,6 +100,8 @@ def parse_query(text: str) -> ParsedQuery:
     kind = "all"
     rest: list[str] = []
     for tok in (text or "").split():
+        if tok.casefold().strip(",.;") in _NEAR_WORDS:
+            continue
         r = parse_radius(tok)
         if r is not None and radius is None:
             radius = r
