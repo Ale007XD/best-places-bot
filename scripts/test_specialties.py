@@ -11,6 +11,7 @@ from pathlib import Path
 
 from bot.keyboards import inline_keyboards as kb
 from bot.services import specialties as sp
+from scripts.merge_specialties import merge
 
 HCMC = (10.78, 106.70)
 PHAN_RANG = (11.5778, 108.9945)
@@ -31,6 +32,8 @@ def main() -> None:
     assert sp.detect_city(*PHAN_RANG)["id"] == "phan_rang"
     assert sp.detect_city(*HCMC)["id"] == "ho_chi_minh"
     assert sp.detect_city(13.75, 100.50)["id"] == "bangkok"
+    assert sp.detect_city(15.88, 108.33)["id"] == "hoi_an"  # Хойан теперь в таблице
+    assert sp.detect_city(11.94, 108.46)["id"] == "da_lat"
     assert sp.detect_city(14.707, 107.692) is None  # Кон Тум: города нет в таблице
     assert "id" not in data["cities"]["phan_rang"]  # исходный словарь не изменяется
 
@@ -71,7 +74,12 @@ def main() -> None:
     def first(d):
         return d["cities"]["hanoi"]["specialties"][0]
 
-    assert any("sources" in e for e in errs_of(lambda d: first(d).update(verified=True)))
+    def unsourced(d):  # блюдо, которое второй проход не проверил: ссылок нет
+        return next(x for x in d["cities"]["chiang_mai"]["specialties"] if "sources" not in x)
+
+    assert "sources" not in unsourced(data)
+    assert any("sources" in e for e in errs_of(lambda d: unsourced(d).update(verified=True)))
+    assert not any("sources" in e for e in errs_of(lambda d: first(d).update(verified=True)))  # ссылки есть
     assert any("лишние ключи" in e for e in errs_of(lambda d: first(d).update(lol=1)))
     assert any("нет полей" in e for e in errs_of(lambda d: first(d).pop("how_to_eat")))
     assert any("дубль" in e for e in errs_of(lambda d: d["cities"]["hanoi"]["specialties"].append(dict(first(d)))))
@@ -99,6 +107,28 @@ def main() -> None:
     place = {"place_id": "osm:node/1", "name": "X"}
     assert "try_here" not in cbs(kb.get_compact_keyboard(tr_key, [place], ["u"], ["s"]))
     assert "try_here" in cbs(kb.get_compact_keyboard(tr_key, [place], ["u"], ["s"], show_try=True))
+
+    # 8. слияние «второго прохода»: verified не трогаем, status/note в словарь не попадают
+    review = {
+        "additions": {"test_city": {**copy.deepcopy(data["cities"]["hanoi"]), "name_ru": "Тест", "name_en": "Test"}},
+        "updates": [
+            {"city_id": "hanoi", "id": first(data)["id"], "status": "corrected", "note": "n",
+             "title_en": "Pho", "short_desc_en": "Beef noodle soup of Hanoi.", "sources": ["https://a.org/x", "https://b.org/y"]},
+            {"city_id": "hanoi", "id": "нет-такого", "status": "confirmed", "note": "n"},
+        ],
+        "removals": [{"city_id": "hanoi", "id": first(data)["id"], "reason": "r"}],
+    }
+    review["additions"]["test_city"]["specialties"][0]["verified"] = True  # модель не вправе подтверждать
+    review["additions"]["test_city"]["specialties"][0]["sources"] = ["https://a.org/x"]
+    merged, report = merge(data, review)
+    h = merged["cities"]["hanoi"]["specialties"][0]
+    assert h["title_en"] == "Pho" and h["sources"] == ["https://a.org/x", "https://b.org/y"] and h["verified"] is False
+    assert "status" not in h and "note" not in h
+    assert merged["cities"]["test_city"]["specialties"][0]["verified"] is False
+    assert any("нет блюда" in r for r in report) and any("removals" in r for r in report)
+    assert len(merged["cities"]["hanoi"]["specialties"]) == len(data["cities"]["hanoi"]["specialties"])  # removals не удаляют
+    assert sp.validate(merged) == [], sp.validate(merged)
+    assert "test_city" not in data["cities"]  # исходный словарь не изменился
     print("specialties ok")
 
 
