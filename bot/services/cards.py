@@ -32,6 +32,7 @@ from bot.utils.geospatial import (
     bearing_to_direction,
     calculate_bearing,
     calculate_distance,
+    fmt_distance,
 )
 from bot.utils.textfmt import clean, esc, truncate
 
@@ -89,7 +90,7 @@ def build_caption(
     if place.get("lat") is not None and place.get("lon") is not None:
         plat, plon = float(place["lat"]), float(place["lon"])
         dist = calculate_distance(user_lat, user_lon, plat, plon)
-        meta.append(f"🚶 {dist} {_('unit_m')}")
+        meta.append(f"🚶 {fmt_distance(dist)} {_('unit_m')}")
         direction = bearing_to_direction(_, calculate_bearing(user_lat, user_lon, plat, plon))
     if meta:
         lines.append(" · ".join(meta))

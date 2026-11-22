@@ -57,14 +57,21 @@ FETCH_RADII = (600, 1100)  # два «ведра» радиуса запроса
 OSM_PROVIDERS = frozenset({"geoapify", "overpass"})
 TOP_N = 3  # сколько мест показываем
 RESULT_LIMIT = 10  # сколько возвращаем наверх (с запасом)
-DEDUP_DISTANCE_M = 75
+DEDUP_DISTANCE_M = 40  # то же имя: дубль, только если ближе (разные филиалы сети — не дубль)
 # «Тосты» и «Тосты, винное бистро» — одно заведение с разным оформлением имени.
 # Имена не равны, но ядра вложены друг в друга: допускаем больший разброс координат.
-DEDUP_FUZZY_DISTANCE_M = 120
+DEDUP_FUZZY_DISTANCE_M = 45  # «Тосты» / «Тосты, винное бистро»: имя похоже — ближе этого дубль
+# Дальше (до DEDUP_FAR_DISTANCE_M) — дубль только если улица совпадает или неизвестна у одного
+# из мест; разные улицы — разные заведения. Ядро имени должно быть длиннее 3 символов.
+DEDUP_FAR_DISTANCE_M = 120
+FSQ_FETCH_RADIUS = 1000  # FSQ — живой запрос на максимум; расширение радиуса идёт в памяти
+EXPAND_STEPS = (100, 200, 300, 500, 1000)  # шаги авто-расширения, если мест меньше TOP_N
+DISTANCE_PENALTY_PER_100M = 0.03  # штраф в score за каждые 100 м (шкала рейтинга 0–0.7)
 _GENERIC_WORDS = frozenset({
     "бар", "бистро", "кафе", "ресторан", "паб", "пиццерия", "кофейня", "столовая",
     "винный", "винное", "винотека", "cafe", "bar", "pub", "restaurant", "bistro",
     "wine", "coffee", "the", "и",
+    "quán", "nhà", "hàng", "ร้าน",  # вьетнамское «заведение/ресторан», тайское «ร้าน»
 })
 
 
@@ -81,6 +88,9 @@ class SearchResult(NamedTuple):
     used_osm: bool = False  # в выдачу попали данные OpenStreetMap
     rated: bool = False  # в ответе есть рейтинги/фото провайдера (Premium-уровень полей)
     provider: str = ""  # кто обслужил запрос: fsq | geoapify | overpass | mapbox | vietmap
+    radius_asked: int = 0  # радиус, выбранный пользователем
+    radius_used: int = 0  # радиус, по которому реально выбраны места (≥ asked при расширении)
+    by_accuracy: bool = False  # старт радиуса поднят из-за низкой точности геопозиции
 
 
 class LoadInfo(NamedTuple):
@@ -99,6 +109,15 @@ def fetch_radius(radius: int) -> int:
         if need <= r:
             return r
     return int(math.ceil(need / 100) * 100)
+
+
+def coverage_m(provider: str, radius: int) -> int:
+    """До какого радиуса загруженный набор мест полон — дальше расширять «в памяти» нельзя."""
+    if provider == "fsq":
+        return FSQ_FETCH_RADIUS
+    if provider in OSM_PROVIDERS:
+        return fetch_radius(radius) - FETCH_MARGIN_M
+    return radius
 
 
 def _cell(lat: float, lon: float) -> tuple[float, float]:
@@ -348,9 +367,22 @@ def _fuzzy_same_name(a: Any, b: Any) -> bool:
     return bool(ta and tb and (ta <= tb or tb <= ta))
 
 
-def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Убирает дубли: то же имя (без регистра/пунктуации) и ближе DEDUP_DISTANCE_M.
+def _far_duplicate(p: dict[str, Any], q: dict[str, Any]) -> bool:
+    """Дубль на расстоянии 45–120 м: улица совпадает или неизвестна у одного из мест,
+    ядро имени длиннее 3 символов. Известные и разные улицы — разные заведения."""
+    core = "".join(sorted(_core_tokens(p.get("name")) & _core_tokens(q.get("name"))))
+    if len(core) <= 3:
+        return False
+    sp, sq = _street_key(p.get("vicinity")), _street_key(q.get("vicinity"))
+    return sp is None or sq is None or sp == sq
 
+
+def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Убирает дубли одного заведения (разные оформления имени, один и тот же объект из двух баз).
+
+    • то же имя — ближе DEDUP_DISTANCE_M;
+    • похожее имя (ядро одного вложено в другое) — ближе DEDUP_FUZZY_DISTANCE_M;
+    • дальше, до DEDUP_FAR_DISTANCE_M, — только при той же (или неизвестной) улице.
     Из дублей остаётся запись с рейтингом (приоритет у Foursquare — он идёт первым).
     """
     result: list[dict[str, Any]] = []
@@ -364,7 +396,6 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
             exact = name == _norm_name(q.get("name"))
             if not exact and not _fuzzy_same_name(p.get("name"), q.get("name")):
                 continue
-            limit = DEDUP_DISTANCE_M if exact else DEDUP_FUZZY_DISTANCE_M
             # Два разных объекта одного провайдера (разные id) с ОДИНАКОВЫМ именем — это
             # разные заведения (сеть в одном здании). Разные оформления имени — дубль.
             if (
@@ -381,7 +412,8 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
             d = calculate_distance(
                 float(p["lat"]), float(p["lon"]), float(q["lat"]), float(q["lon"])
             )
-            if d <= limit:
+            near = DEDUP_DISTANCE_M if exact else DEDUP_FUZZY_DISTANCE_M
+            if d <= near or (d <= DEDUP_FAR_DISTANCE_M and _far_duplicate(p, q)):
                 dup_idx = i
                 break
         if dup_idx is None:
@@ -391,13 +423,15 @@ def _deduplicate(places: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def _score(p: dict[str, Any], user_lat: float, user_lon: float, radius: int) -> float:
-    """0.7 · рейтинг (нормирован на 0–1) + 0.3 · близость (линейно по радиусу)."""
+def _score(p: dict[str, Any], user_lat: float, user_lon: float) -> float:
+    """0.7 · рейтинг (0–1) − штраф за расстояние (0.03 за каждые 100 м, не зависит от радиуса).
+
+    Абсолютный штраф: место в 80 м не «обесценивается» оттого, что выбран радиус 1000 м."""
     rating = float(p.get("rating") or 0.0) / 5.0
-    if p.get("lat") is None or p.get("lon") is None or radius <= 0:
+    if p.get("lat") is None or p.get("lon") is None:
         return 0.7 * rating
     dist = calculate_distance(user_lat, user_lon, float(p["lat"]), float(p["lon"]))
-    return 0.7 * rating + 0.3 * max(0.0, 1 - dist / radius)
+    return 0.7 * rating - DISTANCE_PENALTY_PER_100M * dist / 100
 
 
 def _within_radius(p: dict[str, Any], lat: float, lon: float, radius: int) -> bool:
@@ -451,7 +485,7 @@ def _select(
         # Безымянные — только после именованных (они добирают выдачу, если именованных мало).
         return sorted(
             items,
-            key=lambda p: (not p.get("unnamed"), _score(p, lat, lon, radius)),
+            key=lambda p: (not p.get("unnamed"), _score(p, lat, lon)),
             reverse=True,
         )
 
@@ -567,7 +601,7 @@ async def _fsq_provider(
             settings.FSQ_API_VERSION,
             lat,
             lon,
-            radius,
+            FSQ_FETCH_RADIUS,
             lang_code,
             want_ratings=want_ratings,
         )
@@ -662,6 +696,11 @@ async def _load_raw(
     return best._replace(fsq_ok=bool(first_ok))
 
 
+def _radius_steps(start: int, cover: int) -> list[int]:
+    """Старт и дальше шаги расширения из EXPAND_STEPS, не выходя за полноту данных."""
+    return [start] + [r for r in EXPAND_STEPS if start < r <= cover]
+
+
 async def search_places(
     lat: float,
     lon: float,
@@ -671,11 +710,16 @@ async def search_places(
     redis_conn,
     with_ratings: bool = True,
     kind: str = "all",
+    accuracy_m: float | None = None,
 ) -> SearchResult:
     """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень).
 
     kind — фильтр категории (all/cafe/restaurant/bar): на стороне провайдера для
     Geoapify/Overpass (категория входит в ключ кэша), локально для остальных.
+
+    Радиус: если мест меньше TOP_N, он расширяется шагами (100→200→300→500→1000) без нового
+    запроса — по уже загруженным данным (OSM-«ведро» 600 м покрывает до 500 м, FSQ — 1000 м).
+    accuracy_m — точность геопозиции: радиус меньше неё бессмыслен, старт поднимается.
     """
     info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings, kind)
     # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
@@ -684,7 +728,18 @@ async def search_places(
     except RedisError as e:
         logger.warning("attach_votes failed: %s", e)
         places = info.raw
-    selected = select_places(places, lat, lon, radius, min_rating, kind)
+
+    cover = max(coverage_m(info.provider, radius), radius)
+    start = radius
+    if accuracy_m and accuracy_m > radius:
+        allowed = [r for r in EXPAND_STEPS if r <= cover] or [radius]
+        start = max(next((r for r in allowed if r >= accuracy_m), allowed[-1]), radius)
+    selected = used = None
+    for r in _radius_steps(start, cover):
+        selected, used = select_places(places, lat, lon, r, min_rating, kind), r
+        if _named(selected.places) >= TOP_N:
+            break
+    assert selected is not None and used is not None
     return selected._replace(
         places=_label_unnamed(selected.places, lang_code),
         from_cache=info.from_cache,
@@ -692,4 +747,7 @@ async def search_places(
         used_osm=info.used_osm,
         rated=info.rated,
         provider=info.provider,
+        radius_asked=radius,
+        radius_used=used,
+        by_accuracy=start > radius,
     )

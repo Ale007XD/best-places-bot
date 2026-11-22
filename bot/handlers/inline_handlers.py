@@ -42,7 +42,7 @@ from bot.services import cards
 from bot.services.translator import get_string
 from bot.utils import geocoder, links
 from bot.utils.attribution import attribution
-from bot.utils.geospatial import calculate_distance
+from bot.utils.geospatial import calculate_distance, fmt_distance
 from bot.utils.places_service import SearchUnavailable, search_places
 from bot.utils.querytools import parse_query, snap_radius
 from bot.utils.textfmt import clean, truncate
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-INLINE_RADII = (200, 500, 1000, 2000)  # допустимые значения радиуса в user_prefs
+INLINE_RADII = (100, 200, 500, 1000)  # допустимые значения радиуса в user_prefs
 INLINE_BUDGET_SEC = 5.5
 GEOCODE_THROTTLE_MS = 1500
 
@@ -88,7 +88,7 @@ def _result_for(
         meta.append(f"{icon} {rating:.1f}")
     if place.get("lat") is not None and place.get("lon") is not None:
         d = calculate_distance(lat, lon, float(place["lat"]), float(place["lon"]))
-        meta.append(f"🚶 {d} {_('unit_m')}")
+        meta.append(f"🚶 {fmt_distance(d)} {_('unit_m')}")
     if place.get("primary_type"):
         meta.append(truncate(clean(place["primary_type"]), 28))
 

@@ -470,6 +470,64 @@ async def main() -> None:
     assert await redis.exists("place:meta:4b5a1d2ef964a5207bb528e3") == 0
     assert await community.purge_foreign_meta(redis) == (2, 0)
 
+    # 23. авто-расширение радиуса в памяти: 100 → 200 → 300 → 500, один запрос к провайдеру
+    from bot.utils.geospatial import fmt_distance
+
+    await redis.flushall()
+    far3 = [_pl(1, 0.00117, "osm"), _pl(2, 0.00234, "osm"), _pl(3, 0.00405, "osm")]  # ≈130/260/450 м
+    c = Calls()
+    install(c, gp_places=far3, op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 100, 0, "en", redis, with_ratings=False)
+    assert (r.radius_asked, r.radius_used, len(r.places), r.by_accuracy) == (100, 500, 3, False), r
+    assert len(c.gp) == 1 and c.gp[0]["radius"] == 600
+    r = await ps.search_places(LAT, LON, 200, 0, "en", redis, with_ratings=False)  # то же «ведро»: кэш
+    assert (r.radius_used, r.from_cache, len(c.gp)) == (500, True, 1), r
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)  # мест хватает сразу
+    assert (r.radius_used, len(r.places)) == (500, 3)
+
+    # 24. дальше полноты данных не расширяем: у ведра 600 м полнота ≈520 м, до 1000 м нет
+    await redis.flushall()
+    two = far3[:2] + [_pl(9, 0.0063, "osm")]  # третье место ≈700 м
+    c = Calls()
+    install(c, gp_places=two, op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
+    assert (r.radius_used, len(r.places), len(c.gp)) == (500, 2, 1), r
+
+    # 25. FSQ: живой запрос всегда на 1000 м; расширение идёт по уже полученному ответу
+    await redis.flushall()
+    fsq_far = [_pl(1, 0.0023, "fsq", 4.5), _pl(2, 0.0034, "fsq", 4.0), _pl(3, 0.0068, "fsq", 4.2)]  # ≈255/380/755 м
+    c = Calls()
+    install(c, gp_places=[], op_places=[], fsq_places=fsq_far)
+    r = await ps.search_places(LAT, LON, 200, 0, "en", redis, with_ratings=True)
+    assert len(c.fsq) == 1 and c.fsq[0]["radius"] == 1000, c.fsq
+    assert (r.provider, r.radius_used, len(r.places)) == ("fsq", 1000, 3), r
+
+    # 26. точность геопозиции больше радиуса: старт радиуса поднимается до ближайшего шага ≥ точности
+    await redis.flushall()
+    near3 = [_pl(1, 0.0007, "osm"), _pl(2, 0.0013, "osm"), _pl(3, 0.0016, "osm")]  # ≈78/145/178 м
+    c = Calls()
+    install(c, gp_places=near3, op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 100, 0, "en", redis, with_ratings=False, accuracy_m=150)
+    assert (r.radius_asked, r.radius_used, r.by_accuracy, len(r.places)) == (100, 200, True, 3), r
+    r = await ps.search_places(LAT, LON, 100, 0, "en", redis, with_ratings=False, accuracy_m=40)
+    assert (r.radius_used, r.by_accuracy) == (200, False), r  # расширились из-за нехватки мест, не точности
+
+    # 26b. точность хуже полноты данных (OSM-ведро 600 → до 500 м): старт — самый большой допустимый шаг
+    await redis.flushall()
+    c = Calls()
+    install(c, gp_places=near3, op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 100, 0, "en", redis, with_ratings=False, accuracy_m=800)
+    assert (r.radius_used, r.by_accuracy) == (500, True), r
+
+    # 27. штраф расстояния абсолютный: рейтинг 4.0 в 50 м выше 4.5 в 400 м при любом радиусе
+    close4, far45 = _pl(1, 0.00045, "fsq", 4.0), _pl(2, 0.0036, "fsq", 4.5)
+    for rad in (500, 1000):
+        sel = ps.select_places([far45, close4], LAT, LON, rad, 0.0)
+        assert [p["place_id"] for p in sel.places] == ["fsq1", "fsq2"], (rad, sel.places)
+
+    # 28. расстояние для показа — с шагом 10 м (минимум 10)
+    assert (fmt_distance(3), fmt_distance(414), fmt_distance(416), fmt_distance(1000)) == (10, 410, 420, 1000)
+
     print("providers ok")
 
 

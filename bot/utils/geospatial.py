@@ -38,3 +38,8 @@ def bearing_to_direction(_, bearing: float) -> str:
         "direction_northwest",
     ]
     return _(direction_keys[val % 8])
+
+
+def fmt_distance(meters: float) -> int:
+    """Расстояние для показа людям: с шагом 10 м (точность GPS и пинов всё равно ±10–50 м)."""
+    return max(10, round(meters / 10.0) * 10)

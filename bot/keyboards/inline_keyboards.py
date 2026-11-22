@@ -8,7 +8,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-RADII = (200, 500, 1000, 2000)
+RADII = (100, 200, 500, 1000)
 MIN_RATINGS = (0.0, 4.0, 4.5)  # 0.0 = «любой»
 KINDS = ("all", "cafe", "restaurant", "bar")
 KIND_KEYS = {k: f"kind_{k}_btn" for k in KINDS}  # ключи локали

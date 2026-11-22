@@ -67,6 +67,15 @@ def _message_of(callback: CallbackQuery) -> Message | None:
     return callback.message if isinstance(callback.message, Message) else None
 
 
+def _radius_of(data: dict) -> int:
+    """Радиус из FSM; устаревшее значение (до смены набора радиусов) заменяется на дефолт."""
+    try:
+        radius = int(data.get("radius", settings.DEFAULT_RADIUS))
+    except (TypeError, ValueError):
+        return settings.DEFAULT_RADIUS
+    return radius if radius in kb.RADII else settings.DEFAULT_RADIUS
+
+
 async def _load_prefs(redis_conn, user_id: int) -> tuple[int, float, str]:
     radius, min_rating, kind = settings.DEFAULT_RADIUS, settings.DEFAULT_MIN_RATING, "all"
     try:
@@ -112,7 +121,7 @@ def _params_text(
 
 
 def _params_markup(lang_code: str, data: dict):
-    radius = int(data.get("radius", settings.DEFAULT_RADIUS))
+    radius = _radius_of(data)
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     show_home = bool(data.get("point_label")) and "home_lat" in data
     return kb.get_params_keyboard(
@@ -173,11 +182,19 @@ async def _apply_point(
     lon: float,
     label: str | None,
     as_home: bool = False,
+    accuracy: float | None = None,
 ):
-    """Задаёт точку поиска. Домашнюю точку перезаписывает только as_home."""
-    upd: dict = {"latitude": lat, "longitude": lon, "point_label": None if as_home else label}
+    """Задаёт точку поиска. Домашнюю точку перезаписывает только as_home.
+
+    accuracy — horizontal_accuracy геопозиции Telegram, м (у точки, выбранной на карте, его нет)."""
+    upd: dict = {
+        "latitude": lat,
+        "longitude": lon,
+        "point_label": None if as_home else label,
+        "accuracy": accuracy,
+    }
     if as_home:
-        upd.update(home_lat=lat, home_lon=lon)
+        upd.update(home_lat=lat, home_lon=lon, home_accuracy=accuracy)
         try:  # фолбэк-точка для inline-запросов без геопозиции
             await redis_conn.set(
                 f"user_lastloc:{user_id}", f"{lat},{lon}", ex=settings.LASTLOC_TTL_HOURS * 3600
@@ -202,6 +219,9 @@ def _format_header(
     else:
         lines = [f"✨ <b>{_('results_title')}</b>", _("results_subtitle")]
     notes = []
+    if result.radius_used > result.radius_asked > 0:
+        key = "accuracy_note" if result.by_accuracy else "radius_expanded_note"
+        notes.append(f"🔎 {_(key).format(asked=result.radius_asked, used=result.radius_used)}")
     if upsell:
         notes.append(f"🔒 {_('upsell_note')}")
     elif result.relaxed:
@@ -376,6 +396,7 @@ async def got_location(
         message.location.longitude,
         label=get_string("pin_label", lang=lang_code),
         as_home=as_home,
+        accuracy=message.location.horizontal_accuracy,
     )
 
 
@@ -491,7 +512,10 @@ async def use_home(
         await _ask_location(msg, state, lang_code)
         return
     await state.update_data(
-        latitude=data["home_lat"], longitude=data["home_lon"], point_label=None
+        latitude=data["home_lat"],
+        longitude=data["home_lon"],
+        point_label=None,
+        accuracy=data.get("home_accuracy"),
     )
     await _show_params(msg, state, lang_code, redis_conn, callback.from_user.id)
 
@@ -514,7 +538,7 @@ async def _refresh_params(callback: CallbackQuery, lang_code: str, data: dict):
         await msg.edit_text(
             _params_text(
                 lang_code,
-                int(data.get("radius", settings.DEFAULT_RADIUS)),
+                _radius_of(data),
                 float(data.get("min_rating", settings.DEFAULT_MIN_RATING)),
                 data.get("point_label"),
                 bool(data.get("rating_locked")),
@@ -636,7 +660,7 @@ async def do_search(
         return
 
     lat, lon = float(data["latitude"]), float(data["longitude"])
-    radius = int(data.get("radius", settings.DEFAULT_RADIUS))
+    radius = _radius_of(data)
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     kind = data.get("kind", "all")
     if kind not in kb.KINDS:
@@ -676,6 +700,7 @@ async def do_search(
             redis_conn=redis_conn,
             with_ratings=entitled,
             kind=kind,
+            accuracy_m=data.get("accuracy"),
         )
     except Exception:
         logger.exception("search failed")

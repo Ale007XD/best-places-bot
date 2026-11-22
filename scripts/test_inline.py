@@ -66,27 +66,30 @@ async def main() -> None:
     geocoder.parse_point = AsyncMock(return_value=None)  # без сети
     loc = SimpleNamespace(latitude=LAT, longitude=LON)
 
-    # 1. 3 ближайших, по возрастанию расстояния; радиус по умолчанию 500
+    # 1. 3 ближайших, по возрастанию расстояния; радиус по умолчанию 200
     calls, kw = await run_inline(redis, "", loc=loc)
-    assert calls[0]["radius"] == 500 and calls[0]["kind"] == "all", calls
+    assert calls[0]["radius"] == 200 and calls[0]["kind"] == "all", calls
     assert [r.title for r in kw["results"]] == ["Place 2", "Place 4", "Place 3"], kw["results"]
-    assert kw["button"].start_parameter == "inline_help" and "500" in kw["button"].text
+    assert kw["button"].start_parameter == "inline_help" and "200" in kw["button"].text
 
     # 2. радиус и категория токенами; «прилипание»
     calls, kw = await run_inline(redis, "кафе 1км", loc=loc)
     assert (calls[0]["radius"], calls[0]["kind"]) == (1000, "cafe"), calls
     assert "1000" in kw["button"].text
-    for text, want in (("r2000", 2000), ("1.5км", 2000), ("10км", 3000), ("300m", 500)):
+    for text, want in (("r2000", 1000), ("1.5км", 1000), ("10км", 1000), ("300m", 500), ("120m", 200), ("60m", 100)):
         calls, _ = await run_inline(redis, text, loc=loc)
         assert calls[0]["radius"] == want, (text, calls)
 
     # 3. радиус по умолчанию — из user_prefs (только допустимые значения)
-    await redis.hset("user_prefs:7", mapping={"radius": 2000})
+    await redis.hset("user_prefs:7", mapping={"radius": 500})
     calls, _ = await run_inline(redis, "бар", uid=7, loc=loc)
-    assert (calls[0]["radius"], calls[0]["kind"]) == (2000, "bar"), calls
+    assert (calls[0]["radius"], calls[0]["kind"]) == (500, "bar"), calls
+    await redis.hset("user_prefs:10", mapping={"radius": 2000})  # устаревшее значение (до смены набора)
+    calls, _ = await run_inline(redis, "", uid=10, loc=loc)
+    assert calls[0]["radius"] == 200, calls
     await redis.hset("user_prefs:8", mapping={"radius": 777})
     calls, _ = await run_inline(redis, "", uid=8, loc=loc)
-    assert calls[0]["radius"] == 500, calls
+    assert calls[0]["radius"] == 200, calls
 
     # 4. нет геопозиции и нет lastloc → подсказка; есть lastloc → поиск от неё
     calls, kw = await run_inline(redis, "", uid=9)
@@ -106,7 +109,8 @@ async def main() -> None:
     assert parse_query("рядом 1км") == (1000, "all", ""), parse_query("рядом 1км")
     assert parse_query("Nearby cafe 500m") == (500, "cafe", "")
     assert parse_query("рядом") == (None, "all", "")
-    assert snap_radius(1) == 200 and snap_radius(2999) == 3000 and snap_radius(10**6) == 3000
+    assert snap_radius(1) == 100 and snap_radius(101) == 200 and snap_radius(999) == 1000
+    assert snap_radius(10**6) == 1000 and snap_radius(10**6, 500) == 500
 
     # 7. категории в select_places: фильтр до ранжирования, other — только в «all»
     mixed = [_place(1, 0.0005, "Wine Bar"), _place(2, 0.0006, "Coffee Shop"),
@@ -131,9 +135,27 @@ async def main() -> None:
 
     await uh._save_prefs(redis, 5, 1000, 4.0, "bar")
     assert await uh._load_prefs(redis, 5) == (1000, 4.0, "bar")
-    assert await uh._load_prefs(redis, 6) == (500, 4.0, "all")  # дефолты
+    assert await uh._load_prefs(redis, 6) == (200, 4.0, "all")  # дефолты
     await redis.hset("user_prefs:6", mapping={"kind": "hack"})
     assert (await uh._load_prefs(redis, 6))[2] == "all"  # мусор из Redis игнорируется
+
+    # 9. радиус: устаревшее значение → дефолт; точность геопозиции в FSM; пометки в заголовке
+    assert [uh._radius_of(d) for d in ({"radius": 2000}, {"radius": "500"}, {"radius": "x"}, {})] == [200, 500, 200, 200]
+    await uh._apply_point(msg, state, "en", redis, 5, LAT, LON, None, as_home=True, accuracy=35.0)
+    data = await state.get_data()
+    assert data["accuracy"] == 35.0 and data["home_accuracy"] == 35.0
+    await uh._apply_point(msg, state, "en", redis, 5, 1.0, 2.0, "pin", as_home=False)
+    data = await state.get_data()
+    assert data["accuracy"] is None and data["home_accuracy"] == 35.0  # точка с карты — без точности
+    from bot.utils.places_service import SearchResult
+
+    expanded = SearchResult([], False, True, radius_asked=100, radius_used=300)
+    head = uh._format_header("en", expanded, 0.0, None, False)
+    assert "🔎" in head and "100" in head and "300" in head, head
+    by_acc = SearchResult([], False, True, radius_asked=100, radius_used=200, by_accuracy=True)
+    assert "imprecise" in uh._format_header("en", by_acc, 0.0, None, False)
+    plain = SearchResult([], False, True, radius_asked=200, radius_used=200)
+    assert "🔎" not in uh._format_header("en", plain, 0.0, None, False)
 
     print("inline ok")
 

@@ -75,6 +75,30 @@ def main() -> None:
     # разные заведения / далеко — не склеиваем
     assert len(dd([a, _place("Кофе Тост", 56.01, 92.8501, "3")])) == 2
     assert len(dd([a, _place("Тосты", 56.03, 92.9, "4")])) == 2
+
+    # B: пороги. То же имя — дубль ближе 40 м; дальше (до 120 м) — по правилу «улицы»
+    def at(name, dlat, pid, vic=None, src="osm"):
+        return {**_place(name, 56.0 + dlat, 92.8, pid, src=src), "vicinity": vic}
+
+    base = at("Cafe Mono", 0, "1", src="fsq")
+    assert len(dd([base, at("Cafe Mono", 0.00027, "2")])) == 1  # ≈30 м
+    assert len(dd([base, at("Cafe Mono", 0.00054, "3")])) == 1  # ≈60 м, адресов нет → не противоречат
+    a1 = at("Cafe Mono", 0, "1", "1 Nguyen Hue, Ho Chi Minh", src="fsq")
+    assert len(dd([a1, at("Cafe Mono", 0.00054, "4", "5 Le Loi, Ho Chi Minh")])) == 2  # разные улицы
+    assert len(dd([a1, at("Cafe Mono", 0.00054, "5", "9 Nguyen Hue, Ho Chi Minh")])) == 1  # та же улица
+    assert len(dd([a1, at("Cafe Mono", 0.00054, "6")])) == 1  # у одного места адреса нет
+    # разные улицы, но совсем рядом (≤40 м) — всё равно один объект (пины неточные)
+    assert len(dd([a1, at("Cafe Mono", 0.00027, "7", "5 Le Loi, Ho Chi Minh")])) == 1
+    # нечёткое имя: ≤45 м — дубль; дальше — только при той же улице
+    t1 = at("Тосты", 0, "1", "10 Ленина, Красноярск", src="fsq")
+    assert len(dd([t1, at("Тосты, винное бистро", 0.0004, "2", "5 Мира, Красноярск")])) == 1  # ≈44 м
+    assert len(dd([t1, at("Тосты, винное бистро", 0.0009, "3", "5 Мира, Красноярск")])) == 2  # ≈100 м, улицы разные
+    assert len(dd([t1, at("Тосты, винное бистро", 0.0009, "4", "12 Ленина, Красноярск")])) == 1  # та же улица
+    # короткое ядро имени (≤3 символов) на дальней дистанции не склеиваем
+    assert len(dd([at("Lu", 0, "1"), at("Lu Bar", 0.0009, "2")])) == 2
+    assert len(dd([at("Lu", 0, "1"), at("Lu Bar", 0.00027, "2")])) == 1  # ≈30 м
+    # вьетнамское «quán» — слово-генерик: «Quán Cơm Niêu» = «Cơm Niêu»
+    assert len(dd([at("Quán Cơm Niêu", 0, "1"), at("Cơm Niêu", 0.00036, "2")])) == 1
     print("ok")
 
 

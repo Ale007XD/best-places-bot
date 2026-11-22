@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 KINDS = ("all", "cafe", "restaurant", "bar")
 # Радиусы inline «прилипают» к этим значениям — иначе кэш по точке дробится на сотни ключей.
-RADIUS_BUCKETS = (200, 500, 1000, 2000, 3000)
+RADIUS_BUCKETS = (100, 200, 500, 1000)
 
 _RADIUS_RE = re.compile(
     r"^(?:r)?(\d+(?:[.,]\d+)?)\s*(км|km|k|м|m)?$",
