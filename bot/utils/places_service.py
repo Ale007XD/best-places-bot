@@ -44,6 +44,7 @@ from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
 from bot.utils.querytools import classify_kind, matches_kind
+from bot.utils.textnorm import matches as text_matches
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +423,15 @@ def _within_radius(p: dict[str, Any], lat: float, lon: float, radius: int) -> bo
     return d <= radius
 
 
+def _has_dish(p: dict[str, Any], needles: tuple[str, ...]) -> bool:
+    """Гейт «блюдо»: имя или категория заведения содержит одно из написаний (без диакритики)."""
+    if not needles:
+        return True
+    if p.get("unnamed"):
+        return False
+    return text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", needles)
+
+
 def select_places(
     raw: list[dict[str, Any]],
     lat: float,
@@ -429,17 +439,21 @@ def select_places(
     radius: int,
     min_rating: float,
     kind: str = "all",
+    needles: tuple[str, ...] = (),
 ) -> SearchResult:
-    """Чистая функция: дедуп → радиус → категория → фильтр по рейтингу → ранжирование.
+    """Чистая функция: дедуп → радиус → категория → блюдо → фильтр по рейтингу → ранжирование.
+
+    needles — написания блюда: остаются только места, в названии или категории которых оно есть
+    (меню мы не знаем, поэтому «блюдо» — обязательный гейт, остальное лишь ранжирует).
 
     Места с foreign_region (адрес в другом регионе, чем точка пользователя) идут строго
     после остальных и только добирают выдачу.
     """
     local = [p for p in raw if not p.get("foreign_region")]
     foreign = [p for p in raw if p.get("foreign_region")]
-    res = _select(local, lat, lon, radius, min_rating, kind)
+    res = _select(local, lat, lon, radius, min_rating, kind, needles)
     if foreign and len(res.places) < RESULT_LIMIT:
-        extra = _select(foreign, lat, lon, radius, 0.0, kind)
+        extra = _select(foreign, lat, lon, radius, 0.0, kind, needles)
         room = RESULT_LIMIT - len(res.places)
         res = res._replace(
             places=res.places + extra.places[:room],
@@ -455,11 +469,12 @@ def _select(
     radius: int,
     min_rating: float,
     kind: str,
+    needles: tuple[str, ...] = (),
 ) -> SearchResult:
     places = [
         p
         for p in _deduplicate(raw)
-        if _within_radius(p, lat, lon, radius) and matches_kind(p, kind)
+        if _within_radius(p, lat, lon, radius) and matches_kind(p, kind) and _has_dish(p, needles)
     ]
 
     def rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -690,6 +705,7 @@ async def search_places(
     with_ratings: bool = True,
     kind: str = "all",
     accuracy_m: float | None = None,
+    dish_tokens: tuple[str, ...] = (),
 ) -> SearchResult:
     """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень).
 
@@ -715,10 +731,19 @@ async def search_places(
         start = max(next((r for r in allowed if r >= accuracy_m), allowed[-1]), radius)
     selected = used = None
     for r in _radius_steps(start, cover):
-        selected, used = select_places(places, lat, lon, r, min_rating, kind), r
+        selected, used = select_places(places, lat, lon, r, min_rating, kind, dish_tokens), r
         if _named(selected.places) >= TOP_N:
             break
     assert selected is not None and used is not None
+    if dish_tokens:
+        logger.info(
+            "DISH search: matches=%s raw=%s provider=%s radius=%s→%s",
+            len(selected.places),
+            len(places),
+            info.provider,
+            radius,
+            used,
+        )
     return selected._replace(
         places=_label_unnamed(selected.places, lang_code),
         from_cache=info.from_cache,

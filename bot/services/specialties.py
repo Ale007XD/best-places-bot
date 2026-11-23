@@ -8,8 +8,10 @@ SPECIALTIES_SHOW_UNVERIFIED — словарь, написанный без вы
 Схема (schema_version "1.0"): cities — объект «id города → город»; у города name_ru, name_en,
 country_code, center{lat,lon}, radius_km, specialties[]; у блюда id, title_ru, title_local,
 title_ascii, short_desc, how_to_eat, search_tokens[], cuisine_tags[], verified. Необязательные
-поля: title_en, short_desc_en, how_to_eat_en (для en/zh) и sources[] (ссылки; обязательны
-для verified=true).
+поля: title_en, short_desc_en, how_to_eat_en (для en/zh), sources[] (ссылки; обязательны
+для verified=true) и venue_tokens[] — слова, которые встречаются в НАЗВАНИЯХ заведений этого
+блюда («pho» для «Phở Hòa»; не «pho bo»). По ним работает «Найти блюдо»; нет поля — используются
+search_tokens (полнота ниже, потому что в названии заведения обычно лишь часть названия блюда).
 """
 
 import json
@@ -23,12 +25,14 @@ from bot.config import settings
 from bot.services.translator import get_string
 from bot.utils.geospatial import calculate_distance
 from bot.utils.textfmt import clean, esc, truncate
+from bot.utils.textnorm import fold
 
 logger = logging.getLogger(__name__)
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "specialties.json"
 
 SCHEMA_VERSION = "1.0"
+DISH_PREFIX = "dish:"  # callback_data кнопки поиска блюда: dish:{city_id}:{dish_id}
 MAX_DISHES = 8  # в одной карточке (сообщение ≤ 4096 символов)
 DESC_LIMIT = 220
 TIP_LIMIT = 160
@@ -39,7 +43,7 @@ _DISH_REQUIRED = {
     "id", "title_ru", "title_local", "title_ascii", "short_desc", "how_to_eat",
     "search_tokens", "cuisine_tags", "verified",
 }  # fmt: skip
-_DISH_OPTIONAL = {"title_en", "short_desc_en", "how_to_eat_en", "sources"}
+_DISH_OPTIONAL = {"title_en", "short_desc_en", "how_to_eat_en", "sources", "venue_tokens"}
 
 
 def _is_text(v: Any, lo: int = 1, hi: int = 300) -> bool:
@@ -135,6 +139,11 @@ def _validate_dish(cid: Any, d: Any, seen: set[str]) -> list[str]:
         errs.append(f"{tag}: cuisine_tags — до 6 коротких строк")
     if "verified" in d and not isinstance(d["verified"], bool):
         errs.append(f"{tag}: verified — true/false")
+    vt = d.get("venue_tokens")
+    if "venue_tokens" in d and not (
+        isinstance(vt, list) and 1 <= len(vt) <= 6 and all(_is_text(t, 2, 40) for t in vt)
+    ):
+        errs.append(f"{tag}: venue_tokens — от 1 до 6 слов из названий заведений")
     src = d.get("sources")
     if "sources" in d and not (
         isinstance(src, list) and all(isinstance(u, str) and u.startswith("http") for u in src)
@@ -142,6 +151,8 @@ def _validate_dish(cid: Any, d: Any, seen: set[str]) -> list[str]:
         errs.append(f"{tag}: sources — список ссылок http(s)")
     elif d.get("verified") is True and not src:
         errs.append(f"{tag}: verified=true требует хотя бы одну ссылку в sources")
+    if len(f"{DISH_PREFIX}{cid}:{did}".encode()) > 64:
+        errs.append(f"{tag}: id города и блюда слишком длинные для callback_data (≤ 64 байт)")
     return errs
 
 
@@ -205,6 +216,7 @@ def render(lang: str, city: dict[str, Any], show_unverified: bool | None = None)
         blocks.append(
             f"{title}\n{esc(truncate(desc, DESC_LIMIT))}\n💡 {esc(truncate(tip, TIP_LIMIT))}"
         )
+    blocks.append(get_string("try_here_search_hint", lang=lang))
     blocks.append(f"<i>{esc(get_string('try_here_footer', lang=lang))}</i>")
     return "\n\n".join(blocks)
 
@@ -214,3 +226,69 @@ def render_for_point(
 ) -> str | None:
     city = detect_city(lat, lon)
     return render(lang, city, show_unverified) if city else None
+
+
+# --- Поиск блюда ---
+
+
+def dish_ref(city_id: str, dish_id: str) -> str:
+    return f"{city_id}:{dish_id}"
+
+
+def get_dish(ref: str, data: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """«city_id:dish_id» → (город с ключом id, блюдо); None — такого блюда нет."""
+    cid, _, did = (ref or "").partition(":")
+    city = (data or load())["cities"].get(cid)
+    if not city:
+        return None
+    dish = next((d for d in city["specialties"] if d["id"] == did), None)
+    return ({**city, "id": cid}, dish) if dish else None
+
+
+def dish_needles(dish: dict[str, Any]) -> tuple[str, ...]:
+    """Написания блюда для поиска по названию заведения (без диакритики, без повторов)."""
+    raw = [*dish["search_tokens"], dish["title_local"], dish["title_ascii"], dish.get("title_en", "")]
+    return tuple(dict.fromkeys(f for f in (fold(x) for x in raw) if len(f) >= 2))
+
+
+def venue_needles(dish: dict[str, Any]) -> tuple[str, ...]:
+    """Написания для поиска по названию заведения: venue_tokens, а если их нет — написания блюда."""
+    tokens = [f for f in (fold(x) for x in dish.get("venue_tokens", [])) if len(f) >= 2]
+    return tuple(dict.fromkeys(tokens)) or dish_needles(dish)
+
+
+def resolve_dish(
+    text: str, lat: float, lon: float, show_unverified: bool | None = None
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Текст пользователя — это название блюда города, в котором он находится?
+
+    Только точное совпадение (после fold) с одним из написаний: «pho», «Bún chả», «cơm tấm».
+    Обычные слова и адреса сюда не попадают."""
+    query = fold(text)
+    if not query or len(query) > 60:
+        return None
+    city = detect_city(lat, lon)
+    if not city:
+        return None
+    for dish in visible_dishes(city, show_unverified):
+        if query in dish_needles(dish):
+            return city, dish
+    return None
+
+
+def dish_title(dish: dict[str, Any], lang: str) -> str:
+    """«Cơm tấm — Ком Там»: заголовок блюда на языке пользователя."""
+    local = clean(dish["title_local"])
+    alt = clean(dish["title_ru"] if lang == "ru" else dish.get("title_en") or dish["title_ru"])
+    return f"{local} — {alt}" if alt and alt.casefold() != local.casefold() else local
+
+
+def card_for_point(
+    lang: str, lat: float, lon: float, show_unverified: bool | None = None
+) -> tuple[str, dict[str, Any], list[dict[str, Any]]] | None:
+    """(текст карточки, город, показанные блюда) для точки — карточка плюс кнопки поиска блюд."""
+    city = detect_city(lat, lon)
+    if not city:
+        return None
+    text = render(lang, city, show_unverified)
+    return (text, city, visible_dishes(city, show_unverified)) if text else None

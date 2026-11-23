@@ -129,6 +129,36 @@ def main() -> None:
     assert len(merged["cities"]["hanoi"]["specialties"]) == len(data["cities"]["hanoi"]["specialties"])  # removals не удаляют
     assert sp.validate(merged) == [], sp.validate(merged)
     assert "test_city" not in data["cities"]  # исходный словарь не изменился
+
+    # 9. поиск блюда: нормализация, написания, разбор текста, кнопки
+    from bot.utils.textnorm import fold, matches
+
+    assert fold("Cơm Tấm Sài Gòn!") == "com tam sai gon" and fold("Đà Nẵng") == "da nang"
+    assert fold("ผัดไทย") == "ผัดไทย"  # тайские знаки не теряются
+    assert matches("Phở Hòa Pasteur", ["pho"]) and not matches("Phong Lan Cafe", ["pho"])
+    assert matches("ร้านผัดไทยประตูผี", ["ผัดไทย"]) and matches("Quán Cơm Tấm Ba Ghiền", ["cơm tấm"])
+    hanoi = sp.detect_city(21.03, 105.85)
+    pho = next(d for d in hanoi["specialties"] if d["id"] == "pho_bo_hanoi")
+    assert "pho bo" in sp.dish_needles(pho)
+    assert sp.get_dish("hanoi:pho_bo_hanoi")[1]["id"] == "pho_bo_hanoi"
+    assert sp.get_dish("hanoi:нет") is None and sp.get_dish("нет") is None
+    hit = sp.resolve_dish("PHỞ bò", 21.03, 105.85, show_unverified=True)  # регистр и диакритика не важны
+    assert hit and hit[1]["id"] == "pho_bo_hanoi"
+    assert sp.resolve_dish("Nguyen Hue street", 21.03, 105.85, show_unverified=True) is None
+    assert sp.resolve_dish("pho bo", 21.03, 105.85, show_unverified=False) is None  # не вычитано — скрыто
+    assert sp.resolve_dish("pho bo", 14.7, 107.7, show_unverified=True) is None  # города в таблице нет
+    assert sp.venue_needles(pho) == sp.dish_needles(pho)  # venue_tokens нет → написания блюда
+    assert sp.venue_needles({**pho, "venue_tokens": ["Phở", "pho 24"]}) == ("pho", "pho 24")
+    text, city, dishes = sp.card_for_point("ru", 21.03, 105.85, show_unverified=True)
+    assert city["id"] == "hanoi" and len(dishes) == len(sp.visible_dishes(city, True)) and "👇" in text
+    kbd = kb.get_dish_keyboard(city["id"], dishes)
+    cb_list = [b.callback_data for row in kbd.inline_keyboard for b in row]
+    assert len(cb_list) == len(dishes)
+    assert all(c.startswith("dish:hanoi:") and len(c.encode()) <= 64 for c in cb_list), cb_list
+    assert all(len(row) <= 2 for row in kbd.inline_keyboard)
+    assert any("callback" in e for e in errs_of(lambda d: first(d).update(id="x" * 60)))
+    assert any("venue_tokens" in e for e in errs_of(lambda d: first(d).update(venue_tokens=[])))
+    assert not any("venue_tokens" in e for e in errs_of(lambda d: first(d).update(venue_tokens=["pho"])))
     print("specialties ok")
 
 

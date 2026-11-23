@@ -157,6 +157,109 @@ async def main() -> None:
     plain = SearchResult([], False, True, radius_asked=200, radius_used=200)
     assert "🔎" not in uh._format_header("en", plain, 0.0, None, False)
 
+    # 10. «Найти блюдо»: текст-блюдо города → поиск с блюдом; кнопка блюда; inline без диакритики
+    from bot.config import settings
+
+    settings.SPECIALTIES_SHOW_UNVERIFIED = True
+    real_run = uh._run_search
+    runs: list = []
+
+    async def fake_run(msg_, uid_, state_, bot_, lang_, redis_, analytics_=None, dish_ref=None):
+        runs.append(dish_ref)
+
+    def fake_message_of(callback):
+        return callback.message
+
+    real_message_of, uh._message_of = uh._message_of, fake_message_of
+    uh._run_search = fake_run
+    try:
+        await state.update_data(latitude=21.03, longitude=105.85)  # Ханой
+        m = SimpleNamespace(text="PHỞ bò", from_user=SimpleNamespace(id=42), answer=AsyncMock())
+        await uh.got_text_point(m, state, SimpleNamespace(), "en", redis, None)
+        assert runs == ["hanoi:pho_bo_hanoi"], runs
+        await uh.got_text_point(m, state, SimpleNamespace(), "en", redis, None)  # сразу повтор — антиспам
+        assert len(runs) == 1
+        geocoder.geocode = AsyncMock(return_value=[])
+        m2 = SimpleNamespace(text="Nguyen Hue street", from_user=SimpleNamespace(id=43), answer=AsyncMock())
+        await uh.got_text_point(m2, state, SimpleNamespace(), "en", redis, None)  # адрес — по-старому
+        assert len(runs) == 1 and geocoder.geocode.await_count == 1
+
+        # кнопка блюда: неизвестное блюдо — предупреждение, известное — запуск поиска
+        cb = SimpleNamespace(
+            data="dish:hanoi:нет", from_user=SimpleNamespace(id=44), answer=AsyncMock(),
+            message=SimpleNamespace(answer=AsyncMock()),
+        )
+        await uh.dish_search(cb, state, SimpleNamespace(), "en", redis, None)
+        assert len(runs) == 1 and cb.answer.await_args.kwargs.get("show_alert") is True
+        cb.data = "dish:hanoi:bun_cha_hanoi"
+        await uh.dish_search(cb, state, SimpleNamespace(), "en", redis, None)
+        assert runs[-1] == "hanoi:bun_cha_hanoi", runs
+
+        # inline: название блюда города → заведения, в названии которых оно есть (без диакритики)
+        hanoi_loc = SimpleNamespace(latitude=21.03, longitude=105.85, horizontal_accuracy=None)
+        pho_places = [
+            {**_place(1, 0.0010), "name": "Phở Bò Hà Nội"},
+            {**_place(2, 0.0005), "name": "Bún Chả 34"},
+            {**_place(3, 0.0020), "name": "Cafe Moka"},
+        ]
+        pho_places = [{**p, "lat": 21.03 + (p["lat"] - LAT), "lon": 105.85} for p in pho_places]
+        _, kw = await run_inline(redis, "pho bo", loc=hanoi_loc, places=pho_places)
+        assert len(kw["results"]) == 1 and "Phở" in kw["results"][0].title, kw["results"]
+    finally:
+        uh._run_search, uh._message_of = real_run, real_message_of
+        settings.SPECIALTIES_SHOW_UNVERIFIED = False
+
+    # заголовок поиска блюда: без пометок про рейтинги и апселла
+    res = SearchResult([], False, False, radius_asked=100, radius_used=300)
+    head = uh._format_header("en", res, 4.0, "Pin", True, dish="Bún chả — Bun cha")
+    assert "🍜" in head and "Bún chả" in head and "🔒" not in head and "🔎" in head and "Pin" in head, head
+
+    # 11. _run_search с блюдом: базовый слой, радиус пользователя, настройки не затираются
+    from bot.services import cards
+    from bot.services import specialties as sp2
+
+    settings.SPECIALTIES_SHOW_UNVERIFIED = True
+    real_search, real_ref = uh.search_places, acc.ref_link
+    try:
+        await redis.flushall()
+        await cards.set_layout(redis, "compact")  # без фото-карточек: один пост
+        acc.ref_link = AsyncMock(return_value="https://t.me/NearbyNinjaBot?start=ref_1")
+        seen: dict = {}
+        hanoi_place = {**_place(1, 0.0), "name": "Phở Bò Hà Nội", "lat": 21.0305, "lon": 105.85}
+
+        async def fake_search_dish(**kw):
+            seen.update(kw)
+            return SearchResult([hanoi_place], False, False, radius_asked=100, radius_used=300, provider="geoapify")
+
+        uh.search_places = fake_search_dish
+        await state.update_data(latitude=21.03, longitude=105.85, radius=100, kind="bar", min_rating=4.5,
+                                accuracy=None, point_label=None)
+        await redis.hset("user_prefs:50", mapping={"radius": 500, "kind": "cafe", "min_rating": 3.0})
+        status = SimpleNamespace(edit_text=AsyncMock())
+        m = SimpleNamespace(answer=AsyncMock(return_value=status), chat=SimpleNamespace(id=1))
+        await uh._run_search(m, 50, state, SimpleNamespace(), "en", redis, None, dish_ref="hanoi:pho_bo_hanoi")
+        dish = sp2.get_dish("hanoi:pho_bo_hanoi")[1]
+        assert seen["dish_tokens"] == sp2.venue_needles(dish), seen
+        assert (seen["kind"], seen["with_ratings"], seen["min_rating"], seen["radius"]) == ("all", False, 0.0, 100)
+        text = status.edit_text.await_args.args[0]
+        assert "Phở bò" in text and "100" in text and "300" in text and "🔒" not in text, text
+        assert await redis.hget("user_prefs:50", "radius") == "500"  # поиск блюда настройки не меняет
+        assert await redis.hget("user_prefs:50", "kind") == "cafe"
+
+        # ничего не нашли: сообщение про блюдо и радиус, до которого дошли
+        async def fake_search_none(**kw):
+            return SearchResult([], False, False, radius_asked=100, radius_used=500, provider="geoapify")
+
+        uh.search_places = fake_search_none
+        status = SimpleNamespace(edit_text=AsyncMock())
+        m = SimpleNamespace(answer=AsyncMock(return_value=status), chat=SimpleNamespace(id=1))
+        await uh._run_search(m, 51, state, SimpleNamespace(), "en", redis, None, dish_ref="hanoi:pho_bo_hanoi")
+        none_text = status.edit_text.await_args.args[0]
+        assert "500 m" in none_text and "Phở bò" in none_text, none_text
+    finally:
+        uh.search_places, acc.ref_link = real_search, real_ref
+        settings.SPECIALTIES_SHOW_UNVERIFIED = False
+
     print("inline ok")
 
 

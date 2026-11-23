@@ -38,7 +38,7 @@ from redis.exceptions import RedisError
 
 from bot.config import settings
 from bot.handlers import account_handlers as acc
-from bot.services import cards
+from bot.services import cards, specialties
 from bot.services.translator import get_string
 from bot.utils import geocoder, links
 from bot.utils.attribution import attribution
@@ -46,6 +46,7 @@ from bot.utils.geospatial import calculate_distance, fmt_distance
 from bot.utils.places_service import SearchUnavailable, search_places
 from bot.utils.querytools import parse_query, snap_radius
 from bot.utils.textfmt import clean, truncate
+from bot.utils.textnorm import matches as text_matches
 
 logger = logging.getLogger(__name__)
 
@@ -162,9 +163,9 @@ async def _search_with_budget(
     return await asyncio.wait_for(asyncio.shield(task), INLINE_BUDGET_SEC)
 
 
-def _matches(place: dict, q: str) -> bool:
-    q = q.casefold()
-    return q in clean(place.get("name")).casefold() or q in clean(place.get("primary_type")).casefold()
+def _matches(place: dict, needles: tuple[str, ...]) -> bool:
+    """Название или категория содержит одно из написаний (без диакритики: «Phở» = «pho»)."""
+    return text_matches(f"{clean(place.get('name'))} {clean(place.get('primary_type'))}", needles)
 
 
 @router.inline_query()
@@ -235,7 +236,9 @@ async def on_inline(
 
     # --- текст: сначала фильтр найденного рядом, иначе адрес через геокодер ---
     if text:
-        places = [p for p in places if _matches(p, text)]
+        hit = specialties.resolve_dish(text, lat, lon) if lat is not None and lon is not None else None
+        needles = specialties.venue_needles(hit[1]) if hit else (text,)  # блюдо города → слова из названий заведений
+        places = [p for p in places if _matches(p, needles)]
         if not places and len(text) >= 3:
             if not await redis_conn.set(f"throttle:ig:{uid}", 1, nx=True, px=GEOCODE_THROTTLE_MS):
                 await reply([_note(lang_code, "busy")], cache=1)

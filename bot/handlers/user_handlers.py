@@ -211,10 +211,17 @@ def _format_header(
     min_rating: float,
     label: str | None,
     upsell: bool,
+    dish: str | None = None,
 ) -> str:
-    """Заголовок выдачи (как на макете): «✨ Топ-3 места рядом с вами» + подзаголовок и пометки."""
+    """Заголовок выдачи (как на макете): «✨ Топ-3 места рядом с вами» + подзаголовок и пометки.
+
+    dish — название блюда: заголовок поиска блюда, без пометок про рейтинги."""
     _ = _t(lang_code)
-    if label:
+    if dish:
+        lines = [_("dish_title").format(dish=html.escape(dish, quote=False)), _("dish_subtitle")]
+        if label:
+            lines.insert(1, f"📍 {html.escape(label, quote=False)}")
+    elif label:
         lines = [f"✨ <b>{_('results_title_point')}</b>", f"📍 {html.escape(label, quote=False)}"]
     else:
         lines = [f"✨ <b>{_('results_title')}</b>", _("results_subtitle")]
@@ -222,7 +229,9 @@ def _format_header(
     if result.radius_used > result.radius_asked > 0:
         key = "accuracy_note" if result.by_accuracy else "radius_expanded_note"
         notes.append(f"🔎 {_(key).format(asked=result.radius_asked, used=result.radius_used)}")
-    if upsell:
+    if dish:
+        pass  # рейтинги в поиске блюда не используются
+    elif upsell:
         notes.append(f"🔒 {_('upsell_note')}")
     elif result.relaxed:
         notes.append(f"ℹ️ {_('relaxed_note').format(rating=f'{min_rating:.1f}')}")
@@ -420,7 +429,7 @@ async def got_venue(message: Message, state: FSMContext, lang_code: str, redis_c
 
 @router.message(F.text, ~F.text.startswith("/"))
 async def got_text_point(
-    message: Message, state: FSMContext, lang_code: str, redis_conn
+    message: Message, state: FSMContext, bot: Bot, lang_code: str, redis_conn, analytics=None
 ):
     """Текст как точка: координаты → ссылка на карту → адрес/название (геокодер)."""
     if message.from_user is None or not message.text:
@@ -440,6 +449,20 @@ async def got_text_point(
         )
         return
 
+    data = await state.get_data()
+    # Название блюда из словаря города, где пользователь сейчас («pho», «Bún chả»), — это не
+    # адрес, а поиск заведений с этим блюдом вокруг текущей точки.
+    if "latitude" in data and "longitude" in data:
+        hit = specialties.resolve_dish(text, float(data["latitude"]), float(data["longitude"]))
+        if hit:
+            city, dish = hit
+            if not await redis_conn.set(f"throttle:search:{uid}", 1, nx=True, ex=SEARCH_THROTTLE_SEC):
+                await message.answer(_("too_fast"))
+                return
+            ref = specialties.dish_ref(city["id"], dish["id"])
+            await _run_search(message, uid, state, bot, lang_code, redis_conn, analytics, dish_ref=ref)
+            return
+
     if "http://" in text or "https://" in text or len(text) < 3 or len(text) > 150:
         await message.answer(_("point_not_found"))
         return
@@ -447,7 +470,6 @@ async def got_text_point(
         await message.answer(_("geo_unavailable"))
         return
 
-    data = await state.get_data()
     near = None
     if "home_lat" in data:
         near = (float(data["home_lat"]), float(data["home_lon"]))
@@ -611,12 +633,18 @@ async def try_here(callback: CallbackQuery, state: FSMContext, lang_code: str):
     if msg is None or "latitude" not in data or "longitude" not in data:
         await callback.answer(get_string("try_here_none", lang=lang_code), show_alert=True)
         return
-    text = specialties.render_for_point(lang_code, float(data["latitude"]), float(data["longitude"]))
-    if text is None:
+    card = specialties.card_for_point(lang_code, float(data["latitude"]), float(data["longitude"]))
+    if card is None:
         await callback.answer(get_string("try_here_none", lang=lang_code), show_alert=True)
         return
+    text, city, dishes = card
     await callback.answer()
-    await msg.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+    await msg.answer(
+        text,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+        reply_markup=kb.get_dish_keyboard(city["id"], dishes),
+    )
 
 
 @router.callback_query(F.data == "new_search")
@@ -654,6 +682,53 @@ async def do_search(
         await callback.answer(_("too_fast"))
         return
     await callback.answer()
+    await _run_search(msg, user_id, state, bot, lang_code, redis_conn, analytics)
+
+
+@router.callback_query(F.data.startswith(specialties.DISH_PREFIX))
+async def dish_search(
+    callback: CallbackQuery,
+    state: FSMContext,
+    bot: Bot,
+    lang_code: str,
+    redis_conn,
+    analytics=None,
+):
+    """Кнопка блюда в карточке «Что попробовать здесь» → поиск таких заведений рядом."""
+    _ = _t(lang_code)
+    msg = _message_of(callback)
+    user_id = callback.from_user.id
+    ref = (callback.data or "")[len(specialties.DISH_PREFIX) :]
+    if msg is None or specialties.get_dish(ref) is None:
+        await callback.answer(_("try_here_none"), show_alert=True)
+        return
+    allowed = await redis_conn.set(
+        f"throttle:search:{user_id}", 1, nx=True, ex=SEARCH_THROTTLE_SEC
+    )
+    if not allowed:
+        await callback.answer(_("too_fast"))
+        return
+    await callback.answer()
+    await _run_search(msg, user_id, state, bot, lang_code, redis_conn, analytics, dish_ref=ref)
+
+
+async def _run_search(
+    msg: Message,
+    user_id: int,
+    state: FSMContext,
+    bot: Bot,
+    lang_code: str,
+    redis_conn,
+    analytics=None,
+    dish_ref: str | None = None,
+):
+    """Поиск вокруг точки из FSM и выдача. dish_ref («город:блюдо») — поиск заведений с блюдом:
+    базовый слой (без платных рейтингов), радиус пользователя, расширение при нехватке мест."""
+    _ = _t(lang_code)
+    found = specialties.get_dish(dish_ref) if dish_ref else None
+    dish_city, dish = found if found else (None, None)
+    needles = specialties.venue_needles(dish) if dish else ()
+    dish_label = specialties.dish_title(dish, lang_code) if dish else None
 
     data = await state.get_data()
     if "latitude" not in data or "longitude" not in data:
@@ -664,25 +739,28 @@ async def do_search(
     radius = _radius_of(data)
     min_rating = float(data.get("min_rating", settings.DEFAULT_MIN_RATING))
     kind = data.get("kind", "all")
-    if kind not in kb.KINDS:
-        kind = "all"
+    if kind not in kb.KINDS or dish:
+        kind = "all"  # блюдо ищем среди всех заведений
     label = data.get("point_label")
 
     # Тизер: «богатый» поиск (рейтинги + фото, платные поля Foursquare) — из бесплатного
     # дневного лимита / бонусных поисков / Pro; иначе базовая выдача без них (почти безлимитно).
     quota_status = await quota.get_status(redis_conn, user_id)
-    entitled = quota_status.can_rate
+    entitled = quota_status.can_rate and dish is None  # поиск блюда — базовый слой
     if not entitled and not quota_status.can_search_base:
         if analytics:
             await analytics.track_feature_use("paywall", "shown")
         await acc.show_paywall(msg, bot, lang_code, user_id, "paywall_text")
         return
 
-    await _save_prefs(redis_conn, user_id, radius, min_rating, kind)
+    if not dish:  # настройки не перезаписываем поиском блюда
+        await _save_prefs(redis_conn, user_id, radius, min_rating, kind)
 
     if analytics:
         await analytics.track_user(user_id)
         await analytics.track_feature_use("radius", radius)
+        if dish_city and dish:
+            await analytics.track_feature_use("dish", specialties.dish_ref(dish_city["id"], dish["id"]))
         if kind != "all":
             await analytics.track_feature_use("kind", kind)
         if entitled:
@@ -702,6 +780,7 @@ async def do_search(
             with_ratings=entitled,
             kind=kind,
             accuracy_m=data.get("accuracy"),
+            dish_tokens=needles,
         )
     except Exception:
         logger.exception("search failed")
@@ -716,9 +795,12 @@ async def do_search(
     if not result.places:
         if analytics:
             await analytics.track_empty_result()
-        await status.edit_text(
-            _("no_results_radius"), reply_markup=kb.get_retry_keyboard(_)
+        no_results = (
+            _("dish_none").format(dish=dish_label, radius=result.radius_used or radius)
+            if dish
+            else _("no_results_radius")
         )
+        await status.edit_text(no_results, reply_markup=kb.get_retry_keyboard(_))
         return
 
     top = result.places[:TOP_N]
@@ -736,8 +818,10 @@ async def do_search(
         )
 
     # Апселл — только когда монетизация включена и платные данные скрыты из-за лимита.
-    upsell = quota_status.money_enabled and not quota_status.unlimited and not entitled
-    head = _format_header(lang_code, result, min_rating, label, upsell)
+    upsell = (
+        quota_status.money_enabled and not quota_status.unlimited and not entitled and dish is None
+    )
+    head = _format_header(lang_code, result, min_rating, label, upsell, dish=dish_label)
     show_try = specialties.has_dishes(lat, lon)  # есть подборка «что попробовать» для этого города
     tail: list[str] = []  # блоки под карточками: серия/лимит, подсказка, атрибуция
     st_after: quota.Status | None = None

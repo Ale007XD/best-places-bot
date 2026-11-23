@@ -574,6 +574,51 @@ async def main() -> None:
         await geo_client.aclose()
     assert len(calls_geo) == 3, calls_geo
 
+    # 31. поиск блюда: гейт по названию/категории без диакритики; радиус расширяется по блюду
+    await redis.flushall()
+
+    def named(i, dlat, name, ptype="restaurant"):
+        return {**_pl(i, dlat, "osm"), "name": name, "primary_type": ptype}
+
+    pool = [
+        named(1, 0.0009, "Phở Hòa"),  # ≈100 м, диакритика
+        named(2, 0.0007, "Phong Lan Cafe", "cafe"),  # «pho» не целым словом
+        named(3, 0.0020, "Quán PHO 24"),  # ≈220 м
+        named(4, 0.0030, "Bún Bò"),  # другое блюдо
+        named(5, 0.0036, "Nhà hàng X", "Pho Restaurant"),  # по категории, ≈400 м
+        {**_pl(6, 0.0001, "osm"), "name": "", "unnamed": True},  # безымянное не подходит
+    ]
+    c = Calls()
+    install(c, gp_places=pool, op_places=[], fsq_places=fsq5)
+    r = await ps.search_places(LAT, LON, 100, 0, "en", redis, with_ratings=False, dish_tokens=("pho",))
+    assert [p["place_id"] for p in r.places] == ["osm1", "osm3", "osm5"], r.places
+    assert (r.radius_asked, r.radius_used, len(c.gp)) == (100, 500, 1), r
+    r = await ps.search_places(
+        LAT, LON, 500, 0, "en", redis, with_ratings=False, dish_tokens=("bun bo", "bún bò")
+    )
+    assert [p["place_id"] for p in r.places] == ["osm4"], r.places
+    r = await ps.search_places(LAT, LON, 200, 0, "en", redis, with_ratings=False, dish_tokens=("com tam",))
+    assert r.places == [] and r.radius_used == 500, r  # таких нет: дошли до предела данных, пусто
+    r = await ps.search_places(LAT, LON, 200, 0, "en", redis, with_ratings=False)  # без блюда — как раньше
+    assert [p["place_id"] for p in r.places] == ["osm2", "osm1", "osm3", "osm6"], r.places
+    assert r.radius_used == 300  # три именованных нашлись на 300 м; безымянное — после них
+
+    # 32. diag dish: совпадения по радиусам и написаниям на наборе провайдера
+    from bot import diag
+
+    async def fake_load(*_a, **_kw):
+        return ps.LoadInfo(pool, False, True, True, False, "geoapify")
+
+    real_load, ps._load_raw = ps._load_raw, fake_load
+    try:
+        lines = await diag.dish_probe(redis, "pho", LAT, LON)
+    finally:
+        ps._load_raw = real_load
+    joined = "\n".join(lines)
+    assert "провайдер=geoapify мест в наборе=6" in joined and "≤  500 м: 3 совпад." in joined, joined
+    assert "написание 'pho': 3 из 6" in joined and "ОБРЕЗАН" not in joined, joined
+    assert (await diag.dish_probe(redis, "pho"))[0].startswith("Нужно")
+
     print("providers ok")
 
 

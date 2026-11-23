@@ -82,6 +82,18 @@ def get_params_keyboard(
     )
 
 
+def get_dish_keyboard(city_id: str, dishes: list[dict]) -> InlineKeyboardMarkup:
+    """Кнопки быстрого поиска блюд под карточкой «Что попробовать здесь» (по две в ряд)."""
+    buttons = [
+        InlineKeyboardButton(
+            text=f"🔎 {d['title_local'][:24]}", callback_data=f"dish:{city_id}:{d['id']}"
+        )
+        for d in dishes
+    ]
+    rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def get_results_actions_keyboard(
     _, show_unlock: bool = False, show_try: bool = False
 ) -> InlineKeyboardMarkup:

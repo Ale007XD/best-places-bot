@@ -14,7 +14,9 @@ from typing import Any
 
 from bot.services import specialties as sp
 
-UPDATABLE = ("title_local", "search_tokens", "how_to_eat", "title_en", "short_desc_en", "how_to_eat_en", "sources")
+UPDATABLE = (
+    "title_local", "search_tokens", "how_to_eat", "title_en", "short_desc_en", "how_to_eat_en", "sources", "venue_tokens",
+)  # fmt: skip
 
 
 def merge(base: dict[str, Any], review: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

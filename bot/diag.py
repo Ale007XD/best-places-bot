@@ -7,6 +7,10 @@
   • из контейнера на сервере: docker compose exec telegram-bot python -m bot.diag [premium]
   • сырой ответ Foursquare:   python -m bot.diag raw [lat lon [radius]]  — что именно
                               вернул провайдер: координаты, его расстояние, адрес.
+  • поиск блюда:              python -m bot.diag dish <город:блюдо | слово> [lat lon]  — какие
+                              заведения найдёт «Найти блюдо» по написаниям (venue_tokens), сколько
+                              совпадений на каждом радиусе и по каждому написанию; данные кэша
+                              провайдера обрезаны (Geoapify ≤ 100 мест) — см. строку «обрезан».
   • чистка Redis:             python -m bot.diag purge-meta [--apply]  — place:meta:* мест не из
                               OSM/Geoapify (без --apply только считает).
   • категории Foursquare:     python -m bot.diag cats [lat lon]  — выводит категории
@@ -28,12 +32,14 @@ from functools import partial
 from typing import Any, NamedTuple
 
 from bot.config import settings
-from bot.services import community
+from bot.services import community, specialties
 from bot.utils import overpass_api as osm
+from bot.utils import places_service
 from bot.utils.foursquare_api import DINING_CATEGORY_ID, SEARCH_URL, fetch_places
 from bot.utils.geoapify_api import find_places_geoapify
 from bot.utils.geospatial import calculate_distance
 from bot.utils.http import close_client, get_client
+from bot.utils.textnorm import matches as text_matches
 
 HCMC = (10.7769, 106.7009)  # центр Хошимина: заведомо плотная точка
 _UA = {"User-Agent": "best-places-bot/1.0 (diag)"}
@@ -159,6 +165,45 @@ def format_report(checks: list[Check]) -> str:
     return "\n".join(lines)
 
 
+async def dish_probe(
+    redis_conn, target: str, lat: float | None = None, lon: float | None = None
+) -> list[str]:
+    """Что найдёт «Найти блюдо»: по блюду словаря («hanoi:pho_bo_hanoi») или по слову.
+
+    Показывает провайдера, размер набора, признак обрезки, число совпадений на каждом радиусе и
+    по каждому написанию — чтобы подобрать venue_tokens для блюда."""
+    found = specialties.get_dish(target)
+    if found:
+        city, dish = found
+        needles = specialties.venue_needles(dish)
+        lat = city["center"]["lat"] if lat is None else lat
+        lon = city["center"]["lon"] if lon is None else lon
+        title = specialties.dish_title(dish, "ru")
+    elif lat is not None and lon is not None:
+        needles, title = (target,), target
+    else:
+        return ["Нужно «город:блюдо» (как в словаре) или слово плюс lat lon."]
+    info = await places_service._load_raw(lat, lon, 500, "en", redis_conn, False, "all")
+    raw = info.raw
+    limit = 300 if info.provider == "overpass" else 100 if info.provider == "geoapify" else 0
+    cover = places_service.coverage_m(info.provider, 500)
+    lines = [
+        f"{title} · точка {lat:.5f},{lon:.5f} · написания: {', '.join(needles)}",
+        f"провайдер={info.provider or '—'} мест в наборе={len(raw)} полнота до {cover} м"
+        + (" · НАБОР ОБРЕЗАН (достиг лимита провайдера): дальние совпадения могли не попасть" if limit and len(raw) >= limit - 5 else ""),
+    ]
+    for r in (r for r in places_service.EXPAND_STEPS if r <= cover):
+        sel = places_service.select_places(raw, lat, lon, r, 0.0, "all", needles)
+        names = "; ".join(
+            f"{p.get('name')!r} {calculate_distance(lat, lon, p['lat'], p['lon'])} м" for p in sel.places[:3]
+        )
+        lines.append(f"  ≤ {r:>4} м: {len(sel.places)} совпад. {names}")
+    for needle in needles:
+        hits = sum(1 for p in raw if text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", (needle,)))
+        lines.append(f"  написание {needle!r}: {hits} из {len(raw)}")
+    return lines
+
+
 async def fsq_raw(lat: float, lon: float, radius: int = 500) -> list[str]:
     """Сырые места Foursquare рядом (до 10) со сверкой расстояния. Базовые поля — вызов Pro."""
     r = await get_client().get(
@@ -232,6 +277,18 @@ async def _main() -> None:
             lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
             radius = int(args[3]) if len(args) >= 4 else 500
             print("\n".join(await fsq_raw(lat, lon, radius)) or "пусто")
+            return
+        if args[:1] == ["dish"]:
+            from redis.asyncio import Redis
+
+            if len(args) < 2:
+                sys.exit("python -m bot.diag dish <город:блюдо | слово> [lat lon]")
+            conn: Any = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            try:
+                point = (float(args[2]), float(args[3])) if len(args) >= 4 else (None, None)
+                print("\n".join(await dish_probe(conn, args[1], *point)))
+            finally:
+                await conn.aclose()
             return
         if args[:1] == ["purge-meta"]:
             from redis.asyncio import Redis
