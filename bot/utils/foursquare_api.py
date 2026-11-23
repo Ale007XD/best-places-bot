@@ -164,6 +164,7 @@ def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
         "rating": rating,
         "user_ratings_total": (p.get("stats") or {}).get("total_ratings") or 0,
         "primary_type": (cats[0].get("name") if cats else None) or "",
+        "fsq_categories": [str(c["name"]) for c in cats if c.get("name")],
         "lat": p.get("latitude"),
         "lon": p.get("longitude"),
         # Расстояние от точки запроса по версии самого FSQ — для сверки с координатами.

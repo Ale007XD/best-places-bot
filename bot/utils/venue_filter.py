@@ -3,12 +3,15 @@
 Фильтр ложных срабатываний провайдеров (контуры 1 и 2).
 
 Контур 1: конфликт названия с гастро-выдачей (стоп-слова нецелевых бизнесов при
-отсутствии гастро-якорей — например, «TT Pilates Nha Trang», «CLB HOANG GIA»).
+отсутствии гастро-якорей — например, «TT Pilates Nha Trang», «CLB HOANG GIA»),
+а также Swarm-спам Foursquare (эмодзи, частные чекины вроде «Лакшери Хата…»,
+«на площадке», нецелевые подкатегории вроде «Виноградник»).
 Контур 2: конфликт сырых категорий Geoapify и тегов OSM (переиспользованные узлы,
 где остался старый amenity=restaurant, но добавлен sport=*/leisure=fitness_centre).
 """
 
 import logging
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -90,6 +93,51 @@ NON_FOOD_PHRASES: tuple[str, ...] = (
     "photo studio",
     "tattoo studio",
     "quan net",
+)
+
+# Swarm-спам (личные квартиры, дворы, лавочки в базе Foursquare) — режется безусловно.
+SWARM_JUNK_TOKENS: frozenset[str] = frozenset({
+    "хата", "хате", "хату", "хаты",
+    "бухая", "бухой", "бухать", "бухаловка", "бухаем",
+    "вписка", "вписке", "общага", "общаге",
+    "подъезд", "подъезде", "падик", "падике",
+    "лавочка", "лавочке", "скамейка", "скамейке",
+    "подворотня", "подворотне",
+})
+
+SWARM_JUNK_PHRASES: tuple[str, ...] = (
+    "на площадке",
+    "на лавочке",
+    "на скамейке",
+    "на районе",
+    "на кухне",
+    "на балконе",
+    "дома у",
+    "в гостях",
+    "у дома",
+    "во дворе",
+    "за гаражами",
+)
+
+# Нецелевые подкатегории Foursquare (попадают через родителя «Dining and Drinking»).
+NON_FOOD_TYPES: frozenset[str] = frozenset({
+    "vineyard", "виноградник",
+    "winery", "винодельня",
+    "farm", "ферма",
+    "distillery", "винокурня",
+    "corporate cafeteria", "корпоративная столовая",
+    "school cafeteria", "школьная столовая",
+    "college cafeteria", "university cafeteria",
+    "catering", "кейтеринг",
+    "food bank",
+    "supermarket", "супермаркет",
+    "grocery store", "продуктовый магазин",
+    "convenience store",
+})
+
+# Строчная буква + разговорный предлог в начале названия без адреса и рейтинга.
+_CASUAL_PREFIX_RE = re.compile(
+    r"^(?:на|у|в|возле|около|под|за|при|at|in|near|my|our)\s+\S+"
 )
 
 # Гастро-якоря: при наличии хотя бы одного место не режется (например, «Yoga Cafe»).
@@ -203,6 +251,67 @@ def _has_phrase(spaced: str, phrases: tuple[str, ...]) -> bool:
     return any(f" {p} " in spaced for p in phrases)
 
 
+def _is_emoji_cp(cp: int) -> bool:
+    return (
+        0x1F300 <= cp <= 0x1FAFF
+        or 0x2600 <= cp <= 0x27BF
+        or 0x1F1E6 <= cp <= 0x1F1FF
+    )
+
+
+def _is_chat_emoji_cp(cp: int) -> bool:
+    """Смайлы лиц, жесты и люди — почти всегда мусорные чекины, а не вывески заведений."""
+    return (
+        0x1F600 <= cp <= 0x1F64F
+        or 0x1F900 <= cp <= 0x1F9FF
+        or 0x1F440 <= cp <= 0x1F48F
+    )
+
+
+def has_spam_emoji(name: str) -> bool:
+    """≥ 2 любых эмодзи или ≥ 1 чат-эмодзи (смайл/жест) в названии."""
+    if not name:
+        return False
+    count = 0
+    for ch in name:
+        cp = ord(ch)
+        if _is_chat_emoji_cp(cp):
+            return True
+        if _is_emoji_cp(cp):
+            count += 1
+            if count >= 2:
+                return True
+    return False
+
+
+def has_swarm_junk(name: str) -> bool:
+    folded = fold(name)
+    if not folded:
+        return False
+    if set(folded.split()) & SWARM_JUNK_TOKENS:
+        return True
+    return _has_phrase(f" {folded} ", SWARM_JUNK_PHRASES)
+
+
+def is_casual_checkin(place: Mapping[str, Any]) -> bool:
+    """Точка без адреса и рейтинга с разговорным названием со строчной буквы («на площадке»)."""
+    if place.get("vicinity") or place.get("rating") is not None:
+        return False
+    name = str(place.get("name") or "").strip()
+    return bool(name and _CASUAL_PREFIX_RE.match(name))
+
+
+def has_non_food_type(place: Mapping[str, Any]) -> bool:
+    """Нецелевая подкатегория FSQ («Виноградник», «Ферма» и т. п.)."""
+    cats = [str(c) for c in (place.get("fsq_categories") or []) if c]
+    if not cats:
+        pt = str(place.get("primary_type") or "")
+        cats = [pt] if pt else []
+    if not cats:
+        return False
+    return all(fold(c) in NON_FOOD_TYPES for c in cats)
+
+
 def has_food_anchor(name: str) -> bool:
     folded = fold(name)
     if not folded:
@@ -257,8 +366,16 @@ def has_conflicting_tags(
 def reject_reason(place: Mapping[str, Any]) -> str | None:
     """Причина отсева места или None, если проверка пройдена."""
     name = str(place.get("name") or "")
+    if has_spam_emoji(name):
+        return "emoji_spam"
+    if has_swarm_junk(name):
+        return "swarm_junk"
+    if is_casual_checkin(place):
+        return "casual_checkin"
     if has_food_anchor(name):
         return None
+    if has_non_food_type(place):
+        return "non_food_type"
     if has_non_food_signal(name):
         return "name_non_food"
     if has_conflicting_tags(

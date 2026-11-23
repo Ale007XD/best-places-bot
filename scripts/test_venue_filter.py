@@ -11,6 +11,35 @@ def main() -> None:
     assert reject_reason({"name": "Nha Khoa Sài Gòn"}) == "name_non_food"
     assert reject_reason({"name": "Студия пилатеса Баланс"}) == "name_non_food"
 
+    # Swarm-спам Foursquare: эмодзи, частные чекины, нецелевые подкатегории
+    assert (
+        reject_reason({"name": "Лакшери Хата Бухая Соната😂👌🎉", "primary_type": "Бар"})
+        == "emoji_spam"
+    )
+    assert (
+        reject_reason({"name": "на площадке 👯🍇🍇🍇", "primary_type": "Виноградник"})
+        == "emoji_spam"
+    )
+    assert reject_reason({"name": "Лакшери Хата Бухая Соната"}) == "swarm_junk"
+    assert reject_reason({"name": "на площадке", "vicinity": None}) == "swarm_junk"
+    assert reject_reason({"name": "у Вовы", "vicinity": None, "rating": None}) == "casual_checkin"
+    assert (
+        reject_reason({"name": "У Вовы", "vicinity": "ул. Ленина 5", "rating": None})
+        is None
+    )
+    assert (
+        reject_reason({"name": "Солнечная долина", "primary_type": "Виноградник"})
+        == "non_food_type"
+    )
+    assert (
+        reject_reason({
+            "name": "Wine & Bar",
+            "primary_type": "Виноградник",
+            "fsq_categories": ["Виноградник", "Бар"],
+        })
+        is None
+    )
+
     # Гастро-якорь перевешивает стоп-слово
     assert reject_reason({"name": "Yoga Cafe"}) is None
     assert reject_reason({"name": "Sunrise Hotel Rooftop Bar"}) is None
@@ -58,6 +87,8 @@ def main() -> None:
     # drop_non_food сохраняет только валидные карточки
     kept = drop_non_food([
         {"name": "TT Pilates Nha Trang"},
+        {"name": "Лакшери Хата Бухая Соната😂👌🎉", "primary_type": "Бар"},
+        {"name": "на площадке 👯🍇🍇🍇", "primary_type": "Виноградник"},
         {"name": "Cà Phê Sữa Đá"},
         {"name": "", "unnamed": True, "osm_tags": {"amenity": "cafe"}},
     ])
