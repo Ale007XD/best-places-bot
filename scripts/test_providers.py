@@ -17,7 +17,7 @@ import httpx
 from bot.config import settings
 from bot.utils import foursquare_api as fsq
 from bot.utils import geoapify_api as gp
-from bot.utils import links, overpass_api
+from bot.utils import geocoder, links, overpass_api
 from bot.utils import places_service as ps
 from bot.utils.attribution import attribution
 
@@ -360,13 +360,11 @@ async def main() -> None:
     r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
     assert r.provider == "geoapify" and len(r.places) == 2, (r.provider, r.places)
 
-    # 15. «эхо» координат запроса (float32-округление) отбрасывается, настоящие места — нет
-    q_lat, q_lon = 14.7072, 107.6918
-    echo32 = {**_pl(1, 0.0, "fsq"), "lat": 14.707197189331055, "lon": 107.6917953491211}
-    echo7 = {**_pl(2, 0.0, "fsq"), "lat": 14.7071976, "lon": 107.6917952}
-    real = {**_pl(3, 0.0, "fsq"), "lat": 14.70678, "lon": 107.68980}
-    kept = ps.drop_query_echo([echo32, echo7, real], q_lat, q_lon)
-    assert [p["place_id"] for p in kept] == ["fsq3"], kept
+    # 15. место без координат не проходит радиус; ключ кэша региона — хеш, без координат
+    assert ps._within_radius({"name": "X"}, LAT, LON, 500) is False
+    assert ps._within_radius({"name": "X", "lat": LAT, "lon": LON}, LAT, LON, 500) is True
+    rkey = ps._region_key(10.7769, 106.7009)
+    assert rkey.startswith("region:v1:") and "10.77" not in rkey and "106.70" not in rkey, rkey
 
     # 16. регион адреса не из региона точки → foreign_region; сверка без диакритики/city
     pin_text = "Ho Chi Minh City | Vietnam | Ho Chi Minh City, Vietnam"
@@ -384,7 +382,7 @@ async def main() -> None:
     sel = ps.select_places([top_foreign, low_local], LAT, LON, 500, 0.0)
     assert [p["place_id"] for p in sel.places] == ["fsq2", "fsq1"], sel.places
 
-    # 18. поиск: FSQ-эхо отброшено, место из чужого региона ушло в конец
+    # 18. поиск: место из чужого региона уходит в конец (не удаляется)
     await redis.flushall()
 
     async def fake_reverse_hcm(lat, lon, api_key, **_kw):
@@ -394,14 +392,13 @@ async def main() -> None:
     install(c, gp_places=[], op_places=[], fsq_places=[
         {**top_foreign, "foreign_region": None, "vicinity": "1 Foo, Kon Tum Province"},
         {**low_local, "vicinity": "2 Bar, Hồ Chí Minh"},
-        {**_pl(3, 0.0, "fsq", 4.5), "lat": LAT, "lon": LON, "vicinity": "3 Baz, Hồ Chí Minh"},
         _pl(4, 0.0015, "fsq", 4.2),
     ])
     ps.reverse_region = fake_reverse_hcm
     r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
     ids = [p["place_id"] for p in r.places]
-    assert r.provider == "fsq" and "fsq3" not in ids and ids[-1] == "fsq1", (r.provider, ids)
-    assert await redis.get("region:v1:10.777:106.701") == pin_text
+    assert r.provider == "fsq" and ids[-1] == "fsq1" and len(ids) == 3, (r.provider, ids)
+    assert await redis.get(ps._region_key(LAT, LON)) == pin_text
 
     # 19. date_closed у FSQ: закрытое место убирается ДО подсчёта провайдера → выбор уходит
     # к провайдеру, у которого хватает настоящих мест (а не «засчитывается» мёртвое место)
@@ -527,6 +524,55 @@ async def main() -> None:
 
     # 28. расстояние для показа — с шагом 10 м (минимум 10)
     assert (fmt_distance(3), fmt_distance(414), fmt_distance(416), fmt_distance(1000)) == (10, 410, 420, 1000)
+
+    # 29. аварийный провайдер (Mapbox, когда пусто у всех) тоже проходит чистку:
+    # жалобы «закрыто» и «битые пины» (разные улицы в одной точке)
+    await redis.flushall()
+    await community.report_closed(redis, 1, "mapbox2")
+    await community.report_closed(redis, 2, "mapbox2")
+    pin = {"lat": LAT + 0.0002, "lon": LON}
+
+    async def fake_mapbox(**_kw):
+        return [
+            {**_pl(1, 0.0003, "mapbox"), "vicinity": "1 A St, X"},
+            {**_pl(2, 0.0004, "mapbox"), "vicinity": "2 B St, X"},  # жалобы → скрыто
+            {**_pl(3, 0.0, "mapbox"), **pin, "vicinity": "3 C St, X"},
+            {**_pl(4, 0.0, "mapbox"), **pin, "vicinity": "4 D St, X"},  # тот же пин, другая улица
+        ]
+
+    c = Calls()
+    install(c, gp_places=[], op_places=[], fsq_places=[])
+    old_token, old_fn = settings.MAPBOX_TOKEN, ps.find_places_mapbox
+    settings.MAPBOX_TOKEN, ps.find_places_mapbox = "t", fake_mapbox
+    try:
+        r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=False)
+    finally:
+        settings.MAPBOX_TOKEN, ps.find_places_mapbox = old_token, old_fn
+    assert r.provider == "mapbox" and [p["place_id"] for p in r.places] == ["mapbox1"], (r.provider, r.places)
+
+    # 30. кэш геокодера учитывает окрестность пользователя (~11 км) и limit
+    await redis.flushall()
+    calls_geo: list[dict] = []
+
+    def geo_handler(request: httpx.Request) -> httpx.Response:
+        calls_geo.append(dict(request.url.params))
+        return httpx.Response(200, json=[{"lat": "10.77", "lon": "106.70", "display_name": "Nguyen Hue"}])
+
+    geo_client = httpx.AsyncClient(transport=httpx.MockTransport(geo_handler))
+
+    def fake_geo_client():
+        return geo_client
+
+    real_geo_client, geocoder.get_client = geocoder.get_client, fake_geo_client
+    try:
+        await geocoder.geocode("Nguyen Hue", "en", redis, near=(10.77, 106.70), limit=3)
+        await geocoder.geocode("Nguyen Hue", "en", redis, near=(21.03, 105.85), limit=3)  # другой город
+        await geocoder.geocode("Nguyen Hue", "en", redis, near=(10.77, 106.70), limit=1)  # другой limit
+        await geocoder.geocode("Nguyen Hue", "en", redis, near=(10.771, 106.701), limit=3)  # та же ячейка
+    finally:
+        geocoder.get_client = real_geo_client
+        await geo_client.aclose()
+    assert len(calls_geo) == 3, calls_geo
 
     print("providers ok")
 

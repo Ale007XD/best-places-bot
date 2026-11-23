@@ -140,7 +140,7 @@ async def _maybe_reward(r, uid: int) -> bool:
 
 
 # Данные мест сохраняем только из открытых источников (OSM/Geoapify). Foursquare (и аварийные
-# Mapbox/VietMap) запрещают хранить свои ответы — у них остаётся лишь id для отметок.
+# Mapbox) запрещают хранить свои ответы — у них остаётся лишь id для отметок.
 _STORABLE_PREFIXES = ("osm:", "gp:")
 
 

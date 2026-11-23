@@ -113,7 +113,7 @@ async def find_places_geoapify(
     """
     if not api_key:
         return None
-    params = {
+    params: dict[str, Any] = {
         "categories": KIND_CATEGORIES.get(kind, KIND_CATEGORIES["all"]),
         "filter": f"circle:{lon},{lat},{int(radius)}",
         "bias": f"proximity:{lon},{lat}",
@@ -147,7 +147,7 @@ async def reverse_region(
     """
     if not api_key:
         return None
-    params = {"lat": lat, "lon": lon, "format": "json", "lang": "en", "apiKey": api_key}
+    params: dict[str, Any] = {"lat": lat, "lon": lon, "format": "json", "lang": "en", "apiKey": api_key}
     try:
         r = await get_client().get(url, params=params, timeout=_TIMEOUT_SEC)
         r.raise_for_status()

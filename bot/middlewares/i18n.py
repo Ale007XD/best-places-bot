@@ -39,7 +39,7 @@ class I18nMiddleware(BaseMiddleware):
             key = f"user_lang:{user.id}"
             stored = await self.redis.get(key)
             if stored in SUPPORTED_LANGUAGES:
-                lang_code, lang_known = stored, True
+                lang_code, lang_known = str(stored), True
             else:
                 detected = detect_language(user.language_code)
                 if detected:

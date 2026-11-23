@@ -288,7 +288,8 @@ async def handle_language(message: Message, lang_code: str):
 
 def _pct(part: str | None, total: str | None) -> str:
     try:
-        return f"{100 * int(part or 0) / int(total):.0f}%" if int(total or 0) else "—"
+        denominator = int(total or 0)
+        return f"{100 * int(part or 0) / denominator:.0f}%" if denominator else "—"
     except ValueError:
         return "—"
 

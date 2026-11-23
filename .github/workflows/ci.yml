@@ -54,7 +54,6 @@ jobs:
       BOT_TOKEN: "123456:CI-FAKE"
       FSQ_API_KEY: "fake"
       MAPBOX_TOKEN: "fake"
-      VIETMAP_API_KEY: "fake"
       ADMIN_ID: "1"
 
     steps:
@@ -90,7 +89,7 @@ jobs:
       # ни разу не попадал в ревью. Dummy .env нужен на случай env_file в compose.
       - name: Validate docker-compose.yml
         run: |
-          printf 'BOT_TOKEN=fake\nFSQ_API_KEY=fake\nMAPBOX_TOKEN=fake\nVIETMAP_API_KEY=fake\nADMIN_ID=1\n' > .env
+          printf 'BOT_TOKEN=fake\nFSQ_API_KEY=fake\nMAPBOX_TOKEN=fake\nADMIN_ID=1\n' > .env
           docker compose config --quiet
 
       - name: Build image

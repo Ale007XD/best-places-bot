@@ -120,7 +120,11 @@ async def geocode(
     """Адрес/название → до `limit` кандидатов. Пустой список — не найдено ИЛИ сбой."""
     global _last_call
     query = text.strip()[:200]
-    cache_key = "geo:" + hashlib.md5(f"{query.lower()}|{lang_code}|{bool(near)}".encode()).hexdigest()
+    # Ключ учитывает окрестность пользователя (ячейка ~11 км — под размер viewbox) и limit:
+    # иначе «Nguyễn Huệ» из одного города отдавалась бы жителю другого.
+    near_cell = f"{round(near[0], 1)},{round(near[1], 1)}" if near else "-"
+    raw_key = f"{query.lower()}|{lang_code}|{near_cell}|{limit}"
+    cache_key = "geo:v2:" + hashlib.md5(raw_key.encode()).hexdigest()
 
     try:
         cached = await redis_conn.get(cache_key)

@@ -42,7 +42,7 @@ async def find_places_mapbox(
 
     url = "https://api.mapbox.com/geocoding/v5/mapbox.places/restaurant,cafe,bar.json"
 
-    params = {
+    params: dict[str, Any] = {
         "proximity": f"{lon},{lat}",
         "bbox": _bbox_from_radius(lat, lon, radius),
         "types": "poi",

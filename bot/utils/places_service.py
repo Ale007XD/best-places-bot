@@ -15,7 +15,7 @@ Flow:
 1. Платный поиск (with_ratings): Foursquare с рейтингами/фото. Если мест меньше TOP_N —
    пробуем базовых провайдеров и берём того, у кого мест больше (без смешивания).
 2. Базовый поиск: провайдеры по BASE_PROVIDERS (geoapify, fsq, overpass) — первый, давший
-   >= TOP_N мест; иначе тот, у кого мест больше. Mapbox/VietMap — только если совсем пусто.
+   >= TOP_N мест; иначе тот, у кого мест больше. Mapbox — только если совсем пусто.
    Все провайдеры сбоят — SearchUnavailable (это не «мест нет»).
 3. Дедупликация (нормализованное имя + близость).
 4. Локальный фильтр категории и минимального рейтинга, ранжирование.
@@ -44,7 +44,6 @@ from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
 from bot.utils.querytools import classify_kind, matches_kind
-from bot.utils.vietmap_api import find_places_vietmap
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,7 @@ class SearchResult(NamedTuple):
     fsq_ok: bool = True  # основной провайдер ответил (для метрик качества)
     used_osm: bool = False  # в выдачу попали данные OpenStreetMap
     rated: bool = False  # в ответе есть рейтинги/фото провайдера (Premium-уровень полей)
-    provider: str = ""  # кто обслужил запрос: fsq | geoapify | overpass | mapbox | vietmap
+    provider: str = ""  # кто обслужил запрос: fsq | geoapify | overpass | mapbox
     radius_asked: int = 0  # радиус, выбранный пользователем
     radius_used: int = 0  # радиус, по которому реально выбраны места (≥ asked при расширении)
     by_accuracy: bool = False  # старт радиуса поднят из-за низкой точности геопозиции
@@ -222,31 +221,8 @@ def drop_distance_mismatch(
     return kept
 
 
-_ECHO_TOLERANCE_DEG = 1e-5  # ~1 м; округление координаты запроса до float32 даёт до ~5e-6°
 _REGION_NOISE = re.compile(r"\b(thanh pho|chang wat|tinh|tp|city|province|prefecture)\b")
 REGION_CACHE_PREFIX = "region:v1:"
-
-
-def drop_query_echo(places: list[dict[str, Any]], lat: float, lon: float) -> list[dict[str, Any]]:
-    """Отбрасывает места, чьи координаты в точности равны точке запроса (≤ ~1 м).
-
-    Foursquare для части мест с неопределённой геометрией возвращает «эхо» координат запроса
-    (fsq_distance=0), хотя адрес — в другом городе. Настоящее заведение так точно в точку
-    пользователя не попадает (исключение: точка задана самим заведением — оно отсекается,
-    это допустимая потеря).
-    """
-    kept = []
-    for p in places:
-        if (
-            p.get("lat") is not None
-            and p.get("lon") is not None
-            and abs(float(p["lat"]) - lat) <= _ECHO_TOLERANCE_DEG
-            and abs(float(p["lon"]) - lon) <= _ECHO_TOLERANCE_DEG
-        ):
-            logger.warning("Query echo dropped: %r at (%s, %s)", p.get("name"), p["lat"], p["lon"])
-            continue
-        kept.append(p)
-    return kept
 
 
 def _fold_region(text: Any) -> str:
@@ -285,10 +261,15 @@ def flag_foreign_region(places: list[dict[str, Any]], pin_text: str | None) -> l
     return out
 
 
+def _region_key(lat: float, lon: float) -> str:
+    """Ключ кэша региона: хеш ячейки, чтобы координаты не лежали в Redis открытым текстом."""
+    clat, clon = _cell(lat, lon)
+    return REGION_CACHE_PREFIX + hashlib.md5(f"{clat}:{clon}".encode()).hexdigest()
+
+
 async def _pin_region(lat: float, lon: float, redis_conn) -> str | None:
     """Названия региона точки пользователя (Geoapify reverse), кэш по ячейке ~110 м."""
-    clat, clon = _cell(lat, lon)
-    key = f"{REGION_CACHE_PREFIX}{clat}:{clon}"
+    key = _region_key(lat, lon)
     try:
         cached = await redis_conn.get(key)
         if cached:
@@ -436,7 +417,7 @@ def _score(p: dict[str, Any], user_lat: float, user_lon: float) -> float:
 
 def _within_radius(p: dict[str, Any], lat: float, lon: float, radius: int) -> bool:
     if p.get("lat") is None or p.get("lon") is None:
-        return True
+        return False  # без координат нельзя доказать, что место в радиусе
     d = calculate_distance(lat, lon, float(p["lat"]), float(p["lon"]))
     return d <= radius
 
@@ -617,7 +598,7 @@ async def _fsq_provider(
             for p in res.places[:3]
         ),
     )
-    places = drop_query_echo(drop_distance_mismatch(res.places, lat, lon), lat, lon)
+    places = drop_distance_mismatch(res.places, lat, lon)
     return LoadInfo(places, False, True, False, res.rated, "fsq")
 
 
@@ -683,11 +664,9 @@ async def _load_raw(
                 access_token=settings.MAPBOX_TOKEN,
             )
             provider = "mapbox"
-        if not extra and settings.VIETMAP_API_KEY:
-            extra = await find_places_vietmap(
-                lat=lat, lon=lon, radius=radius, api_key=settings.VIETMAP_API_KEY
-            )
-            provider = "vietmap"
+        if extra:
+            # Аварийный путь тоже проходит чистку: жалобы «закрыто» и «битые пины».
+            extra = drop_suspect_pins(await _drop_closed(extra, redis_conn))
         if extra:
             return LoadInfo(extra, False, bool(first_ok), False, False, provider)
 

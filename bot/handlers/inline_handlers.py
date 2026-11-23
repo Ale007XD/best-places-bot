@@ -197,7 +197,8 @@ async def on_inline(
         await analytics.track_feature_use("inline", "query")
 
     # --- точка поиска: координаты/ссылка в тексте → геопозиция inline → последняя точка ---
-    lat = lon = None
+    lat: float | None = None
+    lon: float | None = None
     from_user_location = False
     if text:
         pt = await geocoder.parse_point(text)
@@ -220,7 +221,7 @@ async def on_inline(
 
     # --- поиск рядом ---
     result = None
-    if lat is not None:
+    if lat is not None and lon is not None:
         try:
             result = await _search_with_budget(lat, lon, lang_code, redis_conn, radius, kind)
         except TimeoutError:
@@ -239,7 +240,7 @@ async def on_inline(
             if not await redis_conn.set(f"throttle:ig:{uid}", 1, nx=True, px=GEOCODE_THROTTLE_MS):
                 await reply([_note(lang_code, "busy")], cache=1)
                 return
-            near = (lat, lon) if lat is not None else None
+            near = (lat, lon) if lat is not None and lon is not None else None
             cands = await geocoder.geocode(text, lang_code, redis_conn, near=near, limit=1)
             if cands:
                 lat, lon = cands[0].lat, cands[0].lon
@@ -267,6 +268,10 @@ async def on_inline(
         ref = await acc.ref_link(bot, uid)
     except TelegramAPIError:
         logger.warning("bot username unavailable for inline")
+
+    if lat is None or lon is None:  # недостижимо: выше точка либо найдена, либо мы уже вышли
+        await reply([_note(lang_code, "no_location")], cache=5)
+        return
 
     # Ближайшие (а не «лучшие»): в inline нет платных рейтингов, важна близость.
     def _dist(p: dict) -> float:

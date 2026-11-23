@@ -28,7 +28,6 @@ class Settings(BaseSettings):
     # --- опциональные ---
     FSQ_API_VERSION: str = "2025-06-17"
     MAPBOX_TOKEN: str = ""  # аварийный фолбэк, если Foursquare недоступен
-    VIETMAP_API_KEY: str = ""  # аварийный фолбэк для Вьетнама
     # Geoapify (данные OSM): базовый слой без рейтингов. Ключ — на geoapify.com (бесплатно
     # 3 000 кредитов/день); без ключа провайдер пропускается.
     GEOAPIFY_API_KEY: str = ""
@@ -98,4 +97,4 @@ class Settings(BaseSettings):
 
 
 # Единый экземпляр настроек для всего приложения.
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]  # обязательные поля приходят из окружения

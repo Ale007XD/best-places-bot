@@ -24,7 +24,8 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable
-from typing import NamedTuple
+from functools import partial
+from typing import Any, NamedTuple
 
 from bot.config import settings
 from bot.services import community
@@ -132,7 +133,7 @@ async def run_diagnostics(*, premium: bool = False, bot=None, redis_conn=None) -
         tasks.append(_timed("Geoapify (базовый слой)", _geoapify))
     for url in [u.strip() for u in settings.OVERPASS_URL.split(",") if u.strip()]:
         host = url.split("//", 1)[-1].split("/", 1)[0]
-        tasks.append(_timed(f"Overpass {host}", lambda u=url: _overpass(u)))
+        tasks.append(_timed(f"Overpass {host}", partial(_overpass, url)))
     if settings.GEOCODER_ENABLED:
         tasks.append(_timed("Nominatim (адреса)", _nominatim))
     return list(await asyncio.gather(*tasks))
@@ -233,9 +234,9 @@ async def _main() -> None:
             print("\n".join(await fsq_raw(lat, lon, radius)) or "пусто")
             return
         if args[:1] == ["purge-meta"]:
-            import redis.asyncio as aioredis
+            from redis.asyncio import Redis
 
-            r = aioredis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            r: Any = Redis.from_url(settings.REDIS_URL, decode_responses=True)  # aclose: redis>=5.0.1
             try:
                 total, foreign = await community.purge_foreign_meta(r, apply="--apply" in args)
             finally:
