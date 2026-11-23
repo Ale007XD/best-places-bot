@@ -10,6 +10,8 @@ def main() -> None:
     assert reject_reason({"name": "CLB HOANG GIA"}) == "name_non_food"
     assert reject_reason({"name": "Nha Khoa Sài Gòn"}) == "name_non_food"
     assert reject_reason({"name": "Студия пилатеса Баланс"}) == "name_non_food"
+    assert reject_reason({"name": "Завод Дорожных Знаков", "primary_type": "Дайнер"}) == "name_non_food"
+    assert reject_reason({"name": "Бар Завод", "primary_type": "Бар"}) is None
 
     # Swarm-спам Foursquare: эмодзи, частные чекины, нецелевые подкатегории
     assert (

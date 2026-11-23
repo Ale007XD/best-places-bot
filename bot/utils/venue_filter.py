@@ -54,6 +54,7 @@ NON_FOOD_TOKENS: frozenset[str] = frozenset({
     "jewelry", "jewellery", "electronics", "furniture", "hardware",
     "bookstore", "stationery", "printing", "photography",
     "church", "pagoda", "temple", "museum", "cinema", "theater", "theatre",
+    "factory", "plant", "warehouse", "workshop", "industrial",
 })
 
 # Кириллические основы (учёт падежей: «пилатеса», «фитнеса», «массажа» и т. п.).
@@ -66,6 +67,17 @@ NON_FOOD_CYR_PREFIXES: tuple[str, ...] = (
     "аптек",
     "гостиниц",
     "хостел",
+    "завод",
+    "фабрик",
+    "комбинат",
+    "склад",
+    "цех",
+    "автосервис",
+    "шиномонтаж",
+    "автомойк",
+    "гараж",
+    "промзон",
+    "стройбаз",
 )
 
 # Многословные стоп-фразы (Вьетнам / ЮВА + EN).

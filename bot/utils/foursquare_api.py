@@ -172,6 +172,7 @@ def _normalize_place(p: dict[str, Any]) -> dict[str, Any]:
         # Дата пометки «закрыто навсегда» в базе FSQ (пусто — не закрыто).
         "closed_at": p.get("date_closed") or None,
         "vicinity": loc.get("formatted_address") or loc.get("address"),
+        "locality": loc.get("locality") or loc.get("region") or None,
         "photo_url": _photo_url(p),
         "source": "fsq",
     }

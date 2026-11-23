@@ -312,9 +312,14 @@ async def _drop_closed(places: list[dict[str, Any]], redis_conn) -> list[dict[st
     return [p for p in kept if p.get("place_id") not in crowd]
 
 
+def _is_unverified_fsq(p: dict[str, Any]) -> bool:
+    """Точка FSQ без адреса и без рейтинга — частый Swarm-мусор; не засчитывается в порог."""
+    return p.get("source") == "fsq" and not p.get("vicinity") and p.get("rating") is None
+
+
 def _named(raw: list[dict[str, Any]]) -> int:
-    """Сколько мест с названием: безымянные не считаются «достаточным» результатом."""
-    return sum(1 for p in raw if not p.get("unnamed"))
+    """Сколько мест с названием: безымянные и FSQ без адреса/рейтинга не засчитываются."""
+    return sum(1 for p in raw if not p.get("unnamed") and not _is_unverified_fsq(p))
 
 
 _UNNAMED_KEYS = {
@@ -450,11 +455,11 @@ def select_places(
     Места с foreign_region (адрес в другом регионе, чем точка пользователя) идут строго
     после остальных и только добирают выдачу.
     """
-    local = [p for p in raw if not p.get("foreign_region")]
-    foreign = [p for p in raw if p.get("foreign_region")]
+    local = [p for p in raw if not p.get("foreign_region") and not _is_unverified_fsq(p)]
+    demoted = [p for p in raw if p.get("foreign_region") or _is_unverified_fsq(p)]
     res = _select(local, lat, lon, radius, min_rating, kind, needles)
-    if foreign and len(res.places) < RESULT_LIMIT:
-        extra = _select(foreign, lat, lon, radius, 0.0, kind, needles)
+    if demoted and len(res.places) < RESULT_LIMIT:
+        extra = _select(demoted, lat, lon, radius, 0.0, kind, needles)
         room = RESULT_LIMIT - len(res.places)
         res = res._replace(
             places=res.places + extra.places[:room],
