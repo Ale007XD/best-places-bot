@@ -45,6 +45,7 @@ from bot.utils.mapbox_api import find_places_mapbox
 from bot.utils.overpass_api import find_places_overpass
 from bot.utils.querytools import classify_kind, matches_kind
 from bot.utils.textnorm import matches as text_matches
+from bot.utils.venue_filter import drop_non_food
 
 logger = logging.getLogger(__name__)
 
@@ -644,7 +645,7 @@ async def _load_raw(
             return None
         # Битые координаты провайдера отсекаем ДО подсчёта: иначе провайдер с мусором
         # «выигрывает» у провайдера с меньшим, но настоящим числом мест.
-        info = info._replace(raw=drop_suspect_pins(info.raw))
+        info = info._replace(raw=drop_non_food(drop_suspect_pins(info.raw)))
         if best is None or (_named(info.raw), len(info.raw)) > (_named(best.raw), len(best.raw)):
             best = info
         return info if _named(info.raw) >= TOP_N else None
@@ -681,7 +682,7 @@ async def _load_raw(
             provider = "mapbox"
         if extra:
             # Аварийный путь тоже проходит чистку: жалобы «закрыто» и «битые пины».
-            extra = drop_suspect_pins(await _drop_closed(extra, redis_conn))
+            extra = drop_non_food(drop_suspect_pins(await _drop_closed(extra, redis_conn)))
         if extra:
             return LoadInfo(extra, False, bool(first_ok), False, False, provider)
 

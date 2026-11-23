@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 
 from bot.utils.http import get_client
+from bot.utils.venue_filter import extract_osm_tags
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +74,13 @@ def _normalize(feature: dict[str, Any]) -> dict[str, Any] | None:
         coords = (feature.get("geometry") or {}).get("coordinates") or []
         if len(coords) >= 2:
             lon, lat = coords[0], coords[1]
-    primary_type = _primary_type(props.get("categories") or [])
+    raw_categories = [str(c) for c in (props.get("categories") or []) if c]
+    primary_type = _primary_type(raw_categories)
     if lat is None or lon is None or not (name or primary_type):
         return None  # безымянное место берём только с понятным типом («Кафе без названия»)
 
     street = " ".join(x for x in (props.get("housenumber"), props.get("street")) if x)
+    raw_osm = (props.get("datasource") or {}).get("raw") or {}
     return {
         "place_id": _place_id(props),
         "name": name,
@@ -94,6 +97,8 @@ def _normalize(feature: dict[str, Any]) -> dict[str, Any] | None:
         ),
         "photo_url": None,
         "source": "osm",
+        "raw_categories": raw_categories,
+        "osm_tags": extract_osm_tags(raw_osm),
     }
 
 

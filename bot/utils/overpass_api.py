@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 
 from bot.utils.http import get_client
+from bot.utils.venue_filter import extract_osm_tags
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ def _normalize(el: dict[str, Any]) -> dict[str, Any] | None:
         ),
         "photo_url": tags["image"] if str(tags.get("image", "")).startswith("http") else None,
         "source": "osm",
+        "osm_tags": extract_osm_tags(tags),
     }
 
 
