@@ -181,7 +181,7 @@ def check_links_and_points() -> None:
     assert "/@12.2335,109.1963" in links.map_url(street_only), links.map_url(street_only)
     assert "Nha%20Trang" in links.map_url({**street_only, "locality": "Nha Trang"})
     name_only = links.map_url({"name": "Giai Dieu", "lat": 11.5, "lon": 108.9})
-    assert "/search/Giai%20Dieu/@11.5,108.9,18z" in name_only, name_only
+    assert "?api=1&query=11.5,108.9" in name_only, name_only
     # иероглифы в названии (тёзки в Китае) и безымянные места → по координатам
     cjk = {"name": "Hiền Ký 賢記", "vicinity": "90 Huỳnh Mẫn Đạt, Hồ Chí Minh", "lat": 1.0, "lon": 2.0}
     assert links.map_url(cjk).endswith("query=1.0,2.0"), links.map_url(cjk)
