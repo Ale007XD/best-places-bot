@@ -461,9 +461,21 @@ def select_places(
     if demoted and len(res.places) < RESULT_LIMIT:
         extra = _select(demoted, lat, lon, radius, 0.0, kind, needles)
         room = RESULT_LIMIT - len(res.places)
+        added = extra.places[:room]
+        rating_avail = res.rating_available or extra.rating_available
+        fill_relaxed = (
+            min_rating > 0
+            and rating_avail
+            and len(res.places) < TOP_N
+            and any(
+                p.get("rating") is None or float(p["rating"]) < min_rating
+                for p in added[: TOP_N - len(res.places)]
+            )
+        )
         res = res._replace(
-            places=res.places + extra.places[:room],
-            rating_available=res.rating_available or extra.rating_available,
+            places=res.places + added,
+            relaxed=res.relaxed or fill_relaxed,
+            rating_available=rating_avail,
         )
     return res
 
