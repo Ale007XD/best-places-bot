@@ -207,7 +207,7 @@ class Site:
         ru = lang == "ru"
         index_path = f"{lang}/guide/index.html"
         cards = "".join(
-            f'<a class="card" href="{self.rel(index_path, f"{lang}/guide/{c['id']}.html")}" style="text-decoration:none">'
+            f'<a class="card" href="{self.rel(index_path, f'{lang}/guide/{c["id"]}.html')}" style="text-decoration:none">'
             f'<h3>{esc(c["name_ru"] if ru else c["name_en"])}</h3><p>{len(c["_dishes"])}</p></a>'
             for c in self.cities
         )
