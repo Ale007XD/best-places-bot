@@ -79,6 +79,9 @@ jobs:
           python -m scripts.test_providers
           python -m scripts.test_dedup
           python -m scripts.test_specialties
+          python -m scripts.test_site
+          python -m scripts.test_venue_filter
+          python -m scripts.test_bot_profile
 
   docker:
     runs-on: ubuntu-latest

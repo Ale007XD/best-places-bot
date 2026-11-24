@@ -1,0 +1,27 @@
+:root{--bg:#fff;--fg:#14181f;--muted:#5b6472;--card:#f4f6f9;--line:#dfe4ea;--accent:#1f6feb;--accent-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1318;--fg:#e8ecf1;--muted:#9aa5b4;--card:#171d25;--line:#26303b;--accent:#4c8dff;--accent-fg:#0b0f14}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--accent)}img,svg{max-width:100%}
+.wrap{max-width:60rem;margin:0 auto;padding:0 1rem}
+header.top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+header.top .wrap{display:flex;align-items:center;gap:1rem;min-height:3.5rem;flex-wrap:wrap}
+.brand{font-weight:700;text-decoration:none;color:var(--fg)}
+nav.main{display:flex;gap:1rem;flex:1;flex-wrap:wrap}
+nav.main a{color:var(--muted);text-decoration:none}nav.main a:hover{color:var(--fg)}
+.lang a{font-weight:600;text-decoration:none;margin-left:.5rem}
+.hero{padding:3rem 0 2rem}.hero h1{font-size:clamp(1.7rem,5vw,2.6rem);line-height:1.2;margin:0 0 1rem}
+.hero p.lead{font-size:1.15rem;color:var(--muted);margin:0 0 1.5rem;max-width:42rem}
+.btn{display:inline-block;background:var(--accent);color:var(--accent-fg);padding:.8rem 1.4rem;border-radius:.7rem;text-decoration:none;font-weight:600}
+.note{color:var(--muted);font-size:.9rem;margin-top:.8rem}
+section{padding:2rem 0}section h2{margin:0 0 1rem;font-size:1.5rem}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.8rem;padding:1rem 1.1rem}
+.card h3{margin:.1rem 0 .4rem;font-size:1.05rem}.card p{margin:0;color:var(--muted)}
+.step{counter-increment:s}.step h3::before{content:counter(s) ". "}ol.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+details{background:var(--card);border:1px solid var(--line);border-radius:.7rem;padding:.7rem 1rem;margin:.6rem 0}
+summary{cursor:pointer;font-weight:600}details p{margin:.6rem 0 0;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding:1.5rem 0 2.5rem;color:var(--muted);font-size:.92rem}
+footer a{margin-right:1rem}.small{font-size:.85rem}
+article h1{margin-top:2rem}article h2{margin-top:1.8rem}.dish{margin:1.2rem 0}.dish h3{margin:0 0 .3rem}
+.tip{color:var(--muted)}

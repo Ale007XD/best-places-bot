@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "default_language": "en",
+  "languages": {
+    "en": {
+      "commands": [
+        {
+          "command": "start",
+          "description": "Find places nearby"
+        },
+        {
+          "command": "me",
+          "description": "Profile, streak, invite link"
+        },
+        {
+          "command": "buy",
+          "description": "Top up searches / Pro"
+        },
+        {
+          "command": "language",
+          "description": "Change language"
+        },
+        {
+          "command": "feedback",
+          "description": "Send feedback"
+        },
+        {
+          "command": "terms",
+          "description": "Terms of use"
+        },
+        {
+          "command": "paysupport",
+          "description": "Payment support"
+        }
+      ],
+      "description": "Top-3 cafés, restaurants and bars within walking distance. Send your location, a point on the map, an address or a Google Maps link — get the best places nearby in a couple of taps. Works inline in any chat.",
+      "short_description": "Top-3 cafés, restaurants and bars nearby — in a couple of taps."
+    },
+    "ru": {
+      "commands": [
+        {
+          "command": "start",
+          "description": "Найти места рядом"
+        },
+        {
+          "command": "me",
+          "description": "Профиль, серия, ссылка-приглашение"
+        },
+        {
+          "command": "buy",
+          "description": "Пополнить поиски / Pro"
+        },
+        {
+          "command": "language",
+          "description": "Сменить язык"
+        },
+        {
+          "command": "feedback",
+          "description": "Отправить отзыв"
+        },
+        {
+          "command": "terms",
+          "description": "Условия использования"
+        },
+        {
+          "command": "paysupport",
+          "description": "Поддержка по оплате"
+        }
+      ],
+      "description": "Топ-3 кафе, ресторана или бара в пешей доступности. Отправьте геопозицию, точку на карте, адрес или ссылку Google Maps — и получите лучшие места рядом за пару нажатий. Работает и inline в любом чате.",
+      "short_description": "Топ-3 кафе, ресторана и бара рядом — за пару нажатий."
+    },
+    "zh": {
+      "commands": [
+        {
+          "command": "start",
+          "description": "查找附近地点"
+        },
+        {
+          "command": "me",
+          "description": "个人资料、连续天数、邀请链接"
+        },
+        {
+          "command": "buy",
+          "description": "充值搜索 / Pro"
+        },
+        {
+          "command": "language",
+          "description": "切换语言"
+        },
+        {
+          "command": "feedback",
+          "description": "发送反馈"
+        },
+        {
+          "command": "terms",
+          "description": "使用条款"
+        },
+        {
+          "command": "paysupport",
+          "description": "支付支持"
+        }
+      ],
+      "description": "步行范围内最佳的三家咖啡馆、餐厅或酒吧。发送位置、地图上的点、地址或 Google 地图链接，几步即可找到附近好去处。也支持在任意聊天中内联使用。",
+      "short_description": "几步找到附近最佳的咖啡馆、餐厅和酒吧。"
+    }
+  }
+}

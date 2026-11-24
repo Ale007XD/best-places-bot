@@ -1,0 +1,15 @@
+{
+  "brand": "NearbyNinja",
+  "bot_username": "NearbyNinjaBot",
+  "site_url": "https://ale007xd.github.io/best-places-bot",
+  "repo_url": "https://github.com/Ale007XD/best-places-bot",
+  "channel_url": "",
+  "chat_url": "",
+  "support_url": "",
+  "money_enabled": false,
+  "languages": [
+    "ru",
+    "en"
+  ],
+  "policy_date": "2026-11-23"
+}

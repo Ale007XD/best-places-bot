@@ -3,9 +3,7 @@ import logging
 
 import redis.asyncio as redis
 from aiogram import Bot, Dispatcher
-from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.types import BotCommand
 
 from bot.config import settings
 from bot.handlers import (
@@ -15,6 +13,7 @@ from bot.handlers import (
     user_handlers,
 )
 from bot.middlewares.i18n import I18nMiddleware
+from bot.services import bot_profile
 from bot.utils.analytics import Analytics
 from bot.utils.http import close_client
 
@@ -57,18 +56,7 @@ async def main():
     if not settings.FSQ_API_KEY:
         logger.error("FSQ_API_KEY пуст — поиск работать не будет")
 
-    try:
-        await bot.set_my_commands(
-            [
-                BotCommand(command="start", description="Find places nearby"),
-                BotCommand(command="me", description="Profile, streak, invite link"),
-                BotCommand(command="buy", description="Top up searches / Pro"),
-                BotCommand(command="language", description="Change language"),
-                BotCommand(command="feedback", description="Send feedback"),
-            ]
-        )
-    except TelegramAPIError as e:
-        logger.warning("set_my_commands failed: %s", e)
+    await bot_profile.apply(bot)  # меню команд и описания — из bot/data/bot_profile.json
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)

@@ -18,6 +18,7 @@ user_lastloc:{id} (TTL LASTLOC_TTL_HOURS) — это точка-фолбэк д�
 
 import html
 import logging
+import re
 import time
 
 from aiogram import Bot, F, Router
@@ -262,6 +263,9 @@ async def handle_start(
     args = (command.args or "").strip()
     if message.from_user and args.startswith("ref_") and args[4:].isdigit():
         await quota.register_referrer(redis_conn, message.from_user.id, int(args[4:]))
+
+    if analytics and re.fullmatch(r"site_[a-z0-9_]{1,30}", args):  # переход с сайта: site_ru, site_guide_en…
+        await analytics.track_feature_use("site", args)
 
     if not lang_known:
         await state.set_state(None)

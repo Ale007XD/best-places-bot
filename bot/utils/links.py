@@ -5,9 +5,16 @@ import re
 from typing import Any
 from urllib.parse import quote, quote_plus
 
+from bot.config import settings
 from bot.services.translator import get_string
 
 _CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+
+
+def site_url(lang: str, page: str) -> str:
+    """Страница сайта проекта на языке пользователя (ru → ru, остальные → en); пусто, если SITE_URL не задан."""
+    base = (settings.SITE_URL or "").rstrip("/")
+    return f"{base}/{'ru' if lang == 'ru' else 'en'}/{page}.html" if base else ""
 
 
 def map_url(place: dict[str, Any]) -> str:

@@ -260,6 +260,23 @@ async def main() -> None:
         uh.search_places, acc.ref_link = real_search, real_ref
         settings.SPECIALTIES_SHOW_UNVERIFIED = False
 
+    # 12. переход с сайта: /start site_* учитывается в статистике, посторонние payload — нет
+    stats = SimpleNamespace(track_user=AsyncMock(), track_feature_use=AsyncMock())
+
+    async def start_with(args: str):
+        m = SimpleNamespace(
+            from_user=SimpleNamespace(id=77), answer=AsyncMock(),
+        )
+        cmd = SimpleNamespace(args=args)
+        await uh.handle_start(m, state, SimpleNamespace(), cmd, "en", True, redis, stats)
+
+    await start_with("site_guide_ru")
+    assert stats.track_feature_use.await_args.args == ("site", "site_guide_ru")
+    stats.track_feature_use.reset_mock()
+    for junk in ("site_" + "x" * 40, "SITE_RU", "ref_abc", "site_ru;drop", ""):
+        await start_with(junk)
+    assert stats.track_feature_use.await_count == 0, stats.track_feature_use.await_args_list
+
     print("inline ok")
 
 

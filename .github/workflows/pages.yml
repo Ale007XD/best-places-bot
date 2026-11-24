@@ -1,0 +1,56 @@
+name: pages
+
+# Сайт собирается из репозитория (site/, словарь блюд, локали) и выкладывается на GitHub Pages.
+# Однократная настройка: Settings → Pages → Build and deployment → Source: «GitHub Actions».
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "scripts/build_site.py"
+      - "bot/data/specialties.json"
+      - "bot/locales/*.json"
+      - "bot/services/specialties.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BOT_TOKEN: "123456:CI-FAKE"
+      FSQ_API_KEY: fake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: tests
+        run: python -m scripts.test_site
+      - name: build
+        run: python -m scripts.build_site --out _site --check
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

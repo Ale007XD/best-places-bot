@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     VOTE_REWARD_DAILY_CAP: int = 3  # максимум таких наград в день
     CLOSED_REPORTS_THRESHOLD: int = 2  # жалоб «закрыто» от разных людей, после которых место скрывается (админ — сразу)
     CLOSED_TTL_DAYS: int = 60  # сколько дней действует скрытие
+    SITE_URL: str = ""  # сайт проекта (GitHub Pages), без «/» в конце; пусто — ссылки не добавляются
+    SUPPORT_URL: str = ""  # куда направлять вопросы по оплате (аккаунт поддержки / чат), необязательно
     SPECIALTIES_SHOW_UNVERIFIED: bool = False  # показывать непроверенные блюда (только для проверки словаря)
     STARS_PRICE_PACK20: int = 50
     STARS_PRICE_PRO_WEEK: int = 100

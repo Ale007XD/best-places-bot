@@ -1,0 +1,174 @@
+{
+  "lang_name": "EN",
+  "meta": {
+    "title": "NearbyNinja — cafés, restaurants and bars nearby in Telegram",
+    "description": "The top 3 places nearby in a couple of taps: send a spot and get a café, restaurant or bar within 100–1000 m. Free, right in Telegram."
+  },
+  "nav": {
+    "how": "How it works",
+    "features": "Features",
+    "faq": "FAQ",
+    "community": "Community"
+  },
+  "hero": {
+    "h1": "Where to go right now? The top 3 places nearby in a couple of taps",
+    "lead": "Send a spot and the bot shows the three best cafés, restaurants or bars within walking distance. No endless feeds or reviews.",
+    "cta": "Open in Telegram",
+    "cta_note": "Available in Russian, English and Chinese; the language follows your Telegram."
+  },
+  "how": {
+    "title": "How it works",
+    "steps": [
+      {
+        "title": "Send a spot",
+        "text": "Your current location, a point on the map, an address, coordinates or a Google Maps link."
+      },
+      {
+        "title": "Pick filters",
+        "text": "Radius of 100, 200, 500 or 1000 m, minimum rating and category: cafés, restaurants, bars or everything. The bot remembers your choice."
+      },
+      {
+        "title": "Get the top 3",
+        "text": "Cards with distance and direction. If fewer than three places are nearby, the radius widens by itself."
+      }
+    ]
+  },
+  "features": {
+    "title": "Features",
+    "items": [
+      {
+        "title": "Search in any chat",
+        "text": "Type @{bot} in a conversation, e.g. “@{bot} cafe 1km”, an address or coordinates, and send the place to friends."
+      },
+      {
+        "id": "guides",
+        "title": "What to try here",
+        "text": "A free card with the city's local dishes and drinks, a how-to-eat tip and a button that finds places serving the dish nearby."
+      },
+      {
+        "title": "Votes and “closed” reports",
+        "text": "👍/👎 votes build a community rating (🥷) for unrated places, and the “🚫 Closed” button hides places that no longer operate."
+      },
+      {
+        "title": "A clean list",
+        "text": "The bot filters out closed places, duplicates and non-food venues such as gyms and hotels, and widens the radius when there are too few places."
+      }
+    ]
+  },
+  "pricing": {
+    "title": "Pricing",
+    "free_title": "The bot is free for now",
+    "free_text": "Search, cards and inline mode are available without payment.",
+    "paid_title": "Extended features",
+    "paid_text": "Searches with ratings and real photos: daily streak bonuses, rewards for votes and invited friends, plus packs and Pro access for Telegram Stars."
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": [
+      {
+        "q": "Where does the data come from?",
+        "a": "From open and partner sources: Geoapify and OpenStreetMap, and Foursquare for searches with ratings. Data may be inaccurate or outdated: if a place is closed, tap “🚫 Closed”."
+      },
+      {
+        "q": "How do I use inline mode on desktop?",
+        "a": "The desktop app does not send your location with inline queries. Send the bot your location in a private chat once, or add an address or coordinates to the query."
+      },
+      {
+        "q": "How do I search in another city?",
+        "a": "Tap “🗺 Another point”: choose a place on the map via the paperclip, type an address or coordinates, or send a Google Maps link."
+      },
+      {
+        "q": "What happens to my data?",
+        "a": "Your location is used only for search and is kept for a few hours at most. See the privacy policy for details."
+      },
+      {
+        "q": "Payments and refunds",
+        "a": "Use /paysupport in the bot, or /feedback with your payment ID. The terms are on the Terms of Use page."
+      }
+    ]
+  },
+  "community": {
+    "title": "Community and support",
+    "channel": "News channel",
+    "chat": "Chat and questions",
+    "support": "Support"
+  },
+  "footer": {
+    "terms": "Terms of Use",
+    "privacy": "Privacy Policy",
+    "guides": "City guides",
+    "source": "Source code",
+    "attribution": "Powered by Foursquare · Powered by Geoapify · © OpenStreetMap contributors",
+    "disclaimer": "An independent project, not affiliated with Telegram, Foursquare, Geoapify or Google."
+  },
+  "guides": {
+    "title": "What to try: city guides",
+    "lead": "Hand-reviewed lists of local dishes and drinks.",
+    "open_bot": "Find such places nearby",
+    "how_to_eat": "How to eat",
+    "back": "All cities"
+  },
+  "terms": {
+    "title": "Terms of Use",
+    "sections": [
+      {
+        "h": "The service",
+        "p": [
+          "The bot finds cafés, restaurants and bars near the spot you give and shows data from third-party sources. We do not guarantee its accuracy, freshness or the venues' opening hours."
+        ]
+      },
+      {
+        "h": "Use",
+        "p": [
+          "Do not use the bot for automated data collection or to overload the service. We may restrict access in case of abuse."
+        ]
+      },
+      {
+        "h": "Purchases",
+        "p": [
+          "{terms_text}"
+        ]
+      },
+      {
+        "h": "Refunds and support",
+        "p": [
+          "For payment issues use the /paysupport command in the bot, or write via /feedback with your payment ID."
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "updated": "Version of {date}",
+    "note": "A draft prepared by the project owner; it is not legal advice.",
+    "sections": [
+      {
+        "h": "What data the bot uses",
+        "p": [
+          "Your Telegram account ID and language; your search settings (radius, minimum rating, category).",
+          "The location or address you send for a search: it is used only for the search and kept for a few hours at most; the last point is kept for inline mode on desktop.",
+          "Your 👍/👎 votes and “closed” reports (place ID and your ID), referral links, limit and streak counters, Telegram Stars payment data (payment ID), and the text of your /feedback messages."
+        ]
+      },
+      {
+        "h": "Who receives data",
+        "p": [
+          "To run a search, the coordinates and address are sent to data providers: Geoapify, Foursquare, OpenStreetMap (Overpass, Nominatim) and, as a fallback, Mapbox. For some requests the coordinates are rounded to a cell of about 100 m.",
+          "Payments are processed by Telegram. We do not receive bank card data."
+        ]
+      },
+      {
+        "h": "Statistics",
+        "p": [
+          "We keep aggregate usage statistics: request and feature counters without identifiers and, to count daily active users, the account ID in a set with a limited lifetime. These data are kept for 90 days."
+        ]
+      },
+      {
+        "h": "Your rights",
+        "p": [
+          "You can request deletion of the data tied to your account via /feedback."
+        ]
+      }
+    ]
+  }
+}

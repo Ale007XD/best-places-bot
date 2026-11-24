@@ -20,6 +20,7 @@ from bot.config import settings
 from bot.keyboards import inline_keyboards as kb
 from bot.services import cards, products, quota
 from bot.services.translator import get_string
+from bot.utils import links
 
 logger = logging.getLogger(__name__)
 
@@ -218,12 +219,22 @@ async def cb_unlock(callback: CallbackQuery, bot: Bot, lang_code: str, redis_con
 
 @router.message(Command("paysupport"))
 async def cmd_paysupport(message: Message, lang_code: str):
-    await message.answer(get_string("paysupport_text", lang=lang_code))
+    text = get_string("paysupport_text", lang=lang_code)
+    extra = [f"💬 {settings.SUPPORT_URL}"] if settings.SUPPORT_URL else []
+    if terms := links.site_url(lang_code, "terms"):
+        extra.append(f"📄 {terms}")
+    await message.answer("\n\n".join([text, *extra]), disable_web_page_preview=True)
 
 
 @router.message(Command("terms"))
 async def cmd_terms(message: Message, lang_code: str):
-    await message.answer(get_string("terms_text", lang=lang_code))
+    text = get_string("terms_text", lang=lang_code)
+    page = links.site_url(lang_code, "terms")
+    privacy = links.site_url(lang_code, "privacy")
+    extra = [f"📄 {page}"] if page else []
+    if privacy:
+        extra.append(f"🔒 {privacy}")
+    await message.answer("\n\n".join([text, *extra]), disable_web_page_preview=True)
 
 
 @router.message(Command("refund"))
