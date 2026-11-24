@@ -3,9 +3,9 @@
   "bot_username": "NearbyNinjaBot",
   "site_url": "https://ale007xd.github.io/best-places-bot",
   "repo_url": "https://github.com/Ale007XD/best-places-bot",
-  "channel_url": "",
-  "chat_url": "",
-  "support_url": "",
+  "channel_url": "https://t.me/NearbyNinjaBot_Support",
+  "chat_url": "https://t.me/NearbyNinjaBot_support_chat",
+  "support_url": "https://t.me/ale007xd",
   "money_enabled": false,
   "languages": [
     "ru",
