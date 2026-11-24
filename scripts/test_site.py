@@ -21,8 +21,10 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "_site"
 
-        # 1. базовая сборка: в словаре нет вычитанных блюд → гидов на сайте нет
-        files = bs.build(out)
+        # 1. базовая сборка: в словаре нет вычитанных блюд → гидов на сайте нет.
+        # Ссылки сообщества очищены: тест не зависит от того, что владелец вписал в site/config.json
+        plain = {**cfg, "channel_url": "", "chat_url": "", "support_url": ""}
+        files = bs.build(out, plain)
         got = _pages(out)
         assert {"index.html", "404.html", "robots.txt", "sitemap.xml", ".nojekyll", "static/style.css",
                 "ru/index.html", "en/index.html", "ru/terms.html", "en/terms.html",
@@ -37,7 +39,19 @@ def main() -> None:
         assert "@@" not in ru and f"@{cfg['bot_username']}" in ru
         assert 'lang="ru"' in ru and 'hreflang="en"' in ru and 'rel="canonical"' in ru
         assert "Powered by Foursquare" in ru and "© OpenStreetMap contributors" in en
-        assert "community" not in ru  # каналов в конфиге нет → блока нет
+        assert "community" not in ru  # ссылок на канал/чат/поддержку нет → блока нет
+
+        # лендинг построен вокруг болей пользователя и их закрытия, а не вокруг техники
+        content = {lang: bs.load_content(lang) for lang in ("ru", "en")}
+        for lang, page_html in (("ru", ru), ("en", en)):
+            main_text = page_html[page_html.index("<main"):page_html.index("</main>")]
+            for item in content[lang]["pains"]["items"]:
+                if item.get("id") != "guides":
+                    assert bs.esc(item["pain"]) in main_text and bs.esc(item["fix"].replace("{bot}", cfg["bot_username"])) in main_text
+            jargon = ("Foursquare", "Geoapify", "OpenStreetMap", "Overpass", "Mapbox", "inline", "API", "Redis", "FSM")
+            jargon += ("кэш", "провайдер", "радиус") if lang == "ru" else ("cache", "provider", "radius")
+            assert not [w for w in jargon if w.lower() in main_text.lower()], (lang, [w for w in jargon if w.lower() in main_text.lower()])
+            assert main_text.index('id="pains"') < main_text.index('id="how"') < main_text.index('id="faq"')
         assert not re.search(r'(?:href|src)="/', ru), "абсолютные пути сломают сайт под /<repo>/"
 
         # 2. условия берут текст «Покупки» из локали бота (один источник правды)

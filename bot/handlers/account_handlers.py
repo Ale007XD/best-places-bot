@@ -13,7 +13,14 @@ from urllib.parse import quote
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LabeledPrice,
+    Message,
+    PreCheckoutQuery,
+)
 
 from bot import diag
 from bot.config import settings
@@ -235,6 +242,50 @@ async def cmd_terms(message: Message, lang_code: str):
     if privacy:
         extra.append(f"🔒 {privacy}")
     await message.answer("\n\n".join([text, *extra]), disable_web_page_preview=True)
+
+
+@router.callback_query(F.data.in_({"ann:ok", "ann:no"}))
+async def announce_decision(callback: CallbackQuery, bot: Bot, redis_conn):
+    """Админ подтверждает или отклоняет черновик объявления (его присылает конвейер релизов).
+
+    Публикуется ровно тот текст, который админ видит в сообщении. Повторное нажатие не публикует
+    второй раз: кнопки заменяются итогом, а на сообщение ставится блокировка."""
+    msg = callback.message
+    if not settings.ADMIN_ID or callback.from_user.id != settings.ADMIN_ID or not isinstance(msg, Message):
+        await callback.answer()
+        return
+    lock = f"ann:lock:{msg.chat.id}:{msg.message_id}"
+    if not await redis_conn.set(lock, 1, nx=True, ex=3600):
+        await callback.answer("Уже обработано")
+        return
+    if callback.data == "ann:no":
+        mark = "❌ Отклонено"
+    else:
+        if not settings.CHANNEL_ID:
+            await redis_conn.delete(lock)
+            await callback.answer("Не задан CHANNEL_ID", show_alert=True)
+            return
+        try:
+            await bot.send_message(
+                settings.CHANNEL_ID, msg.html_text, parse_mode="HTML", disable_web_page_preview=True
+            )
+        except TelegramAPIError as e:
+            await redis_conn.delete(lock)
+            logger.warning("announce publish failed: %s", e)
+            await callback.answer(f"Не удалось опубликовать: {e}"[:190], show_alert=True)
+            return
+        mark = "✅ Опубликовано"
+    await msg.edit_reply_markup(
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=mark, callback_data="ann:done")]]
+        )
+    )
+    await callback.answer(mark)
+
+
+@router.callback_query(F.data == "ann:done")
+async def announce_done(callback: CallbackQuery):
+    await callback.answer()
 
 
 @router.message(Command("refund"))

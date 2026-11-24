@@ -97,7 +97,7 @@ class Site:
         )
         nav = "".join(
             f'<a href="{self.rel(path, f"{lang}/index.html")}#{anchor}">{esc(c["nav"][key])}</a>'
-            for key, anchor in (("how", "how"), ("features", "features"), ("faq", "faq"))
+            for key, anchor in (("pains", "pains"), ("how", "how"), ("faq", "faq"))
         )
         if self.cfg.get("channel_url") or self.cfg.get("chat_url") or self.cfg.get("support_url"):
             nav += f'<a href="{self.rel(path, f"{lang}/index.html")}#community">{esc(c["nav"]["community"])}</a>'
@@ -149,15 +149,16 @@ class Site:
     def landing(self, lang: str) -> None:
         c = load_content(lang)
         bot = self.cfg["bot_username"]  # в текстах стоит «@{bot}»
+
+        def fill(text: str) -> str:
+            return text.replace("{bot}", bot)
         cta = self.bot_url(f"site_{lang}")
         steps = "".join(
             f'<li class="card step"><h3>{esc(s["title"])}</h3><p>{esc(s["text"])}</p></li>' for s in c["how"]["steps"]
         )
-        items = [
-            i for i in c["features"]["items"] if i.get("id") != "guides" or self.cities
-        ]
-        feats = "".join(
-            f'<div class="card"><h3>{esc(i["title"])}</h3><p>{esc(i["text"].replace("{bot}", bot))}</p></div>'
+        items = [i for i in c["pains"]["items"] if i.get("id") != "guides" or self.cities]
+        pains = "".join(
+            f'<div class="card"><p class="pain">{esc(i["pain"])}</p><p>{esc(fill(i["fix"]))}</p></div>'
             for i in items
         )
         p = c["pricing"]
@@ -167,7 +168,8 @@ class Site:
             else ""
         ) + f'<div class="card"><h3>{esc(p["paid_title"])}</h3><p>{esc(p["paid_text"])}</p></div>'
         faq = "".join(
-            f'<details><summary>{esc(i["q"])}</summary><p>{esc(i["a"])}</p></details>' for i in c["faq"]["items"]
+            f'<details><summary>{esc(i["q"])}</summary><p>{esc(fill(i["a"]))}</p></details>'
+            for i in c["faq"]["items"]
         )
         comm = ""
         labels = c["community"]
@@ -178,8 +180,8 @@ class Site:
         body = f"""<main class="wrap">
 <section class="hero"><h1>{esc(c["hero"]["h1"])}</h1><p class="lead">{esc(c["hero"]["lead"])}</p>
 <a class="btn" href="{esc(cta)}">{esc(c["hero"]["cta"])}</a><p class="note">{esc(c["hero"]["cta_note"])}</p></section>
+<section id="pains"><h2>{esc(c["pains"]["title"])}</h2><p class="lede">{esc(c["pains"]["lead"])}</p><div class="grid">{pains}</div></section>
 <section id="how"><h2>{esc(c["how"]["title"])}</h2><ol class="steps grid">{steps}</ol></section>
-<section id="features"><h2>{esc(c["features"]["title"])}</h2><div class="grid">{feats}</div></section>
 <section id="pricing"><h2>{esc(p["title"])}</h2><div class="grid">{pricing}</div></section>
 <section id="faq"><h2>{esc(c["faq"]["title"])}</h2>{faq}</section>
 {community}

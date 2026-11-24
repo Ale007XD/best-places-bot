@@ -1,0 +1,53 @@
+name: dictionary
+
+# Раз в неделю модель добавляет в словарь специалитетов следующий город из bot/data/city_backlog.json
+# (mode=city) или дописывает venue_tokens для «Найти блюдо» (mode=tokens). Источники проверяются
+# автоматически; результат — pull request с verified=false, который вычитывает человек.
+# Нужно разрешение: Settings → Actions → General → «Allow GitHub Actions to create and approve pull requests».
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: city (новый город) или tokens (venue_tokens)
+        type: choice
+        options: [city, tokens]
+        default: city
+      city_id:
+        description: id города из бэклога или next
+        default: next
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dictionary
+  cancel-in-progress: false
+
+jobs:
+  dictionary:
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_MODELS: ${{ vars.OPENROUTER_MODELS }}
+      MODE: ${{ inputs.mode || 'city' }}
+      CITY_ID: ${{ inputs.city_id || 'next' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: generate
+        run: |
+          if [ "$MODE" = "tokens" ]; then
+            python -m scripts.ai.dictionary tokens --write --report /tmp/report.md
+          else
+            python -m scripts.ai.dictionary city "$CITY_ID" --write --report /tmp/report.md
+          fi
+      - name: pull request
+        run: bash scripts/ai/open_pr.sh ai/dictionary "ai: словарь специалитетов ($MODE)" /tmp/report.md bot/data/specialties.json

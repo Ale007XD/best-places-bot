@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     CLOSED_REPORTS_THRESHOLD: int = 2  # жалоб «закрыто» от разных людей, после которых место скрывается (админ — сразу)
     CLOSED_TTL_DAYS: int = 60  # сколько дней действует скрытие
     SITE_URL: str = ""  # сайт проекта (GitHub Pages), без «/» в конце; пусто — ссылки не добавляются
+    CHANNEL_ID: str = ""  # канал для объявлений: @username или -100…; бот — админ канала с правом публикации
     SUPPORT_URL: str = ""  # куда направлять вопросы по оплате (аккаунт поддержки / чат), необязательно
     SPECIALTIES_SHOW_UNVERIFIED: bool = False  # показывать непроверенные блюда (только для проверки словаря)
     STARS_PRICE_PACK20: int = 50
