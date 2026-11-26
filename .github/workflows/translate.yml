@@ -1,16 +1,20 @@
+
 name: translate
 
 # Когда меняются строки локалей, модель переводит недостающие ключи в уже существующих языках
 # (кроме ru/en); ручной запуск с langs=vi,th создаёт новые файлы. Результат — pull request.
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "bot/locales/*.json"
+
   workflow_dispatch:
     inputs:
       langs:
-        description: Коды языков через запятую (vi,th); пусто — существующие
+        description: "Коды языков через запятую (vi,th); пусто — существующие"
+        required: false
         default: ""
 
 permissions:
@@ -24,19 +28,36 @@ concurrency:
 jobs:
   translate:
     runs-on: ubuntu-latest
+
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       OPENROUTER_MODELS: ${{ vars.OPENROUTER_MODELS }}
       LANGS: ${{ inputs.langs }}
       GH_TOKEN: ${{ github.token }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
-      - name: translate
-        run: python -m scripts.ai.translate_locales --existing --langs "$LANGS" --write --report /tmp/report.md
-      - name: pull request
-        run: bash scripts/ai/open_pr.sh ai/locales "ai: перевод локалей" /tmp/report.md bot/locales
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Translate locales
+        run: |
+          python -m scripts.ai.translate_locales \
+            --existing \
+            --langs "$LANGS" \
+            --write \
+            --report /tmp/report.md
+
+      - name: Create pull request
+        run: |
+          bash scripts/ai/open_pr.sh \
+            ai/locales \
+            "ai: перевод локалей" \
+            /tmp/report.md \
+            bot/locales
