@@ -1,5 +1,6 @@
 # bot/utils/analytics.py
 from datetime import UTC, datetime
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -8,7 +9,8 @@ STATS_TTL = 90 * 24 * 3600  # ключи статистики живут 90 дн
 
 class Analytics:
     def __init__(self, redis_conn: redis.Redis):
-        self.r = redis_conn
+        # redis-py типизирует async-методы как «Awaitable | значение», и mypy 2.x ругается на await:
+        self.r: Any = redis_conn
 
     async def _incr(self, key: str):
         await self.r.incr(key)

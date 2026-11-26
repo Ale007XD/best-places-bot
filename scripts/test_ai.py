@@ -327,13 +327,17 @@ def test_dictionary() -> None:
     assert dictionary.next_city(merged, {"cities": [city]}) is None
 
     # venue_tokens: общие слова отбрасываются проверкой, остальное записывается
-    ordered = [f"{cid}:{d['id']}" for cid, c in base["cities"].items() for d in c["specialties"] if "venue_tokens" not in d]
+    bare = copy.deepcopy(base)  # словарь без venue_tokens: независимо от того, сколько их уже заполнено
+    for c in bare["cities"].values():
+        for d in c["specialties"]:
+            d.pop("venue_tokens", None)
+    ordered = [f"{cid}:{d['id']}" for cid, c in bare["cities"].items() for d in c["specialties"]]
     first_ref = ordered[0]
     check = dictionary.check_tokens({first_ref})
     assert check({"venue_tokens": {first_ref: ["cafe"]}}) and check({"venue_tokens": {"x:y": ["pho"]}})
     assert check({"venue_tokens": {first_ref: ["pho", "phở"]}}) == []
     answer = {"venue_tokens": {ref: ["pho"] for ref in ordered[:8]}}
-    out, tokens_md = dictionary.run_tokens(base, StubLLM(answer), limit=1)
+    out, tokens_md = dictionary.run_tokens(bare, StubLLM(answer), limit=1)
     assert sum(1 for c in out["cities"].values() for d in c["specialties"] if d.get("venue_tokens") == ["pho"]) == 8
     assert "Добавлено полей: 8" in tokens_md
 

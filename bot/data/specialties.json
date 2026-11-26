@@ -35,6 +35,9 @@
           "sources": [
             "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
+          ],
+          "venue_tokens": [
+            "bun ca"
           ]
         },
         {
@@ -64,6 +67,9 @@
             "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
             "https://sinhcafe.com/food-in-nha-trang"
+          ],
+          "venue_tokens": [
+            "nem nuong"
           ]
         },
         {
@@ -91,6 +97,9 @@
             "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
             "https://sinhcafe.com/food-in-nha-trang"
+          ],
+          "venue_tokens": [
+            "banh can"
           ]
         },
         {
@@ -120,6 +129,9 @@
             "https://mia.vn/cam-nang-du-lich/top-10-quan-banh-xeo-muc-nha-trang-thom-ngon-hap-dan-680",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
             "https://joytime.vn/en/blog/9824-discover-the-best-nha-trang-food-tour-a-flavor-packed-adventure.html"
+          ],
+          "venue_tokens": [
+            "banh xeo"
           ]
         },
         {
@@ -146,6 +158,9 @@
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
             "https://bazantravel.com/goi-ca-mai-nha-trang/",
             "https://sinhcafe.com/food-in-nha-trang"
+          ],
+          "venue_tokens": [
+            "goi ca mai"
           ]
         },
         {
@@ -175,6 +190,10 @@
           "sources": [
             "https://sinhcafe.com/food-in-nha-trang",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
+          ],
+          "venue_tokens": [
+            "bun ca sua",
+            "bun sua"
           ]
         }
       ]
@@ -215,6 +234,9 @@
             "https://vietnamtourism.gov.vn/en/post/9045",
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
             "https://www.vietnamairlines.com/la/en/plan-book/travel/travel-guide/best-food-in-hanoi-old-quarter"
+          ],
+          "venue_tokens": [
+            "bun cha"
           ]
         },
         {
@@ -242,6 +264,9 @@
           "sources": [
             "https://www.vietnamairlines.com/la/en/plan-book/travel/travel-guide/best-food-in-hanoi-old-quarter",
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/"
+          ],
+          "venue_tokens": [
+            "pho"
           ]
         },
         {
@@ -268,6 +293,10 @@
           "sources": [
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+          ],
+          "venue_tokens": [
+            "cha ca",
+            "la vong"
           ]
         },
         {
@@ -296,6 +325,9 @@
           "sources": [
             "https://vietnamtourism.gov.vn/en/post/9045",
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/"
+          ],
+          "venue_tokens": [
+            "banh cuon"
           ]
         },
         {
@@ -363,6 +395,9 @@
           "sources": [
             "https://betelhospitality.com/blog/com-tam-hu-tieu-and-the-saigon-breakfast-table",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+          ],
+          "venue_tokens": [
+            "com tam"
           ]
         },
         {
@@ -390,6 +425,10 @@
             "https://betelhospitality.com/blog/com-tam-hu-tieu-and-the-saigon-breakfast-table",
             "https://saigonvibes.com/the-10-best-hu-tieu-nam-vang-restaurants-in-ho-chi-minh-city/",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+          ],
+          "venue_tokens": [
+            "hu tieu",
+            "nam vang"
           ]
         },
         {
@@ -418,6 +457,9 @@
           "sources": [
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
             "https://www.traveloka.com/explore/activities/street-food-in-ho-chi-minh-city-ta/1010793"
+          ],
+          "venue_tokens": [
+            "banh mi"
           ]
         },
         {
@@ -444,6 +486,9 @@
           "sources": [
             "https://misssaigontours.com/night-markets-ho-chi-minh-city/",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+          ],
+          "venue_tokens": [
+            "banh trang tron"
           ]
         },
         {
@@ -470,6 +515,9 @@
           "sources": [
             "https://vinpearl.com/en/vinh-khanh-food-street-saigon",
             "https://misssaigontours.com/night-markets-ho-chi-minh-city/"
+          ],
+          "venue_tokens": [
+            "oc"
           ]
         }
       ]
@@ -511,6 +559,10 @@
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
             "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca"
+          ],
+          "venue_tokens": [
+            "mi quang",
+            "my quang"
           ]
         },
         {
@@ -538,6 +590,10 @@
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
             "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca",
             "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon"
+          ],
+          "venue_tokens": [
+            "banh trang cuon",
+            "banh trang thit heo"
           ]
         },
         {
@@ -565,6 +621,9 @@
           "sources": [
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
             "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca"
+          ],
+          "venue_tokens": [
+            "bun cha ca"
           ]
         },
         {
@@ -594,6 +653,11 @@
           "sources": [
             "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon",
             "https://golook.vn/quan-banh-bot-loc-ngon-o-da-nang/"
+          ],
+          "venue_tokens": [
+            "banh beo",
+            "banh nam",
+            "banh loc"
           ]
         },
         {
@@ -620,6 +684,9 @@
           "sources": [
             "https://visitdanang.travel/en/specialty-of-da-nang-bun-mam-nem-addictive-after-eating-5447",
             "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon"
+          ],
+          "venue_tokens": [
+            "bun mam"
           ]
         }
       ]
@@ -658,6 +725,9 @@
           "sources": [
             "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
+          ],
+          "venue_tokens": [
+            "com ga"
           ]
         },
         {
@@ -685,6 +755,9 @@
             "https://mia.vn/cam-nang-du-lich/top-6-quan-banh-canh-cha-ca-phan-rang-ngon-bo-re-tai-ninh-thuan-7527",
             "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
+          ],
+          "venue_tokens": [
+            "banh canh"
           ]
         },
         {
@@ -711,6 +784,9 @@
           "sources": [
             "https://ninhthuanreview.com/banh-can-banh-xeo-phan-rang-ninh-thuan-ngon/",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
+          ],
+          "venue_tokens": [
+            "banh can"
           ]
         },
         {
@@ -738,6 +814,11 @@
           "sources": [
             "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
             "https://mia.vn/cam-nang-du-lich/dac-san-thit-cuu-ninh-thuan-18883"
+          ],
+          "venue_tokens": [
+            "thit cuu",
+            "cuu nuong",
+            "lau cuu"
           ]
         },
         {
@@ -766,6 +847,9 @@
             "https://mia.vn/cam-nang-du-lich/banh-trang-mam-ruoc-ninh-thuan-dac-san-duong-pho-dam-chat-mien-trung-7528",
             "https://www.traveloka.com/vi-vn/explore/destination/ban-do-du-lich-ninh-thuan/503982",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
+          ],
+          "venue_tokens": [
+            "banh trang nuong"
           ]
         }
       ]
@@ -806,6 +890,11 @@
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
+          ],
+          "venue_tokens": [
+            "ก๋วยเตี๋ยวเรือ",
+            "boat noodles",
+            "boat noodle"
           ]
         },
         {
@@ -834,6 +923,12 @@
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
+          ],
+          "venue_tokens": [
+            "กะเพรา",
+            "kra pao",
+            "krapao",
+            "krapow"
           ]
         },
         {
@@ -864,6 +959,10 @@
           "sources": [
             "https://en.wikipedia.org/wiki/Tom_yum_kung",
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/"
+          ],
+          "venue_tokens": [
+            "ต้มยำ",
+            "tom yum"
           ]
         },
         {
@@ -892,6 +991,10 @@
           "sources": [
             "https://www.taufulou.com/famous-jay-fai-crab-omelette-bangkok/",
             "https://hoahoctro.tienphong.vn/quan-an-thai-duoc-song-hye-kyo-ghe-an-va-de-lai-chu-ky-thu-hut-nhieu-sao-quoc-te-post1894102.tpo"
+          ],
+          "venue_tokens": [
+            "ไข่เจียวปู",
+            "kai jeow poo"
           ]
         },
         {
@@ -919,6 +1022,11 @@
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
+          ],
+          "venue_tokens": [
+            "ข้าวเหนียวมะม่วง",
+            "mango sticky rice",
+            "khao niao mamuang"
           ]
         }
       ]
@@ -958,6 +1066,11 @@
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+          ],
+          "venue_tokens": [
+            "ข้าวซอย",
+            "khao soi",
+            "khao soy"
           ]
         },
         {
@@ -988,6 +1101,11 @@
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/",
             "https://www.cmlocaltour.com/northern-thailands-local-food-and-markets/"
+          ],
+          "venue_tokens": [
+            "ไส้อั่ว",
+            "sai oua",
+            "sai ua"
           ]
         },
         {
@@ -1014,6 +1132,10 @@
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+          ],
+          "venue_tokens": [
+            "น้ำพริกอ่อง",
+            "nam prik ong"
           ]
         },
         {
@@ -1043,6 +1165,10 @@
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+          ],
+          "venue_tokens": [
+            "แกงฮังเล",
+            "hang lay"
           ]
         },
         {
@@ -1050,8 +1176,8 @@
           "title_ru": "Кхао Кха Му (рис с томлёной свининой)",
           "title_local": "ข้าวขาหมู",
           "title_ascii": "khao kha moo",
-          "short_desc": "Нежнейшая свиная рулька, томленная часами в пяти специях и соевом соусе, с рисом, яйцом и маринованной зеленью.",
-          "how_to_eat": "Можно искать как популярное блюдо уличной еды Чиангмая, но оно не является исключительно северным специалитетом.",
+          "short_desc": "Долго томлёная свиная рулька на рисе с яйцом и маринованной горчичной зеленью.",
+          "how_to_eat": "Самый известный лоток — у северных ворот старого города, он работает по вечерам; на столе есть чеснок и чили для самообслуживания.",
           "search_tokens": [
             "khao kha moo",
             "kha moo",
@@ -1062,7 +1188,20 @@
             "pork",
             "street_food"
           ],
-          "verified": false
+          "verified": false,
+          "venue_tokens": [
+            "ข้าวขาหมู",
+            "khao kha moo",
+            "kha moo",
+            "kaw kha moo"
+          ],
+          "title_en": "Braised pork leg on rice",
+          "short_desc_en": "Slow-braised pork leg served over rice with an egg and pickled mustard greens.",
+          "how_to_eat_en": "The best-known stall is by the old city's north gate and opens in the evening; garlic and chilies are on the table for self-service.",
+          "sources": [
+            "https://www.eatingthaifood.com/khao-kham-moo-chang-phueak",
+            "https://www.traveller.com.au/traveller/inspiration/nearly-a-decade-later-hungry-tourists-are-still-flocking-to-cowboy-hat-lady-20230824-p5dz6h.html"
+          ]
         },
         {
           "id": "nam_prik_num_chiang_mai",
@@ -1089,6 +1228,10 @@
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+          ],
+          "venue_tokens": [
+            "น้ำพริกหนุ่ม",
+            "nam prik num"
           ]
         },
         {
@@ -1117,6 +1260,11 @@
             "https://maehia.com/ru/chiang-mai/food/khanom-jeen-nam-ngiao/",
             "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/",
             "https://fanclubthailand.co.za/6-must-try-northern-thai-dishes/"
+          ],
+          "venue_tokens": [
+            "ขนมจีนน้ำเงี้ยว",
+            "nam ngiao",
+            "น้ำเงี้ยว"
           ]
         }
       ]
@@ -1157,6 +1305,11 @@
           "sources": [
             "https://www.evephuket.com/blog/best-street-food-phuket/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "หมี่ฮกเกี้ยน",
+            "mee hokkien",
+            "hokkien mee"
           ]
         },
         {
@@ -1183,6 +1336,10 @@
             "https://www.evephuket.com/blog/best-street-food-phuket/",
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "หมูฮ้อง",
+            "moo hong"
           ]
         },
         {
@@ -1212,6 +1369,12 @@
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "ขนมจีน",
+            "kanom jeen",
+            "khanom jeen",
+            "khanom chin"
           ]
         },
         {
@@ -1241,6 +1404,11 @@
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "แกงส้ม",
+            "gaeng som",
+            "kaeng som"
           ]
         },
         {
@@ -1267,6 +1435,11 @@
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "โอ้เอ๋ว",
+            "oh aew",
+            "o aew"
           ]
         },
         {
@@ -1294,6 +1467,11 @@
           "sources": [
             "https://www.evephuket.com/blog/best-street-food-phuket/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+          ],
+          "venue_tokens": [
+            "โอวต้าว",
+            "o tao",
+            "oh tao"
           ]
         }
       ]
@@ -1335,6 +1513,9 @@
             "https://vietnamspot.ru/en/blog/hoi-an-food",
             "https://hoiandaytrip.com/hoi-an-specialty-food/",
             "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+          ],
+          "venue_tokens": [
+            "cao lau"
           ]
         },
         {
@@ -1364,6 +1545,9 @@
             "https://vietnamspot.ru/en/blog/hoi-an-food",
             "https://hoiandaytrip.com/hoi-an-specialty-food/",
             "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+          ],
+          "venue_tokens": [
+            "com ga"
           ]
         },
         {
@@ -1393,6 +1577,11 @@
             "https://vietnamspot.ru/en/blog/hoi-an-food",
             "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/",
             "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
+          ],
+          "venue_tokens": [
+            "banh bao",
+            "banh vac",
+            "white rose"
           ]
         },
         {
@@ -1421,6 +1610,9 @@
             "https://vietnamspot.ru/en/blog/hoi-an-food",
             "https://hoiandaytrip.com/hoi-an-specialty-food/",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+          ],
+          "venue_tokens": [
+            "banh mi"
           ]
         },
         {
@@ -1450,6 +1642,9 @@
           "sources": [
             "https://hoiandaytrip.com/hoi-an-specialty-food/",
             "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+          ],
+          "venue_tokens": [
+            "banh dap"
           ]
         },
         {
@@ -1478,6 +1673,9 @@
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
             "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+          ],
+          "venue_tokens": [
+            "hoanh thanh"
           ]
         }
       ]
@@ -1518,6 +1716,9 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "banh trang nuong"
           ]
         },
         {
@@ -1546,6 +1747,10 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "xiu mai",
+            "banh mi xiu mai"
           ]
         },
         {
@@ -1574,6 +1779,9 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "banh can"
           ]
         },
         {
@@ -1602,6 +1810,10 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "banh uot",
+            "long ga"
           ]
         },
         {
@@ -1630,6 +1842,9 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "lau ga"
           ]
         },
         {
@@ -1658,6 +1873,9 @@
           "sources": [
             "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
             "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+          ],
+          "venue_tokens": [
+            "kem bo"
           ]
         }
       ]
