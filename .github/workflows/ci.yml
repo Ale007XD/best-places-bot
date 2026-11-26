@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"            # прод = Dockerfile python:3.11-slim
           cache: pip
@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -82,6 +82,7 @@ jobs:
           python -m scripts.test_site
           python -m scripts.test_venue_filter
           python -m scripts.test_bot_profile
+          python -m scripts.test_ai
 
   docker:
     runs-on: ubuntu-latest

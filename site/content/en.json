@@ -1,85 +1,79 @@
 {
   "lang_name": "EN",
   "meta": {
-    "title": "NearbyNinja — cafés, restaurants and bars nearby in Telegram",
-    "description": "The top 3 places nearby in a couple of taps: send a spot and get a café, restaurant or bar within 100–1000 m. Free, right in Telegram."
+    "title": "NearbyNinja — where to eat nearby: three places in seconds",
+    "description": "Hungry and not sure where to go? Send where you are and the Telegram bot shows three places you can walk into right now. Free, nothing to install."
   },
   "nav": {
     "how": "How it works",
-    "features": "Features",
-    "faq": "FAQ",
+    "pains": "Sound familiar?",
+    "faq": "Questions",
     "community": "Community"
   },
   "hero": {
-    "h1": "Where to go right now? The top 3 places nearby in a couple of taps",
-    "lead": "Send a spot and the bot shows the three best cafés, restaurants or bars within walking distance. No endless feeds or reviews.",
+    "h1": "Hungry and not sure where to go? Three places nearby — in seconds",
+    "lead": "Skip the hundreds of map pins and other people's reviews. Send where you are and the bot shows three places you can really walk into right now.",
     "cta": "Open in Telegram",
-    "cta_note": "Available in Russian, English and Chinese; the language follows your Telegram."
+    "cta_note": "Free. Nothing to install and no sign-up — it all happens in Telegram."
   },
   "how": {
     "title": "How it works",
     "steps": [
       {
-        "title": "Send a spot",
-        "text": "Your current location, a point on the map, an address, coordinates or a Google Maps link."
+        "title": "Send where you are",
+        "text": "Your location, a point on the map, an address or a Google Maps link — even for another city, in advance."
       },
       {
-        "title": "Pick filters",
-        "text": "Radius of 100, 200, 500 or 1000 m, minimum rating and category: cafés, restaurants, bars or everything. The bot remembers your choice."
+        "title": "Say what you want",
+        "text": "A café, restaurant or bar, how far you'll walk (from 100 m to a kilometre) and the rating you need. The bot remembers your choice."
       },
       {
-        "title": "Get the top 3",
-        "text": "Cards with distance and direction. If fewer than three places are nearby, the radius widens by itself."
-      }
-    ]
-  },
-  "features": {
-    "title": "Features",
-    "items": [
-      {
-        "title": "Search in any chat",
-        "text": "Type @{bot} in a conversation, e.g. “@{bot} cafe 1km”, an address or coordinates, and send the place to friends."
-      },
-      {
-        "id": "guides",
-        "title": "What to try here",
-        "text": "A free card with the city's local dishes and drinks, a how-to-eat tip and a button that finds places serving the dish nearby."
-      },
-      {
-        "title": "Votes and “closed” reports",
-        "text": "👍/👎 votes build a community rating (🥷) for unrated places, and the “🚫 Closed” button hides places that no longer operate."
-      },
-      {
-        "title": "A clean list",
-        "text": "The bot filters out closed places, duplicates and non-food venues such as gyms and hotels, and widens the radius when there are too few places."
+        "title": "Get three places",
+        "text": "With distance and direction, and “Map” and “Share” buttons. All that is left is to choose."
       }
     ]
   },
   "pricing": {
-    "title": "Pricing",
-    "free_title": "The bot is free for now",
-    "free_text": "Search, cards and inline mode are available without payment.",
-    "paid_title": "Extended features",
-    "paid_text": "Searches with ratings and real photos: daily streak bonuses, rewards for votes and invited friends, plus packs and Pro access for Telegram Stars."
+    "title": "What it costs",
+    "free_title": "Free",
+    "free_text": "Search, cards and search inside a chat are available without payment.",
+    "paid_title": "If you want more",
+    "paid_text": "Searches with ratings and real photos: bonuses for daily visits, rewards for marking places and inviting friends, plus packs and Pro access for Telegram Stars."
   },
   "faq": {
-    "title": "FAQ",
+    "title": "Questions",
     "items": [
       {
-        "q": "Where does the data come from?",
-        "a": "From open and partner sources: Geoapify and OpenStreetMap, and Foursquare for searches with ratings. Data may be inaccurate or outdated: if a place is closed, tap “🚫 Closed”."
+        "q": "What if the place turns out to be closed?",
+        "a": "Tap “🚫 Closed” under the card. When two people mark it, the place disappears from the list for everyone. The data comes from open sources and can lag behind reality — that is why your marks help."
       },
       {
-        "q": "How do I use inline mode on desktop?",
-        "a": "The desktop app does not send your location with inline queries. Send the bot your location in a private chat once, or add an address or coordinates to the query."
+        "q": "Why are there sometimes fewer than three places?",
+        "a": "If few suitable places are close, the bot widens the search up to a kilometre. If there are still few, it shows what it found. Try another spot or the “everything” category."
       },
       {
-        "q": "How do I search in another city?",
-        "a": "Tap “🗺 Another point”: choose a place on the map via the paperclip, type an address or coordinates, or send a Google Maps link."
+        "q": "Is it free?",
+        "a": "Yes: search and cards are free. Extra features cost Telegram Stars and are optional."
       },
       {
-        "q": "What happens to my data?",
-        "a": "Your location is used only for search and is kept for a few hours at most. See the privacy policy for details."
+        "q": "Do I need to install anything?",
+        "a": "No. Open the bot in Telegram and tap “Start”. No sign-up."
+      },
+      {
+        "q": "How do I search in another city or in advance?",
+        "a": "Tap “🗺 Another point”: pick a place on the map via the paperclip, type an address or coordinates, or send a Google Maps link."
+      },
+      {
+        "q": "How do I search in a chat with friends?",
+        "a": "Type @{bot} in any chat followed by, e.g., “cafe 1km” or an address. On a computer, send the bot your location once or add an address to the query."
+      },
+      {
+        "q": "What does the bot know about me?",
+        "a": "It keeps your search point for a few hours at most. See the privacy policy for details."
+      },
+      {
+        "q": "Where does the place data come from?",
+        "a": "From open maps and partner services (the sources are listed at the bottom of the page). It can be inaccurate — that is what the “🚫 Closed” button is for."
       },
       {
         "q": "Payments and refunds",
@@ -168,6 +162,45 @@
         "p": [
           "You can request deletion of the data tied to your account via /feedback."
         ]
+      }
+    ]
+  },
+  "pains": {
+    "title": "Sound familiar?",
+    "lead": "What everyone looking for a bite runs into — and how the bot handles it.",
+    "items": [
+      {
+        "pain": "Hundreds of pins on the map, too much to choose from",
+        "fix": "The bot shows three places instead of a hundred: the nearest and well rated. Easy to choose."
+      },
+      {
+        "pain": "You get there and it has closed for good",
+        "fix": "We filter out closed places. Found one that no longer works? Tap “🚫 Closed” and it disappears from the list."
+      },
+      {
+        "pain": "A gym or a hotel instead of a café",
+        "fix": "The bot only shows places where you can eat and drink."
+      },
+      {
+        "pain": "Almost nothing nearby, and searching further is a hassle",
+        "fix": "If fewer than three places are close, the bot widens the search a little by itself and tells you."
+      },
+      {
+        "id": "guides",
+        "pain": "New city, no idea what to try",
+        "fix": "The “What to try here” card: local dishes and how to eat them. One button and the bot finds places serving the dish nearby."
+      },
+      {
+        "pain": "Want to invite friends, not forward screenshots",
+        "fix": "Find a place right in the conversation — type @{bot} — and send it to your friends in one tap."
+      },
+      {
+        "pain": "Don't want yet another app",
+        "fix": "Nothing to install: the bot works inside Telegram, in Russian, English and Chinese."
+      },
+      {
+        "pain": "No ratings, so no way to know if it's worth it",
+        "fix": "Guests mark places 👍/👎, and places without ratings get a community rating 🥷."
       }
     ]
   }

@@ -74,10 +74,12 @@ def main() -> None:
     def first(d):
         return d["cities"]["hanoi"]["specialties"][0]
 
-    def unsourced(d):  # блюдо, которое второй проход не проверил: ссылок нет
-        return next(x for x in d["cities"]["chiang_mai"]["specialties"] if "sources" not in x)
+    def unsourced(d):  # блюдо без ссылок (как до проверки источников): verified=true для него недопустим
+        dish = d["cities"]["chiang_mai"]["specialties"][-1]
+        dish.pop("sources", None)
+        return dish
 
-    assert "sources" not in unsourced(data)
+    assert "sources" not in unsourced(copy.deepcopy(data))
     assert any("sources" in e for e in errs_of(lambda d: unsourced(d).update(verified=True)))
     assert not any("sources" in e for e in errs_of(lambda d: first(d).update(verified=True)))  # ссылки есть
     assert any("лишние ключи" in e for e in errs_of(lambda d: first(d).update(lol=1)))
@@ -147,7 +149,9 @@ def main() -> None:
     assert sp.resolve_dish("Nguyen Hue street", 21.03, 105.85, show_unverified=True) is None
     assert sp.resolve_dish("pho bo", 21.03, 105.85, show_unverified=False) is None  # не вычитано — скрыто
     assert sp.resolve_dish("pho bo", 14.7, 107.7, show_unverified=True) is None  # города в таблице нет
-    assert sp.venue_needles(pho) == sp.dish_needles(pho)  # venue_tokens нет → написания блюда
+    assert sp.venue_needles(pho) == ("pho",)  # слова из названий заведений, а не фраза «pho bo»
+    no_vt = {k: v for k, v in pho.items() if k != "venue_tokens"}
+    assert sp.venue_needles(no_vt) == sp.dish_needles(pho)  # поля нет → написания блюда
     assert sp.venue_needles({**pho, "venue_tokens": ["Phở", "pho 24"]}) == ("pho", "pho 24")
     text, city, dishes = sp.card_for_point("ru", 21.03, 105.85, show_unverified=True)
     assert city["id"] == "hanoi" and len(dishes) == len(sp.visible_dishes(city, True)) and "👇" in text
@@ -159,6 +163,39 @@ def main() -> None:
     assert any("callback" in e for e in errs_of(lambda d: first(d).update(id="x" * 60)))
     assert any("venue_tokens" in e for e in errs_of(lambda d: first(d).update(venue_tokens=[])))
     assert not any("venue_tokens" in e for e in errs_of(lambda d: first(d).update(venue_tokens=["pho"])))
+
+    # 10. venue_tokens в словаре: без общих слов; по ним находятся реальные заведения и не находятся чужие
+    from scripts.ai.dictionary import GENERIC
+
+    for cid, city_ in data["cities"].items():
+        for dish_ in city_["specialties"]:
+            for token in dish_.get("venue_tokens", []):
+                assert fold(token) not in GENERIC and len(fold(token)) >= 2, (cid, dish_["id"], token)
+    without = [d["id"] for c in data["cities"].values() for d in c["specialties"] if "venue_tokens" not in d]
+    assert without == ["ca_phe_trung_hanoi"], without  # кофе в Ханое по названию заведения не опознать
+
+    def venue_hits(dish_id: str, name: str) -> bool:
+        for c in data["cities"].values():
+            for d in c["specialties"]:
+                if d["id"] == dish_id:
+                    return matches(name, sp.venue_needles(d))
+        raise AssertionError(dish_id)
+
+    for dish_id, name in (
+        ("pho_bo_hanoi", "Phở Thìn Lò Đúc"), ("pho_bo_hanoi", "PHỞ BÁT ĐÀN"), ("bun_cha_hanoi", "Bún Chả Hương Liên"),
+        ("com_tam_saigon", "Cơm Tấm Ba Ghiền"), ("mi_quang_da_nang", "Mì Quảng Bà Mua"), ("cao_lau_hoi_an", "Cao Lầu Thanh"),
+        ("banh_xeo_muc_nha_trang", "Bánh Xèo 46A"), ("kuay_teow_ruea_bangkok", "ก๋วยเตี๋ยวเรืออยุธยา"),
+        ("khao_soi_chiang_mai", "Khao Soi Khun Yai"), ("pad_kra_pao_bangkok", "ร้านกะเพราเด็ด"),
+        ("khao_kha_moo_chang_phueak_chiang_mai", "ข้าวขาหมูช้างเผือก"), ("banh_mi_saigon", "Bánh Mì Huỳnh Hoa"),
+        ("oc_saigon_hcmc", "Quán Ốc Đào"),
+    ):
+        assert venue_hits(dish_id, name), (dish_id, name)
+    for dish_id, name in (
+        ("pho_bo_hanoi", "Phong Lan Cafe"), ("pho_bo_hanoi", "Highlands Coffee"), ("bun_cha_hanoi", "Bún Bò Huế"),
+        ("com_tam_saigon", "Cơm Gà Hội An"), ("oc_saigon_hcmc", "Mộc Café"), ("thit_cuu_phan_rang", "Cửu Long Restaurant"),
+        ("khao_soi_chiang_mai", "Pad Thai Thip Samai"),
+    ):
+        assert not venue_hits(dish_id, name), (dish_id, name)
     print("specialties ok")
 
 

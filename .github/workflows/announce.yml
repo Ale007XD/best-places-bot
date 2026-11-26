@@ -1,0 +1,51 @@
+name: announce
+
+# Объявление о релизе: модель (OpenRouter, бесплатные модели) пишет черновик RU+EN.
+# ANNOUNCE_MODE=approval (по умолчанию): черновик приходит админу в Telegram с кнопками
+#   «Опубликовать» / «Отклонить». ANNOUNCE_MODE=auto: сразу в канал. Переключатель — переменная
+#   репозитория ANNOUNCE_MODE или поле mode при ручном запуске.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Тег релиза
+        required: true
+      mode:
+        description: Режим доставки
+        type: choice
+        options: [approval, auto]
+        default: approval
+      dry_run:
+        description: Только показать текст
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_MODELS: ${{ vars.OPENROUTER_MODELS }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_ID: ${{ vars.ADMIN_ID }}
+      CHANNEL_ID: ${{ vars.CHANNEL_ID }}
+      ANNOUNCE_MODE: ${{ inputs.mode || vars.ANNOUNCE_MODE || 'approval' }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      RELEASE_NOTES: ${{ github.event.release.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: announce
+        run: python -m scripts.ai.announce
