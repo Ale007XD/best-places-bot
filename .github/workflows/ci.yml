@@ -85,6 +85,7 @@ jobs:
           python -m scripts.test_ai
           python -m scripts.test_privacy
           python -m scripts.test_dish_matching
+          python -m scripts.test_dictionary
 
   docker:
     runs-on: ubuntu-latest

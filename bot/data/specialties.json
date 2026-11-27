@@ -29,16 +29,17 @@
             "seafood"
           ],
           "verified": false,
-          "title_en": "Bun Ca Nha Trang (coastal fish cake noodle soup)",
-          "short_desc_en": "A clear, light seafood broth with thin rice noodles and tender steamed or fried fish cakes made from local coastal fish.",
-          "how_to_eat_en": "Add fresh herbs, lime, and chili sauce to taste; look for bún cá sứa separately if you want the jellyfish version.",
+          "title_en": "Bun Ca Nha Trang (fish cake noodle soup)",
+          "short_desc_en": "Rice vermicelli in a light seafood broth with steamed and fried fish cakes, tomato and fresh herbs.",
+          "how_to_eat_en": "Add fresh herbs, lime and chili to taste; the jellyfish version (bún cá sứa) is a separate Nha Trang specialty.",
           "sources": [
-            "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
+            "https://sinhcafe.com/food-in-nha-trang",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
           ],
           "venue_tokens": [
             "bun ca"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "nem_nuong_nha_trang",
@@ -60,17 +61,18 @@
             "pork"
           ],
           "verified": false,
-          "title_en": "Nem Nuong Ninh Hoa (grilled pork rolls)",
-          "short_desc_en": "Charcoal-grilled seasoned pork skewers served with crispy fried wrappers, fresh greens, herbs, and a thick savory orange dipping sauce.",
-          "how_to_eat_en": "Roll the grilled pork, crispy sticks, and fresh herbs inside rice paper and dip into the warm sauce.",
+          "title_en": "Nem Nuong Ninh Hoa (grilled pork skewers)",
+          "short_desc_en": "Charcoal-grilled seasoned pork skewers served with rice paper, fresh greens, crispy crackers and a thick savory orange dipping sauce.",
+          "how_to_eat_en": "Roll the grilled pork, crispy sticks and fresh herbs in rice paper and dip into the warm sauce.",
           "sources": [
-            "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
+            "https://sinhcafe.com/food-in-nha-trang",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
-            "https://sinhcafe.com/food-in-nha-trang"
+            "https://bazantravel.com/dac-san-phan-rang-ninh-thuan"
           ],
           "venue_tokens": [
             "nem nuong"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_can_nha_trang",
@@ -90,17 +92,17 @@
             "street_food"
           ],
           "verified": false,
-          "title_en": "Banh Can (mini clay-mold rice pancakes)",
-          "short_desc_en": "Small savory rice-flour cakes baked in round terracotta molds with toppings such as quail egg, shrimp, or squid.",
-          "how_to_eat_en": "Eat hot off the griddle, dipping the cakes into fish sauce mixed with shredded green mango and herbs.",
+          "title_en": "Banh Can Nha Trang (mini clay-mold rice cakes)",
+          "short_desc_en": "Small round rice-flour cakes baked in terracotta molds over charcoal, topped with quail egg, shrimp or squid, with dipping sauce.",
+          "how_to_eat_en": "Eat hot off the griddle and dip into the accompanying fish sauce-based dip.",
           "sources": [
-            "https://chamkhanhhoa.com/2023/05/19/top-7-vietnamese-dishes-must-try-at-nha-trang-where/",
-            "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
-            "https://sinhcafe.com/food-in-nha-trang"
+            "https://sinhcafe.com/food-in-nha-trang",
+            "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
           ],
           "venue_tokens": [
             "banh can"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_xeo_muc_nha_trang",
@@ -108,13 +110,13 @@
           "title_local": "Bánh xèo mực",
           "title_ascii": "banh xeo muc",
           "short_desc": "Маленькие хрустящие блинчики из рисовой муки с целыми мелкими кальмарами, ростками фасоли и луком.",
-          "how_to_eat": "Подают горячими со свежей зеленью и кисло-сладким рыбным соусом; многие уличные точки открываются во второй половине дня и вечером.",
+          "how_to_eat": "Подают горячими со свежей зеленью и кисло-сладким соусом; многие уличные точки работают во второй половине дня и вечером.",
           "search_tokens": [
-            "banh xeo",
             "banh xeo muc",
-            "banh xeo chao",
             "bánh xèo mực",
-            "bánh xèo"
+            "banh xeo nha trang",
+            "bánh xèo nha trang",
+            "banh xeo"
           ],
           "cuisine_tags": [
             "vietnamese",
@@ -122,17 +124,18 @@
             "pancake"
           ],
           "verified": false,
-          "title_en": "Banh Xeo Muc (crispy squid rice crepes)",
-          "short_desc_en": "Small, crisp rice-flour pancakes pan-fried with whole baby squid, bean sprouts, and scallions.",
-          "how_to_eat_en": "Eat hot with fresh greens and sweet-and-sour chili dipping sauce; many street stalls open in the late afternoon and evening.",
+          "title_en": "Banh Xeo Muc (crispy squid mini crepes)",
+          "short_desc_en": "Small, crisp turmeric rice-flour crepes pan-fried with baby squid, sprouts and scallions — Nha Trang's smaller seafood take on bánh xèo.",
+          "how_to_eat_en": "Eat hot with fresh greens and sweet-and-sour chili dipping sauce; many stalls open in the late afternoon and evening.",
           "sources": [
             "https://mia.vn/cam-nang-du-lich/top-10-quan-banh-xeo-muc-nha-trang-thom-ngon-hap-dan-680",
-            "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
-            "https://joytime.vn/en/blog/9824-discover-the-best-nha-trang-food-tour-a-flavor-packed-adventure.html"
+            "https://vinpearl.com/vi/luu-ngay-15-dia-chi-banh-xeo-nha-trang-hut-khach-nhat",
+            "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
           ],
           "venue_tokens": [
             "banh xeo"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "goi_ca_mai_nha_trang",
@@ -140,7 +143,7 @@
           "title_local": "Gỏi cá mai",
           "title_ascii": "goi ca mai",
           "short_desc": "Блюдо из мелкой рыбы cá mai, подготовленной без крупных костей и поданной с травами, арахисом и соусами; способ предварительной обработки и заправка могут различаться.",
-          "how_to_eat": "Заворачивайте рыбу со свежей зеленью в рисовую бумагу и макайте в кисло-сладкий рыбный соус с дроблёным арахисом или в ферментированный соус мам нем.",
+          "how_to_eat": "Заворачивайте рыбу с зеленью в рисовую бумагу и макайте в кисло-сладкий соус с арахисом или в ферментированный соус мам нем.",
           "search_tokens": [
             "goi ca mai",
             "goi ca mai nha trang",
@@ -151,17 +154,18 @@
             "seafood"
           ],
           "verified": false,
-          "title_en": "Goi Ca Mai (Nha Trang marinated small-fish salad)",
-          "short_desc_en": "Boneless fillets of small coastal silver fish cured in citrus and aromatics, tossed with herbs, onions, and roasted peanuts.",
-          "how_to_eat_en": "Wrap the fish and fresh herbs in rice paper and dip into sweet-and-sour peanut fish sauce or fermented anchovy sauce.",
+          "title_en": "Goi Ca Mai (marinated silverfish salad)",
+          "short_desc_en": "Thin silverfish fillets cured in lime juice, tossed with herbs, onions and roasted peanuts, served with rice paper.",
+          "how_to_eat_en": "Wrap the fish and herbs in rice paper and dip into the sweet-and-sour peanut sauce or fermented anchovy sauce.",
           "sources": [
+            "https://sinhcafe.com/food-in-nha-trang",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/",
-            "https://bazantravel.com/goi-ca-mai-nha-trang/",
-            "https://sinhcafe.com/food-in-nha-trang"
+            "https://bazantravel.com/goi-ca-mai-nha-trang/"
           ],
           "venue_tokens": [
             "goi ca mai"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "bun_ca_sua_nha_trang",
@@ -185,8 +189,8 @@
           ],
           "verified": false,
           "title_en": "Bun Ca Sua (fish and jellyfish noodle soup)",
-          "short_desc_en": "Nha Trang coastal rice noodle soup combining clear fish broth, fish cakes, and crunchy pieces of fresh jellyfish.",
-          "how_to_eat_en": "Top the hot soup with fresh herbs, bean sprouts, a squeeze of lime, and chili right before eating.",
+          "short_desc_en": "Coastal rice noodle soup combining clear fish broth, fish cakes and crunchy fresh jellyfish, with herbs and chili on the side.",
+          "how_to_eat_en": "Top the hot soup with fresh herbs, bean sprouts, lime and chili just before eating.",
           "sources": [
             "https://sinhcafe.com/food-in-nha-trang",
             "https://nhatrang.intercontinental.com/travel-guide/nha-trang-street-food/"
@@ -194,7 +198,8 @@
           "venue_tokens": [
             "bun ca sua",
             "bun sua"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     },
@@ -227,17 +232,18 @@
             "pork"
           ],
           "verified": false,
-          "title_en": "Bun Cha (charcoal-grilled pork with rice noodles)",
-          "short_desc_en": "Smoky grilled pork patties and pork belly served in a warm sweet-and-sour fish sauce broth alongside cold rice vermicelli and herbs.",
-          "how_to_eat_en": "Dip the cold vermicelli and fresh herbs directly into the warm broth with the grilled pork.",
+          "title_en": "Bun Cha (Hanoi grilled pork with noodles)",
+          "short_desc_en": "Charcoal-grilled pork patties and belly in a warm sweet-and-sour fish sauce broth, served with cold rice vermicelli and fresh herbs.",
+          "how_to_eat_en": "Dip the vermicelli and herbs into the warm broth with the grilled pork; mix in pickled vegetables and garlic if you like.",
           "sources": [
-            "https://vietnamtourism.gov.vn/en/post/9045",
+            "https://chungtatravel.com/en/blogs/travel-tips/hanoi-food-guide-pho-bun-cha-street-food",
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
             "https://www.vietnamairlines.com/la/en/plan-book/travel/travel-guide/best-food-in-hanoi-old-quarter"
           ],
           "venue_tokens": [
             "bun cha"
-          ]
+          ],
+          "locality_type": "city_origin"
         },
         {
           "id": "pho_bo_hanoi",
@@ -245,7 +251,7 @@
           "title_local": "Phở bò",
           "title_ascii": "pho bo",
           "short_desc": "Эталонный прозрачный говяжий бульон со специями, плоской рисовой лапшой, тонкой говядиной и зеленым луком.",
-          "how_to_eat": "Традиционное утреннее блюдо Ханоя; к супу часто берут хрустящие жареные палочки куай (quẩy) и дольку лайма.",
+          "how_to_eat": "Традиционное утреннее блюдо Ханоя; к супу часто берут хрустящие жареные палочки куай (quẩy), лайм и приправы по вкусу.",
           "search_tokens": [
             "pho bo",
             "pho bo ha noi",
@@ -258,16 +264,17 @@
             "beef"
           ],
           "verified": false,
-          "title_en": "Pho Bo (Hanoi-style beef noodle soup)",
-          "short_desc_en": "A clear, lightly spiced beef bone broth served over flat rice noodles with thinly sliced beef and scallions.",
-          "how_to_eat_en": "Widely eaten for breakfast in Hanoi; pair your bowl with crispy fried dough sticks (quẩy) and a squeeze of lime.",
+          "title_en": "Pho Bo (Hanoi beef noodle soup)",
+          "short_desc_en": "Clear, lightly spiced beef bone broth over flat rice noodles with thinly sliced beef and scallions.",
+          "how_to_eat_en": "Widely eaten in the morning; pair with crispy fried dough sticks (quẩy) and a squeeze of lime, and season with chili or vinegar garlic.",
           "sources": [
             "https://www.vietnamairlines.com/la/en/plan-book/travel/travel-guide/best-food-in-hanoi-old-quarter",
-            "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/"
+            "https://chungtatravel.com/en/blogs/travel-tips/hanoi-food-guide-pho-bun-cha-street-food"
           ],
           "venue_tokens": [
             "pho"
-          ]
+          ],
+          "locality_type": "city_origin"
         },
         {
           "id": "cha_ca_la_vong_hanoi",
@@ -287,17 +294,18 @@
             "fish"
           ],
           "verified": false,
-          "title_en": "Cha Ca La Vong (turmeric skillet fish with dill)",
-          "short_desc_en": "Turmeric-marinated fish sizzling at the table in a hot pan piled high with fresh dill and spring onions.",
-          "how_to_eat_en": "Combine rice vermicelli, warm fish, dill, roasted peanuts, and a little fermented shrimp paste in your bowl.",
+          "title_en": "Cha Ca La Vong (turmeric fish with dill)",
+          "short_desc_en": "Turmeric-marinated fish sizzling at the table in a hot pan with fresh dill and spring onions, eaten with rice vermicelli and peanuts.",
+          "how_to_eat_en": "Combine vermicelli, fish, dill, roasted peanuts and a little fermented shrimp paste (mắm tôm) in your bowl.",
           "sources": [
             "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
-            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+            "https://www.vietnamairlines.com/la/en/plan-book/travel/travel-guide/best-food-in-hanoi-old-quarter"
           ],
           "venue_tokens": [
             "cha ca",
             "la vong"
-          ]
+          ],
+          "locality_type": "city_origin"
         },
         {
           "id": "banh_cuon_hanoi",
@@ -320,15 +328,16 @@
           ],
           "verified": false,
           "title_en": "Banh Cuon (steamed stuffed rice rolls)",
-          "short_desc_en": "Paper-thin steamed rice batter rolls filled with minced pork and wood-ear mushrooms, garnished with crispy fried shallots.",
+          "short_desc_en": "Paper-thin steamed rice batter rolls filled with minced pork and wood-ear mushrooms, topped with crispy fried shallots.",
           "how_to_eat_en": "Commonly served for breakfast with light sweet-savory fish sauce and slices of Vietnamese pork sausage (chả lụa).",
           "sources": [
-            "https://vietnamtourism.gov.vn/en/post/9045",
-            "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/"
+            "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
+            "https://chungtatravel.com/en/blogs/travel-tips/hanoi-food-guide-pho-bun-cha-street-food"
           ],
           "venue_tokens": [
             "banh cuon"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "ca_phe_trung_hanoi",
@@ -336,7 +345,7 @@
           "title_local": "Cà phê trứng",
           "title_ascii": "ca phe trung",
           "short_desc": "Крепкий вьетнамский робуста под густой сладкой шапкой из взбитого со сгущенкой яичного желтка.",
-          "how_to_eat": "Подают в кофейнях Старого квартала горячим или со льдом; сладкую яичную пену удобно пробовать ложкой или размешивать с кофе.",
+          "how_to_eat": "Подают в кофейнях Старого квартала горячим или со льдом; сладкую яичную пену можно попробовать ложкой или размешать с кофе.",
           "search_tokens": [
             "ca phe trung",
             "egg coffee",
@@ -349,12 +358,13 @@
           ],
           "verified": false,
           "title_en": "Ca Phe Trung (Hanoi egg coffee)",
-          "short_desc_en": "Strong Vietnamese coffee crowned with a thick, sweet custard foam whipped from egg yolk and condensed milk.",
-          "how_to_eat_en": "Served hot or iced in Old Quarter cafes; taste the creamy egg foam with a spoon or stir it gently into the coffee.",
+          "short_desc_en": "Strong Vietnamese coffee crowned with a thick, sweet foam whipped from egg yolk and condensed milk.",
+          "how_to_eat_en": "Served hot or iced in Old Quarter cafes; taste the egg foam with a spoon or stir it into the coffee.",
           "sources": [
-            "https://vietnamtourism.gov.vn/en/post/9045",
-            "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/"
-          ]
+            "https://vietnamplays.com/hanoi-food-guide-pho-bun-cha-egg-coffee/",
+            "https://chungtatravel.com/en/blogs/travel-tips/hanoi-food-guide-pho-bun-cha-street-food"
+          ],
+          "locality_type": "city_origin"
         }
       ]
     },
@@ -374,13 +384,13 @@
           "title_local": "Cơm tấm",
           "title_ascii": "com tam",
           "short_desc": "Рассыпчатый дробленый рис с карамелизированной свиной отбивной на гриле, паровым омлетом и свиной шкуркой.",
-          "how_to_eat": "Популярно в Хошимине на завтрак и в течение дня; перед едой рис поливают сладковатым рыбным соусом и едят с маринованными овощами.",
+          "how_to_eat": "Перед едой рис поливают сладковатым рыбным соусом; едят с маринованными овощами.",
           "search_tokens": [
             "com tam",
-            "com tam suon",
-            "com tam sai gon",
             "cơm tấm",
-            "cơm tấm sườn"
+            "com tam suon",
+            "cơm tấm sườn",
+            "com tam sai gon"
           ],
           "cuisine_tags": [
             "vietnamese",
@@ -389,16 +399,17 @@
             "pork"
           ],
           "verified": false,
-          "title_en": "Com Tam (Saigon broken rice with grilled pork)",
-          "short_desc_en": "Steamed broken rice served with a caramelized grilled pork chop, savory egg meatloaf, shredded pork skin, and scallion oil.",
-          "how_to_eat_en": "Eaten for breakfast or throughout the day in Ho Chi Minh City; spoon sweet-savory fish sauce over the rice and enjoy with pickled vegetables.",
+          "title_en": "Com Tam (Saigon broken rice with pork)",
+          "short_desc_en": "Steamed broken rice with caramelized grilled pork chop, egg meatloaf, shredded pork skin and scallion oil — a Saigon classic.",
+          "how_to_eat_en": "Spoon the sweet-savory fish sauce over the rice and eat with the pickled vegetables served alongside.",
           "sources": [
-            "https://betelhospitality.com/blog/com-tam-hu-tieu-and-the-saigon-breakfast-table",
-            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
+            "https://www.legalnomads.com/saigon-street-food/"
           ],
           "venue_tokens": [
             "com tam"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "hu_tieu_nam_vang_hcmc",
@@ -418,18 +429,19 @@
             "soup"
           ],
           "verified": false,
-          "title_en": "Hu Tieu Nam Vang (Phnom Penh-style noodle soup)",
-          "short_desc_en": "Chewy rice noodles served with a light sweet pork-and-shrimp broth, minced pork, prawns, quail egg, and herbs.",
-          "how_to_eat_en": "Try the dry version (khô), where seasoned noodles arrive with sauce and the hot broth is served in a separate bowl.",
+          "title_en": "Hu Tieu Nam Vang (Phnom Penh noodle soup)",
+          "short_desc_en": "Chewy rice noodles in a light sweet pork-and-shrimp broth with minced pork, prawns and quail egg — a Saigon breakfast favorite of Cambodian-Chinese origin.",
+          "how_to_eat_en": "Try the dry version (khô): seasoned noodles with sauce and the hot broth served separately.",
           "sources": [
-            "https://betelhospitality.com/blog/com-tam-hu-tieu-and-the-saigon-breakfast-table",
-            "https://saigonvibes.com/the-10-best-hu-tieu-nam-vang-restaurants-in-ho-chi-minh-city/",
-            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+            "https://vinpearl.com/vi/vuong-van-hu-tieu-nam-vang-sai-gon-ngon-duom-vi",
+            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
+            "https://www.legalnomads.com/saigon-street-food/"
           ],
           "venue_tokens": [
             "hu tieu",
             "nam vang"
-          ]
+          ],
+          "locality_type": "local_favorite"
         },
         {
           "id": "banh_mi_saigon",
@@ -437,13 +449,13 @@
           "title_local": "Bánh mì Sài Gòn",
           "title_ascii": "banh mi sai gon",
           "short_desc": "Воздушный хрустящий багет с паштетом, мясной нарезкой, маринованной морковью, кинзой и соусом чили.",
-          "how_to_eat": "Подают в тёплом хрустящем багете с паштетом, мясной нарезкой, маринованными овощами, зеленью и соусом чили — при заказе можно попросить без острого перца.",
+          "how_to_eat": "Едят свежим как перекус или завтрак; при заказе можно попросить без острого перца.",
           "search_tokens": [
             "banh mi",
-            "banh mi sai gon",
-            "banh mi thit",
             "bánh mì",
-            "bánh mì sài gòn"
+            "banh mi sai gon",
+            "bánh mì sài gòn",
+            "banh mi thit"
           ],
           "cuisine_tags": [
             "vietnamese",
@@ -451,16 +463,17 @@
             "street_food"
           ],
           "verified": false,
-          "title_en": "Saigon Banh Mi (Vietnamese stuffed baguette)",
-          "short_desc_en": "An airy, crisp baguette stuffed with pate, cold cuts or roast pork, pickled carrots and daikon, cilantro, and chili sauce.",
-          "how_to_eat_en": "Enjoy fresh as a quick street snack or breakfast, and ask the vendor to hold the chili if you prefer a milder sandwich.",
+          "title_en": "Banh Mi Saigon (stuffed baguette sandwich)",
+          "short_desc_en": "An airy, crisp baguette stuffed with pate, cold cuts or roast pork, pickled carrot and daikon, cilantro and chili sauce.",
+          "how_to_eat_en": "Eaten fresh as a quick snack or breakfast; ask the vendor to hold the chili for a milder sandwich.",
           "sources": [
-            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
-            "https://www.traveloka.com/explore/activities/street-food-in-ho-chi-minh-city-ta/1010793"
+            "https://migrationology.com/best-banh-mi-saigon-ho-chi-minh-city/",
+            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
           ],
           "venue_tokens": [
             "banh mi"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_trang_tron_hcmc",
@@ -481,15 +494,16 @@
           ],
           "verified": false,
           "title_en": "Banh Trang Tron (mixed rice paper salad)",
-          "short_desc_en": "Snipped rice paper strips tossed with dried beef, shredded green mango, quail eggs, peanuts, herbs, and chili oil.",
-          "how_to_eat_en": "Eaten as a street snack from a bag or bowl using skewers after thoroughly tossing the strips with dressing and lime.",
+          "short_desc_en": "Snipped rice paper strips tossed with dried beef, shredded green mango, quail eggs, peanuts and chili oil — a popular Vietnamese street snack.",
+          "how_to_eat_en": "Toss the strips thoroughly with the dressing and lime, then eat from the bag with skewers.",
           "sources": [
             "https://misssaigontours.com/night-markets-ho-chi-minh-city/",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
           ],
           "venue_tokens": [
             "banh trang tron"
-          ]
+          ],
+          "locality_type": "local_favorite"
         },
         {
           "id": "oc_saigon_hcmc",
@@ -509,16 +523,17 @@
             "street_food"
           ],
           "verified": false,
-          "title_en": "Oc Saigon (Vietnamese sea snails and shellfish)",
-          "short_desc_en": "A wide variety of street-style sea snails and shellfish steamed with lemongrass or stir-fried with garlic butter, chili, or tamarind.",
-          "how_to_eat_en": "Head to District 4 (Vinh Khanh Street) in the evening and use crusty baguette pieces to soak up the flavorful shell sauces.",
+          "title_en": "Oc Saigon (street-style sea snails)",
+          "short_desc_en": "A wide variety of sea snails and shellfish steamed with lemongrass or stir-fried with garlic butter, chili or tamarind, at street eateries.",
+          "how_to_eat_en": "Head to Vinh Khanh street in District 4 in the evening; use pieces of baguette to soak up the cooking sauces.",
           "sources": [
             "https://vinpearl.com/en/vinh-khanh-food-street-saigon",
             "https://misssaigontours.com/night-markets-ho-chi-minh-city/"
           ],
           "venue_tokens": [
             "oc"
-          ]
+          ],
+          "locality_type": "local_favorite"
         }
       ]
     },
@@ -552,9 +567,9 @@
             "regional"
           ],
           "verified": false,
-          "title_en": "Mi Quang (Central Vietnamese turmeric noodles)",
-          "short_desc_en": "Wide turmeric-tinted rice noodles topped with shrimp, pork, or chicken in a small ladle of rich, spiced broth.",
-          "how_to_eat_en": "Served with toasted sesame rice crackers, roasted peanuts, and a plate of fresh herbs to mix into the bowl.",
+          "title_en": "Mi Quang (Da Nang turmeric noodles)",
+          "short_desc_en": "Wide turmeric-tinted rice noodles with shrimp, pork or chicken in just a ladle of rich broth, served with sesame rice crackers, peanuts and fresh herbs.",
+          "how_to_eat_en": "Mix in the herbs, peanuts and crumbled rice crackers and toss the noodles with the small amount of broth at the bottom.",
           "sources": [
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
             "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes",
@@ -563,7 +578,8 @@
           "venue_tokens": [
             "mi quang",
             "my quang"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "banh_trang_cuon_thit_heo_da_nang",
@@ -584,17 +600,17 @@
           ],
           "verified": false,
           "title_en": "Banh Trang Cuon Thit Heo (pork rice paper rolls)",
-          "short_desc_en": "Thinly sliced boiled pork layered with fresh herbs, cucumber, green banana, and soft rice paper wrappers.",
-          "how_to_eat_en": "Assemble your own rolls at the table and dip them into pungent fermented anchovy sauce (mắm nêm).",
+          "short_desc_en": "Thinly sliced boiled pork rolled at the table in soft rice paper with fresh herbs, cucumber and green banana, dipped in pungent mắm nêm sauce.",
+          "how_to_eat_en": "Assemble your own rolls at the table and dip them into the fermented anchovy sauce (mắm nêm).",
           "sources": [
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
-            "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca",
-            "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon"
+            "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca"
           ],
           "venue_tokens": [
             "banh trang cuon",
             "banh trang thit heo"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "bun_cha_ca_da_nang",
@@ -615,16 +631,17 @@
             "seafood"
           ],
           "verified": false,
-          "title_en": "Bun Cha Ca Da Nang (fish cake rice noodle soup)",
-          "short_desc_en": "A savory tomato-and-squash seafood broth with rice vermicelli, fried and steamed fish cakes, and pickled shallots.",
-          "how_to_eat_en": "Enjoy hot with fresh herbs, pickled onions, and chili paste, adding a spoonful of shrimp paste if desired.",
+          "title_en": "Bun Cha Ca Da Nang (fish cake noodle soup)",
+          "short_desc_en": "Rice vermicelli in a savory tomato-and-pumpkin broth with fried and steamed fish cakes, pickled shallots and fresh herbs.",
+          "how_to_eat_en": "Enjoy hot with fresh herbs, pickled onions and chili paste; a spoonful of shrimp paste can be added for extra savor.",
           "sources": [
             "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
             "https://chungtatravel.com/vi/blogs/travel-tips/danang-food-guide-mi-quang-seafood-bun-cha-ca"
           ],
           "venue_tokens": [
             "bun cha ca"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_beo_nam_loc_da_nang",
@@ -632,7 +649,7 @@
           "title_local": "Bánh bèo, bánh nậm, bánh lọc",
           "title_ascii": "banh beo banh nam banh loc",
           "short_desc": "Ассорти небольших блюд центрального Вьетнама: паровые рисовые лепёшки bánh bèo, bánh nậm и изделия bánh lọc из тапиокового теста; начинки и подача различаются.",
-          "how_to_eat": "Обычно заказывают ассорти из трёх видов и поливают сладковато-острым рыбным соусом; бань бео в маленьких пиалах удобно есть ложкой.",
+          "how_to_eat": "Полейте сладковато-острым рыбным соусом; бань бео удобно есть ложкой прямо из пиалы.",
           "search_tokens": [
             "banh beo",
             "banh nam",
@@ -648,17 +665,18 @@
           ],
           "verified": false,
           "title_en": "Banh Beo, Banh Nam & Banh Loc (steamed rice cakes)",
-          "short_desc_en": "A Central Vietnamese trio of steamed rice and tapioca cakes topped or filled with savory shrimp and pork.",
-          "how_to_eat_en": "Order a mixed plate of all three varieties and drizzle with sweet-spicy fish sauce; scoop bánh bèo directly from its small dish with a spoon.",
+          "short_desc_en": "A trio of Central Vietnamese bites: steamed rice cakes in small dishes topped with shrimp (bánh bèo), leaf-wrapped steamed rice cakes (bánh nậm) and translucent tapioca dumplings (bánh bột lọc).",
+          "how_to_eat_en": "Drizzle with sweet-spicy fish sauce; scoop bánh bèo directly from its little dish with the spoon provided.",
           "sources": [
-            "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon",
-            "https://golook.vn/quan-banh-bot-loc-ngon-o-da-nang/"
+            "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421",
+            "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon"
           ],
           "venue_tokens": [
             "banh beo",
             "banh nam",
             "banh loc"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "bun_mam_nem_da_nang",
@@ -678,16 +696,17 @@
             "pork"
           ],
           "verified": false,
-          "title_en": "Bun Mam Nem (noodles with fermented anchovy sauce)",
-          "short_desc_en": "Room-temperature rice vermicelli topped with crispy roast or boiled pork, young jackfruit, herbs, peanuts, and bold fermented anchovy sauce.",
-          "how_to_eat_en": "Mix the entire bowl thoroughly before eating so the savory sauce coats the noodles and toppings evenly.",
+          "title_en": "Bun Mam Nem (noodles with anchovy sauce)",
+          "short_desc_en": "Room-temperature rice vermicelli with crispy roast or boiled pork, young jackfruit, herbs and peanuts, dressed with bold fermented anchovy sauce.",
+          "how_to_eat_en": "Mix the whole bowl thoroughly before eating so the sauce coats the noodles evenly.",
           "sources": [
             "https://visitdanang.travel/en/specialty-of-da-nang-bun-mam-nem-addictive-after-eating-5447",
-            "https://vinpearl.com/vi/11-quan-banh-nam-da-nang-ngon"
+            "https://visitdanang.travel/vi/kham-pha-food-tour-da-nang-tron-vi-voi-loat-mon-ngon-kho-cuong-22421"
           ],
           "venue_tokens": [
             "bun mam"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     },
@@ -720,15 +739,16 @@
           ],
           "verified": false,
           "title_en": "Com Ga Phan Rang (local chicken rice)",
-          "short_desc_en": "Fragrant rice cooked in chicken broth with garlic and ginger, served with tender poached or fried local free-range chicken.",
+          "short_desc_en": "Fragrant rice cooked in chicken broth with garlic and ginger, served with tender poached or fried local free-range chicken and dipping sauces.",
           "how_to_eat_en": "Served with a separate bowl of warm chicken soup and ginger-garlic dipping sauces on the side.",
           "sources": [
-            "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
-            "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
+            "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html",
+            "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/"
           ],
           "venue_tokens": [
             "com ga"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_canh_cha_ca_phan_rang",
@@ -748,9 +768,9 @@
             "seafood"
           ],
           "verified": false,
-          "title_en": "Banh Canh Cha Ca Phan Rang (thick fish cake noodle soup)",
+          "title_en": "Banh Canh Cha Ca Phan Rang (fish cake noodle soup)",
           "short_desc_en": "Thick rice-flour noodles in a clear, naturally sweet fish broth topped with chewy slices of local fish cake.",
-          "how_to_eat_en": "Popular for breakfast and throughout the day; many eateries serve crispy baguette on the side for dipping into the hot broth.",
+          "how_to_eat_en": "Popular for breakfast and through the day; many eateries serve crispy baguette on the side for dipping into the broth.",
           "sources": [
             "https://mia.vn/cam-nang-du-lich/top-6-quan-banh-canh-cha-ca-phan-rang-ngon-bo-re-tai-ninh-thuan-7527",
             "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
@@ -758,7 +778,8 @@
           ],
           "venue_tokens": [
             "banh canh"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_can_phan_rang",
@@ -779,15 +800,16 @@
           ],
           "verified": false,
           "title_en": "Banh Can Phan Rang (mini clay-mold rice cakes)",
-          "short_desc_en": "Small rice-flour cakes baked in clay molds with egg, shrimp, or squid, accompanied by several regional dipping sauces.",
-          "how_to_eat_en": "Eat hot with fresh herbs and shredded green mango, dipping into fish sauce, peanut sauce, or fermented anchovy sauce.",
+          "short_desc_en": "Small rice-flour cakes baked in clay molds over charcoal with quail egg, squid or shrimp, served with local dipping sauces.",
+          "how_to_eat_en": "Eat hot with fresh herbs, shredded green mango and the local dipping sauces (fish sauce, peanut or anchovy).",
           "sources": [
-            "https://ninhthuanreview.com/banh-can-banh-xeo-phan-rang-ninh-thuan-ngon/",
+            "https://bazantravel.com/dac-san-phan-rang-ninh-thuan",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
           ],
           "venue_tokens": [
             "banh can"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "thit_cuu_phan_rang",
@@ -795,7 +817,7 @@
           "title_local": "Thịt cừu Phan Rang",
           "title_ascii": "thit cuu phan rang",
           "short_desc": "Блюда из мяса овцы или ягнёнка, характерные для гастрономического предложения провинции Ниньтхуан; мясо могут жарить или тушить.",
-          "how_to_eat": "В местных кафе баранину чаще всего готовят на гриле или тушат со специями и подают со свежими травами и соусом для макания.",
+          "how_to_eat": "В местных кафе баранину чаще всего готовят на гриле или тушат, часто с местным виноградом; подают со свежими травами и соусом.",
           "search_tokens": [
             "thit cuu",
             "thit cuu phan rang",
@@ -808,18 +830,20 @@
             "regional"
           ],
           "verified": false,
-          "title_en": "Thit Cuu Phan Rang (Ninh Thuan grilled or braised lamb)",
-          "short_desc_en": "Locally raised Ninh Thuan lamb and mutton, commonly charcoal-grilled with herbs or slow-braised in aromatic spices.",
-          "how_to_eat_en": "Local restaurants serve it grilled on skewers or ribs, or braised in spices alongside fresh herbs and dipping sauce.",
+          "title_en": "Thit Cuu (Ninh Thuan lamb)",
+          "short_desc_en": "Lamb and mutton from Ninh Thuan province — Vietnam's main sheep-grazing region — charcoal-grilled on skewers or slow-braised, often with local grapes.",
+          "how_to_eat_en": "Local restaurants serve it grilled or braised with fresh herbs and dipping sauce; grape-braised lamb is a regional preparation.",
           "sources": [
+            "https://mia.vn/cam-nang-du-lich/dac-san-thit-cuu-ninh-thuan-18883",
             "https://ninhthuanreview.com/quan-an-nha-hang-ninh-thuan-ninh-chu-ngon-nhat/",
-            "https://mia.vn/cam-nang-du-lich/dac-san-thit-cuu-ninh-thuan-18883"
+            "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
           ],
           "venue_tokens": [
             "thit cuu",
             "cuu nuong",
             "lau cuu"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_trang_nuong_mam_ruoc_phan_rang",
@@ -840,17 +864,18 @@
             "snack"
           ],
           "verified": false,
-          "title_en": "Banh Trang Nuong Mam Ruoc (grilled rice paper with shrimp paste)",
-          "short_desc_en": "Crisp charcoal-grilled rice paper brushed with savory Ninh Thuan fermented shrimp paste, scallion oil, egg, and chili sauce.",
-          "how_to_eat_en": "Street grills typically open from mid-afternoon (around 3–4 PM); eat the crisp snack hot with tangy chili dipping sauce.",
+          "title_en": "Banh Trang Nuong Mam Ruoc (grilled rice paper)",
+          "short_desc_en": "Crisp charcoal-grilled rice paper brushed with fermented Ninh Thuan shrimp paste, scallion oil, egg and chili sauce.",
+          "how_to_eat_en": "Street grills typically open from mid-afternoon; eat the crisp snack hot with tangy chili sauce.",
           "sources": [
             "https://mia.vn/cam-nang-du-lich/banh-trang-mam-ruoc-ninh-thuan-dac-san-duong-pho-dam-chat-mien-trung-7528",
-            "https://www.traveloka.com/vi-vn/explore/destination/ban-do-du-lich-ninh-thuan/503982",
+            "https://bazantravel.com/dac-san-phan-rang-ninh-thuan",
             "https://www.vietnambooking.com/tin-combo/top-15-mon-dac-san-ninh-thuan-noi-danh-voi-du-khach.html"
           ],
           "venue_tokens": [
             "banh trang nuong"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     },
@@ -885,8 +910,8 @@
           ],
           "verified": false,
           "title_en": "Kuay Teow Ruea (Bangkok boat noodles)",
-          "short_desc_en": "Rice noodles in a dark, richly spiced broth with sliced pork or beef, meatballs, morning glory, and crispy pork cracklings.",
-          "how_to_eat_en": "Served in small bowls so you can easily order three or four at a time, especially around Victory Monument.",
+          "short_desc_en": "Rice noodles in a dark, richly spiced broth with pork or beef, meatballs and morning glory, served in small bowls.",
+          "how_to_eat_en": "Served in small portions so you can order several — the boat noodle alleys around Victory Monument are the classic spot.",
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
@@ -895,7 +920,8 @@
             "ก๋วยเตี๋ยวเรือ",
             "boat noodles",
             "boat noodle"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "pad_kra_pao_bangkok",
@@ -917,9 +943,9 @@
             "spicy"
           ],
           "verified": false,
-          "title_en": "Pad Kra Pao (holy basil stir-fry with meat)",
-          "short_desc_en": "Minced pork or chicken flash-fried in a hot wok with Thai holy basil, garlic, and spicy bird's eye chilies.",
-          "how_to_eat_en": "Served over steamed jasmine rice; ask for a crispy fried egg on top (kai dao) for the classic street combo.",
+          "title_en": "Pad Kra Pao (holy basil stir-fry)",
+          "short_desc_en": "Minced pork or chicken flash-fried in a hot wok with Thai holy basil, garlic and bird's eye chilies, served over rice.",
+          "how_to_eat_en": "Order it with a crispy fried egg (kai dao) on top; specify your spice level when ordering.",
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
@@ -929,7 +955,8 @@
             "kra pao",
             "krapao",
             "krapow"
-          ]
+          ],
+          "locality_type": "local_favorite"
         },
         {
           "id": "tom_yum_kung_bangkok",
@@ -939,12 +966,11 @@
           "short_desc": "Остро-кислый креветочный суп с лемонграссом, галангалом и пастой чили; в версии nam khon бульон делают более насыщенным, часто добавляя evaporated milk (несладкое концентрированное молоко).",
           "how_to_eat": "Ешьте с порцией простого белого жасминового риса, чтобы сбалансировать яркую остроту.",
           "search_tokens": [
-            "tom yum kung nam khon",
             "tom yum kung",
+            "ต้มยำกุ้ง",
             "tom yum",
-            "ต้มยำกุ้งน้ำข้น",
             "tom yam kung",
-            "ต้มยำกุ้ง"
+            "tom yum kung nam khon"
           ],
           "cuisine_tags": [
             "thai",
@@ -953,9 +979,9 @@
             "spicy"
           ],
           "verified": false,
-          "title_en": "Tom Yum Kung Nam Khon (creamy spicy prawn soup)",
-          "short_desc_en": "Hot and sour prawn soup infused with lemongrass, galangal, and kaffir lime leaves, enriched with chili paste and evaporated or coconut milk.",
-          "how_to_eat_en": "Order with a side plate of plain jasmine rice to balance the bold sourness and chili heat.",
+          "title_en": "Tom Yum Kung (hot and sour prawn soup)",
+          "short_desc_en": "Hot and sour prawn soup infused with lemongrass, galangal and kaffir lime leaves; the creamy nam khon version adds chili paste and evaporated or coconut milk.",
+          "how_to_eat_en": "Order with a plate of plain jasmine rice to balance the bold sourness and chili heat.",
           "sources": [
             "https://en.wikipedia.org/wiki/Tom_yum_kung",
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/"
@@ -963,7 +989,8 @@
           "venue_tokens": [
             "ต้มยำ",
             "tom yum"
-          ]
+          ],
+          "locality_type": "generic"
         },
         {
           "id": "kai_jeow_poo_bangkok",
@@ -971,13 +998,13 @@
           "title_local": "ไข่เจียวปู",
           "title_ascii": "kai jeow poo",
           "short_desc": "Хрустящий снаружи и нежный внутри тайский омлет во фритюре, щедро начиненный кусками сладкого крабового мяса.",
-          "how_to_eat": "Подают горячим с белым рисом и острым соусом чили; в Бангкоке блюдо особенно известно в районе Старого города (Phra Nakhon).",
+          "how_to_eat": "Подают горячим с белым рисом и острым соусом; в Бангкоке блюдо особенно известно по уличным точкам старого города.",
           "search_tokens": [
             "kai jeow poo",
-            "crab omelette",
             "ไข่เจียวปู",
             "khai jiao pu",
-            "khai jeow pu"
+            "crab omelette bangkok",
+            "kai jeow"
           ],
           "cuisine_tags": [
             "thai",
@@ -985,17 +1012,18 @@
             "street_food"
           ],
           "verified": false,
-          "title_en": "Kai Jeow Poo (crispy Thai crab omelette)",
-          "short_desc_en": "A puffed, golden deep-fried Thai omelette packed with generous chunks of sweet crab meat.",
-          "how_to_eat_en": "Served hot with steamed rice and chili sauce; especially well known at street eateries in Bangkok's Old Town (Phra Nakhon).",
+          "title_en": "Kai Jeow Poo (Thai crab omelette)",
+          "short_desc_en": "A puffed, golden deep-fried Thai omelette packed with chunks of sweet crab meat, served with rice and chili sauce.",
+          "how_to_eat_en": "Eat hot with steamed rice and a side of chili sauce; famously served at street eateries like Jay Fai in Bangkok's old town.",
           "sources": [
             "https://www.taufulou.com/famous-jay-fai-crab-omelette-bangkok/",
-            "https://hoahoctro.tienphong.vn/quan-an-thai-duoc-song-hye-kyo-ghe-an-va-de-lai-chu-ky-thu-hut-nhieu-sao-quoc-te-post1894102.tpo"
+            "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/"
           ],
           "venue_tokens": [
             "ไข่เจียวปู",
             "kai jeow poo"
-          ]
+          ],
+          "locality_type": "local_favorite"
         },
         {
           "id": "mango_sticky_rice_bangkok",
@@ -1017,8 +1045,8 @@
           ],
           "verified": false,
           "title_en": "Khao Niao Mamuang (mango sticky rice)",
-          "short_desc_en": "Sweet glutinous rice steeped in coconut milk, served with ripe yellow mango slices and crunchy toasted mung beans.",
-          "how_to_eat_en": "Drizzle the lightly salted coconut cream over the rice right before eating so the grains stay rich and glossy.",
+          "short_desc_en": "Sweet glutinous rice steeped in coconut milk, served with ripe mango slices and often crunchy toasted mung beans.",
+          "how_to_eat_en": "Drizzle the salted coconut cream over the rice before eating so the grains stay rich and glossy.",
           "sources": [
             "https://asiatrip.pl/en/bangkok-street-food-a-complete-guide-to-what-to-eat/",
             "https://vayango.com/blog/bangkok/food-guide/"
@@ -1027,7 +1055,8 @@
             "ข้าวเหนียวมะม่วง",
             "mango sticky rice",
             "khao niao mamuang"
-          ]
+          ],
+          "locality_type": "generic"
         }
       ]
     },
@@ -1060,18 +1089,19 @@
             "northern_thai"
           ],
           "verified": false,
-          "title_en": "Khao Soi (Northern Thai curry noodle soup)",
+          "title_en": "Khao Soi (Northern Thai curry noodles)",
           "short_desc_en": "A fragrant coconut curry broth with soft egg noodles and braised chicken or beef, topped with a nest of crispy fried noodles.",
-          "how_to_eat_en": "Widely served for lunch; squeeze fresh lime into the bowl and add pickled mustard greens and red shallots.",
+          "how_to_eat_en": "Squeeze lime into the bowl and add pickled mustard greens and shallots from the side plate.",
           "sources": [
-            "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+            "https://www.eatingthaifood.com/restaurants/best-khao-soi-in-chiang-mai",
+            "https://www.asiaundiscovered.com/chiang-mai-food-guide/"
           ],
           "venue_tokens": [
             "ข้าวซอย",
             "khao soi",
             "khao soy"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "sai_ua_chiang_mai",
@@ -1094,19 +1124,20 @@
             "northern_thai"
           ],
           "verified": false,
-          "title_en": "Sai Ua (Northern Thai herbal pork sausage)",
-          "short_desc_en": "Coiled charcoal-grilled pork sausage seasoned with red curry paste, lemongrass, kaffir lime leaves, and galangal.",
-          "how_to_eat_en": "Eat bite-sized pieces alongside warm balls of sticky rice (khao niao) and fresh herbs.",
+          "title_en": "Sai Ua (Northern Thai herbal sausage)",
+          "short_desc_en": "Coiled charcoal-grilled pork sausage seasoned with curry paste, lemongrass, kaffir lime leaves and galangal.",
+          "how_to_eat_en": "Eat bite-sized pieces with warm sticky rice (khao niao) and fresh herbs, or with nam prik dips.",
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/",
-            "https://www.cmlocaltour.com/northern-thailands-local-food-and-markets/"
+            "https://www.cmlocaltour.com/northern-thailands-local-food-and-markets/",
+            "https://www.chiangmai-trip.com/guides/northern-thai-food-dishes-to-try"
           ],
           "venue_tokens": [
             "ไส้อั่ว",
             "sai oua",
             "sai ua"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "nam_prik_ong_num_chiang_mai",
@@ -1126,17 +1157,18 @@
             "dip"
           ],
           "verified": false,
-          "title_en": "Nam Prik Ong (Northern pork and tomato chili dip)",
-          "short_desc_en": "A mildly spiced Northern Thai dip simmered from minced pork, ripe tomatoes, garlic, and red chili paste.",
-          "how_to_eat_en": "Scoop the dip with steamed or fresh vegetables, sticky rice, and crispy pork rinds (khaep mu).",
+          "title_en": "Nam Prik Ong (pork and tomato chili dip)",
+          "short_desc_en": "A mildly spiced Northern Thai dip simmered from minced pork, ripe tomatoes, garlic and red chili paste.",
+          "how_to_eat_en": "Scoop the dip with steamed or raw vegetables, sticky rice and crispy pork rinds (khaep mu).",
           "sources": [
-            "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+            "https://www.chiangmai-trip.com/guides/northern-thai-food-dishes-to-try",
+            "https://www.asiaundiscovered.com/chiang-mai-food-guide/"
           ],
           "venue_tokens": [
             "น้ำพริกอ่อง",
             "nam prik ong"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "gaeng_hang_lay_chiang_mai",
@@ -1159,17 +1191,18 @@
             "northern_thai"
           ],
           "verified": false,
-          "title_en": "Gaeng Hang Lay (Northern braised pork belly curry)",
-          "short_desc_en": "Slow-braised pork belly in a rich, coconut-free curry flavored with ginger, garlic, turmeric, and tangy tamarind.",
-          "how_to_eat_en": "Pair this mildly sweet-and-sour Burmese-influenced curry with warm sticky rice or steamed rice.",
+          "title_en": "Gaeng Hang Lay (braised pork belly curry)",
+          "short_desc_en": "Slow-braised pork belly in a rich, coconut-free curry flavored with ginger, garlic, turmeric and tangy tamarind — a Burmese-influenced Northern specialty.",
+          "how_to_eat_en": "Pair the mildly sweet-and-sour curry with warm sticky rice or steamed rice.",
           "sources": [
-            "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+            "https://www.chiangmai-trip.com/guides/northern-thai-food-dishes-to-try",
+            "https://www.asiaundiscovered.com/chiang-mai-food-guide/"
           ],
           "venue_tokens": [
             "แกงฮังเล",
             "hang lay"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "khao_kha_moo_chang_phueak_chiang_mai",
@@ -1223,16 +1256,17 @@
           ],
           "verified": false,
           "title_en": "Nam Prik Num (roasted green chili dip)",
-          "short_desc_en": "A smoky Northern Thai dip pounded from charcoal-roasted green chilies, garlic, and shallots.",
-          "how_to_eat_en": "Enjoy with warm sticky rice, blanched vegetables, and crunchy pork cracklings.",
+          "short_desc_en": "A smoky Northern Thai dip pounded from charcoal-roasted green chilies, garlic and shallots.",
+          "how_to_eat_en": "Enjoy with warm sticky rice, blanched vegetables and crunchy pork cracklings.",
           "sources": [
             "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/"
+            "https://www.chiangmai-trip.com/guides/northern-thai-food-dishes-to-try"
           ],
           "venue_tokens": [
             "น้ำพริกหนุ่ม",
             "nam prik num"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "khanom_jeen_nam_ngiao_chiang_mai",
@@ -1253,19 +1287,20 @@
             "soup"
           ],
           "verified": false,
-          "title_en": "Khanom Jeen Nam Ngiao (Northern tomato noodle soup)",
-          "short_desc_en": "Fresh fermented rice vermicelli served in a tangy tomato-and-pork broth accented with dried cotton-tree flowers and chili paste.",
-          "how_to_eat_en": "Top your bowl with bean sprouts, pickled mustard greens, lime juice, crispy garlic, or pork rinds.",
+          "title_en": "Khanom Jeen Nam Ngiao (tomato noodle soup)",
+          "short_desc_en": "Fresh rice vermicelli in a tangy tomato-and-pork broth with chili paste and dried cotton-tree flowers, topped with crispy pork and vegetables.",
+          "how_to_eat_en": "Add the accompanying raw vegetables, pickled greens and crispy toppings to your bowl as you like.",
           "sources": [
-            "https://maehia.com/ru/chiang-mai/food/khanom-jeen-nam-ngiao/",
-            "https://live-less-ordinary.com/top-10-northern-thai-food-north-thailand/",
-            "https://fanclubthailand.co.za/6-must-try-northern-thai-dishes/"
+            "https://www.chiangmai-trip.com/guides/northern-thai-food-dishes-to-try",
+            "https://www.asiaundiscovered.com/chiang-mai-food-guide/",
+            "https://maehia.com/ru/chiang-mai/food/khanom-jeen-nam-ngiao/"
           ],
           "venue_tokens": [
             "ขนมจีนน้ำเงี้ยว",
             "nam ngiao",
             "น้ำเงี้ยว"
-          ]
+          ],
+          "locality_type": "regional"
         }
       ]
     },
@@ -1299,18 +1334,20 @@
             "chinese"
           ],
           "verified": false,
-          "title_en": "Mee Hokkien (Phuket stir-fried yellow noodles)",
-          "short_desc_en": "Thick yellow egg noodles stir-fried in a savory gravy with pork, prawns, squid, leafy greens, and a soft-cooked egg.",
-          "how_to_eat_en": "Look for it in Phuket Old Town shophouses and break the soft yolk into the noodles to enrich the sauce.",
+          "title_en": "Mee Hokkien (Phuket fried yellow noodles)",
+          "short_desc_en": "Thick yellow egg noodles stir-fried in a savory gravy with pork, prawns, squid and greens, often topped with a soft-cooked egg.",
+          "how_to_eat_en": "Break the soft yolk into the noodles to enrich the sauce; common in Phuket Town shophouses and markets.",
           "sources": [
             "https://www.evephuket.com/blog/best-street-food-phuket/",
-            "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
+            "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/",
+            "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/"
           ],
           "venue_tokens": [
             "หมี่ฮกเกี้ยน",
             "mee hokkien",
             "hokkien mee"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "moo_hong_phuket",
@@ -1330,8 +1367,8 @@
           ],
           "verified": false,
           "title_en": "Moo Hong (Phuket braised pork belly)",
-          "short_desc_en": "Large cubes of pork belly slow-braised until tender with black pepper, garlic, soy sauce, and warm spices.",
-          "how_to_eat_en": "A signature Peranakan dish of Phuket; enjoy the tender pork with plain steamed white rice.",
+          "short_desc_en": "Cubes of pork belly slow-braised until tender with black pepper, garlic, soy sauce and warm spices — a Peranakan specialty of Phuket.",
+          "how_to_eat_en": "Enjoy the tender pork with plain steamed rice to soak up the savory sauce.",
           "sources": [
             "https://www.evephuket.com/blog/best-street-food-phuket/",
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
@@ -1340,7 +1377,8 @@
           "venue_tokens": [
             "หมูฮ้อง",
             "moo hong"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "kanom_jeen_phuket",
@@ -1363,8 +1401,8 @@
             "breakfast"
           ],
           "verified": false,
-          "title_en": "Kanom Jeen Phuket (rice vermicelli with Southern curries)",
-          "short_desc_en": "Fresh rice vermicelli paired with your choice of Southern Thai fish or crab curries, commonly eaten in the morning.",
+          "title_en": "Kanom Jeen Phuket (rice noodles with curries)",
+          "short_desc_en": "Fresh rice vermicelli paired with your choice of Southern Thai fish or crab curries and a table of fresh vegetables and pickles.",
           "how_to_eat_en": "Customize your plate with fresh herbs and pickled vegetables from the table, plus a boiled egg if desired.",
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
@@ -1375,7 +1413,8 @@
             "kanom jeen",
             "khanom jeen",
             "khanom chin"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "gaeng_som_pla_phuket",
@@ -1383,7 +1422,7 @@
           "title_local": "แกงส้มปลา",
           "title_ascii": "gaeng som pla",
           "short_desc": "Остро-кислое южнотайское карри с рыбой и пастой специй; рецепты и овощные добавки различаются по регионам и заведениям.",
-          "how_to_eat": "Острый и кислый суп-карри подают горячим с порцией белого риса и обычно сочетают с неострыми блюдами на общий стол.",
+          "how_to_eat": "Острый и кислый суп-карри подают горячим с порцией белого риса; обычно сочетают с неострыми блюдами на общий стол.",
           "search_tokens": [
             "gaeng som pla",
             "kaeng som pla",
@@ -1398,9 +1437,9 @@
             "soup"
           ],
           "verified": false,
-          "title_en": "Gaeng Som Pla (Southern Thai sour-spicy fish curry)",
-          "short_desc_en": "A bright yellow, coconut-free Southern curry made with turmeric, tamarind, chili paste, fish, and vegetables or pineapple.",
-          "how_to_eat_en": "Served piping hot with steamed white rice; balance its bold sour heat with milder side dishes shared at the table.",
+          "title_en": "Gaeng Som Pla (sour-spicy fish curry)",
+          "short_desc_en": "A bright yellow, coconut-free Southern curry made with turmeric, tamarind and chili paste, simmered with fish and vegetables or pineapple.",
+          "how_to_eat_en": "Served hot with steamed rice; balance its bold sour heat with milder dishes shared at the table.",
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
@@ -1409,7 +1448,8 @@
             "แกงส้ม",
             "gaeng som",
             "kaeng som"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "oh_aew_phuket",
@@ -1417,11 +1457,13 @@
           "title_local": "โอ้เอ๋ว",
           "title_ascii": "oh aew",
           "short_desc": "Освежающее прозрачное желе из семян фикуса и бананового крахмала под колотым льдом с сиропом и красной фасолью.",
-          "how_to_eat": "Идеально спасает от жары во время прогулки по Старому городу Пхукета.",
+          "how_to_eat": "Прохладительный десерт: желе со льдом, сиропом и красной фасолью едят ложкой из стакана.",
           "search_tokens": [
             "oh aew",
+            "โอเอี้ยว",
             "o aew",
-            "โอ้เอ๋ว"
+            "โอ้เอ๋ว",
+            "aew phuket"
           ],
           "cuisine_tags": [
             "thai",
@@ -1429,9 +1471,9 @@
             "street_food"
           ],
           "verified": false,
-          "title_en": "Oh Aew (Phuket shaved-ice jelly dessert)",
-          "short_desc_en": "A cooling clear jelly made from fig seeds and banana starch, served under shaved ice with sweet syrup and red beans.",
-          "how_to_eat_en": "A refreshing treat to cool down while strolling through Phuket Town in the tropical heat.",
+          "title_en": "Oh Aew (Phuket jelly dessert)",
+          "short_desc_en": "A cooling clear jelly made from banana starch (and traditionally fig seeds), served under shaved ice with sweet syrup and red beans.",
+          "how_to_eat_en": "A refreshing street dessert for hot days; scoop the jelly, ice and beans together.",
           "sources": [
             "https://www.phuket101.net/best-local-thai-restaurants-in-phuket-town/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
@@ -1440,7 +1482,8 @@
             "โอ้เอ๋ว",
             "oh aew",
             "o aew"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "o_tao_phuket",
@@ -1461,9 +1504,9 @@
             "seafood"
           ],
           "verified": false,
-          "title_en": "O-Tao (Phuket oyster and taro pan-fried omelette)",
-          "short_desc_en": "A savory pan-fried Phuket specialty made with taro, starch batter, small oysters, egg, and crispy pork cracklings.",
-          "how_to_eat_en": "Served hot with bean sprouts and chili sauce at street stalls and local food courts in Phuket Old Town.",
+          "title_en": "O-Tao (Phuket oyster and taro omelette)",
+          "short_desc_en": "A savory pan-fried Phuket specialty of taro, starch batter, small oysters, egg and crispy pork cracklings.",
+          "how_to_eat_en": "Served hot with bean sprouts and chili sauce at street stalls and local food courts in Phuket Town.",
           "sources": [
             "https://www.evephuket.com/blog/best-street-food-phuket/",
             "https://phuketsouth.com/7-culinary-delights-you-must-try-in-phuket/"
@@ -1472,7 +1515,8 @@
             "โอวต้าว",
             "o tao",
             "oh tao"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     },
@@ -1492,7 +1536,7 @@
           "title_local": "Cao lầu",
           "title_ascii": "cao lau",
           "short_desc": "Упругая толстая рисовая лапша с ломтиками пряной запечённой свинины, небольшим количеством насыщенного соуса, зеленью и хрустящими сухариками.",
-          "how_to_eat": "Перемешайте лапшу с соусом на дне миски, добавив свежие травы, ростки фасоли, лайм и чили по вкусу.",
+          "how_to_eat": "Перемешайте лапшу с соусом на дне миски; зелень, ростки фасоли, лайм и чили добавьте по вкусу.",
           "search_tokens": [
             "cao lau",
             "cao lầu",
@@ -1508,15 +1552,16 @@
           "verified": false,
           "title_en": "Cao Lau (Hoi An chewy noodles with pork)",
           "short_desc_en": "Thick, chewy rice noodles served with sliced spiced pork, a small ladle of savory broth, fresh herbs, and crispy rice crackers.",
-          "how_to_eat_en": "Toss the noodles with the dark sauce at the bottom of the bowl and mix in the herbs, bean sprouts, lime, and chili.",
+          "how_to_eat_en": "Toss the noodles with the sauce at the bottom of the bowl; add herbs, bean sprouts, lime and chili to taste.",
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
-            "https://hoiandaytrip.com/hoi-an-specialty-food/",
-            "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+            "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich",
+            "https://vietnamtourism.gov.vn/en/post/7813"
           ],
           "venue_tokens": [
             "cao lau"
-          ]
+          ],
+          "locality_type": "city_origin"
         },
         {
           "id": "com_ga_hoi_an",
@@ -1524,7 +1569,7 @@
           "title_local": "Cơm gà Hội An",
           "title_ascii": "com ga hoi an",
           "short_desc": "Ароматный рис, сваренный на курином бульоне с куркумой, который подают с рваной отварной курицей, маринованным луком и травами.",
-          "how_to_eat": "Подают с небольшой пиалой куриного бульона и острой пастой чили; по желанию заказывают дополнительно салат из курицы.",
+          "how_to_eat": "Подают с пиалой куриного бульона и соусом чили; зелень и маринованный лук обычно добавляют в рис по вкусу.",
           "search_tokens": [
             "com ga hoi an",
             "cơm gà hội an",
@@ -1540,15 +1585,15 @@
           "verified": false,
           "title_en": "Hoi An Chicken Rice (turmeric rice with shredded chicken)",
           "short_desc_en": "Fragrant rice cooked in chicken broth and turmeric, topped with hand-shredded local chicken, pickled onions, and fresh herbs.",
-          "how_to_eat_en": "Served with a side bowl of warm broth and spicy chili sauce; stir the herbs and sauce into the rice as you eat.",
+          "how_to_eat_en": "Served with a side of chicken broth and chili sauce; mix the herbs and pickled onion into the rice to taste.",
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
-            "https://hoiandaytrip.com/hoi-an-specialty-food/",
-            "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+            "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
           ],
           "venue_tokens": [
             "com ga"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_bao_banh_vac_hoi_an",
@@ -1575,14 +1620,14 @@
           "how_to_eat_en": "Dip each steamed dumpling into the sweet-and-sour chili fish sauce served on the side.",
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
-            "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/",
             "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
           ],
           "venue_tokens": [
             "banh bao",
             "banh vac",
             "white rose"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_mi_hoi_an",
@@ -1590,7 +1635,7 @@
           "title_local": "Bánh mì Hội An",
           "title_ascii": "banh mi hoi an",
           "short_desc": "Тонкий хрустящий багет с паштетом, мясной нарезкой или жареной свининой, свежими травами, маринованными овощами и домашним соусом.",
-          "how_to_eat": "Едят свежесобранным на завтрак или перекус; при заказе можно выбрать вариант начинки и уровень остроты.",
+          "how_to_eat": "Едят свежесобранным как перекус; при заказе можно выбрать начинку и попросить без перца чили.",
           "search_tokens": [
             "banh mi hoi an",
             "bánh mì hội an",
@@ -1605,15 +1650,15 @@
           "verified": false,
           "title_en": "Hoi An Banh Mi (crispy filled baguette)",
           "short_desc_en": "A crisp local baguette filled with pate, assorted pork or grilled meats, pickled vegetables, fresh herbs, and house chili sauce.",
-          "how_to_eat_en": "Enjoy fresh from the stall for breakfast or a quick snack, choosing your preferred filling and spice level.",
+          "how_to_eat_en": "Eaten fresh as a snack; choose your filling when ordering and ask to hold the chili if you prefer.",
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
-            "https://hoiandaytrip.com/hoi-an-specialty-food/",
-            "https://www.vietnamairlines.com/se/en/plan-book/travel/travel-guide/vietnam-food-dishes"
+            "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
           ],
           "venue_tokens": [
             "banh mi"
-          ]
+          ],
+          "locality_type": "local_favorite"
         },
         {
           "id": "banh_dap_hen_xao_hoi_an",
@@ -1640,12 +1685,13 @@
           "short_desc_en": "Grilled crisp rice paper layered with soft steamed rice sheet, paired with stir-fried baby clams, roasted peanuts, herbs, and chili.",
           "how_to_eat_en": "Press and crack the layered rice paper by hand, scoop up the sautéed clams, and dip into fermented anchovy sauce.",
           "sources": [
-            "https://hoiandaytrip.com/hoi-an-specialty-food/",
-            "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+            "https://vietnamspot.ru/en/blog/hoi-an-food",
+            "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
           ],
           "venue_tokens": [
             "banh dap"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "hoanh_thanh_chien_hoi_an",
@@ -1672,11 +1718,12 @@
           "how_to_eat_en": "Eat right away while the fried wrappers stay crisp beneath the warm tomato topping.",
           "sources": [
             "https://vietnamspot.ru/en/blog/hoi-an-food",
-            "https://hoianheartrestaurant.com/blogs/hoi-an-specialties-top-10-must-try-dishes-in-the-ancient-town/"
+            "https://vuivivudanang.vn/blogs/tin-tuc-hoi-an/an-gi-o-hoi-an-15-mon-dac-san-hoi-an-nhat-dinh-phai-thu-khi-du-lich"
           ],
           "venue_tokens": [
             "hoanh thanh"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     },
@@ -1714,12 +1761,13 @@
           "short_desc_en": "A crisp sheet of rice paper grilled over charcoal with egg, scallions, dried shrimp, minced meat, cheese, and chili sauce.",
           "how_to_eat_en": "Eat hot straight off the grill, folded or rolled in paper so you can snack on it easily in the cool highland air.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vnexpress.net/chu-de/banh-trang-nuong-da-lat-3853"
           ],
           "venue_tokens": [
             "banh trang nuong"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_mi_xiu_mai_da_lat",
@@ -1727,7 +1775,7 @@
           "title_local": "Bánh mì xíu mại",
           "title_ascii": "banh mi xiu mai",
           "short_desc": "Горячая пиала ароматного бульона со свиными фрикадельками и зелёным луком, к которой подают хрустящий тёплый багет.",
-          "how_to_eat": "Популярно на завтрак: отламывайте кусочки багета, макайте в горячий бульон и ешьте вприкуску с фрикадельками и пастой чили.",
+          "how_to_eat": "Популярный завтрак: отламывайте кусочки тёплого багета и макайте их в горячий бульон с фрикадельками; чили-пасту добавьте по вкусу.",
           "search_tokens": [
             "banh mi xiu mai",
             "bánh mì xíu mại",
@@ -1743,15 +1791,16 @@
           "verified": false,
           "title_en": "Banh Mi Xiu Mai (baguette with meatball broth)",
           "short_desc_en": "A steaming bowl of savory broth filled with tender pork meatballs and scallions, served alongside a crisp warm baguette.",
-          "how_to_eat_en": "Commonly eaten for breakfast: tear off pieces of baguette, dip them directly into the hot broth, and add chili jam to taste.",
+          "how_to_eat_en": "A popular breakfast: tear pieces of the warm baguette and dip them into the hot meatball broth; add chili paste to taste.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vnexpress.net/chu-de/banh-trang-nuong-da-lat-3853"
           ],
           "venue_tokens": [
             "xiu mai",
             "banh mi xiu mai"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "banh_can_da_lat",
@@ -1774,15 +1823,16 @@
           ],
           "verified": false,
           "title_en": "Da Lat Banh Can (mini clay-pan rice pancakes)",
-          "short_desc_en": "Bite-sized rice-flour pancakes cooked over charcoal in terracotta molds with quail egg, chicken egg, beef, or seafood.",
+          "short_desc_en": "Bite-sized rice-flour pancakes cooked over charcoal in terracotta molds with quail or chicken egg; a street-food staple of Da Lat that originated in neighboring regions.",
           "how_to_eat_en": "Enjoy hot for breakfast by dipping the pancakes into scallion fish sauce or fermented anchovy dipping sauce.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vnexpress.net/chu-de/banh-trang-nuong-da-lat-3853"
           ],
           "venue_tokens": [
             "banh can"
-          ]
+          ],
+          "locality_type": "regional"
         },
         {
           "id": "banh_uot_long_ga_da_lat",
@@ -1808,13 +1858,14 @@
           "short_desc_en": "Warm, silky steamed rice sheets tossed with shredded chicken, chicken offal, fresh herbs, pickled onions, and crispy shallots.",
           "how_to_eat_en": "Dress with the tangy sweet-and-sour garlic fish sauce and toss before eating; you can request chicken meat without offal.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vnexpress.net/chu-de/banh-trang-nuong-da-lat-3853"
           ],
           "venue_tokens": [
             "banh uot",
             "long ga"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "lau_ga_la_e_da_lat",
@@ -1840,12 +1891,13 @@
           "short_desc_en": "A highland chicken hotpot simmered with bamboo shoots, mushrooms, green chili, and fragrant wild lemon basil leaves.",
           "how_to_eat_en": "Order to share for an evening meal, dipping the fresh lemon basil leaves briefly into the simmering broth alongside rice noodles.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vinpearl.com/vi/lau-ga-la-e-da-lat"
           ],
           "venue_tokens": [
             "lau ga"
-          ]
+          ],
+          "locality_type": "city_specialty"
         },
         {
           "id": "kem_bo_da_lat",
@@ -1871,12 +1923,13 @@
           "short_desc_en": "Smoothly blended local Da Lat avocado puree topped with a scoop of coconut or vanilla ice cream and toasted coconut flakes.",
           "how_to_eat_en": "Served chilled in a tall glass; scoop both the creamy avocado base and ice cream together with a spoon.",
           "sources": [
-            "https://vietnamnomad.com/eat-drink/8-must-try-foods-in-dalat/",
-            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/"
+            "https://rewrew.vn/blog/20-best-dishes-to-eat-in-da-lat-vietnam/",
+            "https://vinpearl.com/vi/kem-bo-da-lat"
           ],
           "venue_tokens": [
             "kem bo"
-          ]
+          ],
+          "locality_type": "city_specialty"
         }
       ]
     }

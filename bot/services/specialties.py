@@ -12,6 +12,11 @@ title_ascii, short_desc, how_to_eat, search_tokens[], cuisine_tags[], verified. 
 для verified=true) и venue_tokens[] — слова, которые встречаются в НАЗВАНИЯХ заведений этого
 блюда («pho» для «Phở Hòa»; не «pho bo»). По ним работает «Найти блюдо»; нет поля — используются
 search_tokens (полнота ниже, потому что в названии заведения обычно лишь часть названия блюда).
+locality_type (необязательно; одно из LOCALITY_TYPES) — связь блюда с городом: city_origin
+(родом отсюда), city_specialty (отличает город), local_favorite (любимое местное, но не отсюда),
+regional (характерно для региона, не города), generic (общенациональное). По нему карточка
+ставит местные блюда выше общих; нет поля — как city_specialty. Поле добавлено без смены
+schema_version: старые словари остаются корректными.
 """
 
 import json
@@ -43,7 +48,11 @@ _DISH_REQUIRED = {
     "id", "title_ru", "title_local", "title_ascii", "short_desc", "how_to_eat",
     "search_tokens", "cuisine_tags", "verified",
 }  # fmt: skip
-_DISH_OPTIONAL = {"title_en", "short_desc_en", "how_to_eat_en", "sources", "venue_tokens"}
+_DISH_OPTIONAL = {"title_en", "short_desc_en", "how_to_eat_en", "sources", "venue_tokens", "locality_type"}
+DISH_FIELDS = frozenset(_DISH_REQUIRED | _DISH_OPTIONAL)  # всё, что вправе лежать в словаре у блюда
+LOCALITY_TYPES = ("city_origin", "city_specialty", "local_favorite", "regional", "generic")
+_LOCALITY_RANK = {name: rank for rank, name in enumerate(LOCALITY_TYPES)}
+_LOCALITY_DEFAULT = _LOCALITY_RANK["city_specialty"]  # поля нет — не штрафуем и не поднимаем
 
 
 def _is_text(v: Any, lo: int = 1, hi: int = 300) -> bool:
@@ -144,6 +153,8 @@ def _validate_dish(cid: Any, d: Any, seen: set[str]) -> list[str]:
         isinstance(vt, list) and 1 <= len(vt) <= 6 and all(_is_text(t, 2, 40) for t in vt)
     ):
         errs.append(f"{tag}: venue_tokens — от 1 до 6 слов из названий заведений")
+    if "locality_type" in d and d["locality_type"] not in LOCALITY_TYPES:
+        errs.append(f"{tag}: locality_type — одно из {list(LOCALITY_TYPES)}")
     src = d.get("sources")
     if "sources" in d and not (
         isinstance(src, list) and all(isinstance(u, str) and u.startswith("http") for u in src)
@@ -186,8 +197,14 @@ def detect_city(lat: float, lon: float, data: dict[str, Any] | None = None) -> d
 
 
 def visible_dishes(city: dict[str, Any], show_unverified: bool | None = None) -> list[dict[str, Any]]:
+    """Блюда для карточки: вычитанные (или все — SPECIALTIES_SHOW_UNVERIFIED), местные выше общих.
+
+    Порядок по locality_type устойчивый: внутри одного типа остаётся порядок словаря. Срез
+    MAX_DISHES идёт после сортировки — при переполнении отбрасываются самые «общие» блюда."""
     show = settings.SPECIALTIES_SHOW_UNVERIFIED if show_unverified is None else show_unverified
-    return [d for d in city["specialties"] if show or d["verified"]][:MAX_DISHES]
+    shown = [d for d in city["specialties"] if show or d["verified"]]
+    shown.sort(key=lambda d: _LOCALITY_RANK.get(d.get("locality_type", ""), _LOCALITY_DEFAULT))
+    return shown[:MAX_DISHES]
 
 
 def has_dishes(lat: float, lon: float) -> bool:
