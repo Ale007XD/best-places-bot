@@ -6,6 +6,7 @@
 Роутер подключается ПЕРЕД user_handlers (у того в конце есть catch-all).
 """
 
+import html
 import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
@@ -13,6 +14,7 @@ from urllib.parse import quote
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -25,7 +27,7 @@ from aiogram.types import (
 from bot import diag
 from bot.config import settings
 from bot.keyboards import inline_keyboards as kb
-from bot.services import cards, products, quota
+from bot.services import cards, community, privacy, products, quota
 from bot.services.translator import get_string
 from bot.utils import links
 
@@ -286,6 +288,79 @@ async def announce_decision(callback: CallbackQuery, bot: Bot, redis_conn):
 @router.callback_query(F.data == "ann:done")
 async def announce_done(callback: CallbackQuery):
     await callback.answer()
+
+
+@router.message(Command("deleteme"))
+async def cmd_deleteme(message: Message, lang_code: str):
+    """Удаление данных по просьбе пользователя: сначала подтверждение с выбором уровня."""
+    def button(key: str, data: str) -> list[InlineKeyboardButton]:
+        return [InlineKeyboardButton(text=get_string(key, lang=lang_code), callback_data=data)]
+
+    await message.answer(
+        get_string("deleteme_prompt", lang=lang_code),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                button("deleteme_btn_profile", "del:profile"),
+                button("deleteme_btn_all", "del:all"),
+                button("deleteme_btn_cancel", "del:cancel"),
+            ]
+        ),
+    )
+
+
+@router.callback_query(F.data.in_({"del:profile", "del:all", "del:cancel"}))
+async def deleteme_confirm(callback: CallbackQuery, state: FSMContext, lang_code: str, redis_conn):
+    msg = callback.message
+    if not isinstance(msg, Message):
+        await callback.answer()
+        return
+    uid = callback.from_user.id
+    if callback.data == "del:cancel":
+        await msg.edit_text(get_string("deleteme_cancelled", lang=lang_code))
+        await callback.answer()
+        return
+    if not await redis_conn.set(f"del:lock:{uid}", 1, nx=True, ex=30):  # двойное нажатие
+        await callback.answer()
+        return
+    full = callback.data == "del:all"
+    stats = await privacy.delete_user_data(redis_conn, uid, include_balance=full)
+    await state.clear()
+    logger.info("user data deleted (full=%s): %s", full, stats)  # id пользователя в лог не пишем
+    key = "deleteme_done_all" if full else "deleteme_done_profile"
+    await msg.edit_text(get_string(key, lang=lang_code).format(votes=stats["votes"], reports=stats["reports"]))
+    await callback.answer()
+
+
+@router.message(Command("closed"))
+async def cmd_closed(message: Message, redis_conn):
+    """Админ: последние места, скрытые жалобами «закрыто» (проверка накрутки)."""
+    if not _is_admin(message):
+        return
+    rows = await community.list_hidden(redis_conn, 10)
+    if not rows:
+        await message.answer("Скрытых жалобами мест нет.")
+        return
+    lines = [
+        f"{datetime.fromtimestamp(ts, UTC):%d.%m %H:%M} · жалоб {total} · <code>{html.escape(pid)}</code>"
+        for pid, total, ts in rows
+    ]
+    await message.answer(
+        "Скрыты жалобами «закрыто»:\n" + "\n".join(lines) + "\n\nСнять скрытие: /unhide <code>place_id</code>",
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("unhide"))
+async def cmd_unhide(message: Message, command: CommandObject, redis_conn):
+    """Админ: /unhide <place_id> — снять скрытие и удалить жалобы на место."""
+    if not _is_admin(message):
+        return
+    pid = (command.args or "").strip()
+    if not pid:
+        await message.answer("Использование: /unhide <place_id>")
+        return
+    done = await community.unhide(redis_conn, pid)
+    await message.answer("Скрытие снято." if done else "На это место жалоб нет.")
 
 
 @router.message(Command("refund"))

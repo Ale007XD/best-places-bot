@@ -83,6 +83,7 @@ jobs:
           python -m scripts.test_venue_filter
           python -m scripts.test_bot_profile
           python -m scripts.test_ai
+          python -m scripts.test_privacy
 
   docker:
     runs-on: ubuntu-latest

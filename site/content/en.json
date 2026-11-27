@@ -160,7 +160,7 @@
       {
         "h": "Your rights",
         "p": [
-          "You can request deletion of the data tied to your account via /feedback."
+          "You can delete your account data with the /deleteme command: “profile data” (settings, location, language, votes and reports) or “everything, including balance” (also bonus searches, Pro and streak — this cannot be undone). Payment records (accounting and refunds) and /feedback messages, which stay in Telegram with the administrator, are not removed by the command; contact support about them."
         ]
       }
     ]

@@ -54,7 +54,7 @@ async def main():
     dp.include_router(user_handlers.router)
 
     if not settings.FSQ_API_KEY:
-        logger.error("FSQ_API_KEY пуст — поиск работать не будет")
+        logger.warning("FSQ_API_KEY пуст — рейтинги и Foursquare как провайдер отключены (базовый поиск работает)")
 
     await bot_profile.apply(bot)  # меню команд и описания — из bot/data/bot_profile.json
 

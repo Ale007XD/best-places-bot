@@ -619,6 +619,19 @@ async def main() -> None:
     assert "написание 'pho': 3 из 6" in joined and "ОБРЕЗАН" not in joined, joined
     assert (await diag.dish_probe(redis, "pho"))[0].startswith("Нужно")
 
+    # 33. FSQ_API_KEY необязателен: без ключа Foursquare не вызывается, платный тир недоступен,
+    # поиск работает на базовых провайдерах
+    await redis.flushall()
+    saved_key = settings.FSQ_API_KEY
+    settings.FSQ_API_KEY = ""
+    try:
+        c = Calls()
+        install(c, gp_places=gp5, op_places=[], fsq_places=fsq5)
+        r = await ps.search_places(LAT, LON, 500, 0, "en", redis, with_ratings=True)
+        assert (r.provider, r.rated, len(c.fsq)) == ("geoapify", False, 0), (r.provider, r.rated, len(c.fsq))
+    finally:
+        settings.FSQ_API_KEY = saved_key
+
     print("providers ok")
 
 

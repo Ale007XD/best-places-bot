@@ -132,8 +132,9 @@ async def run_diagnostics(*, premium: bool = False, bot=None, redis_conn=None) -
             return True, f"@{(await bot.me()).username}"
 
         tasks.append(_timed("Telegram getMe", me))
-    tasks.append(_timed("Foursquare (базовые поля)", lambda: _foursquare(False)))
-    if premium:
+    if settings.FSQ_API_KEY:
+        tasks.append(_timed("Foursquare (базовые поля)", lambda: _foursquare(False)))
+    if premium and settings.FSQ_API_KEY:
         tasks.append(_timed("Foursquare (рейтинги+фото, Premium)", lambda: _foursquare(True)))
     if settings.GEOAPIFY_API_KEY:
         tasks.append(_timed("Geoapify (базовый слой)", _geoapify))
@@ -149,6 +150,8 @@ def format_report(checks: list[Check]) -> str:
     lines = [
         f"{'✅' if c.ok else '❌'} {c.name} — {c.ms} мс\n    {c.detail}" for c in checks
     ]
+    if not settings.FSQ_API_KEY:
+        lines.append("ℹ️ FSQ_API_KEY не задан: рейтинги и Foursquare как провайдер отключены.")
     if not settings.GEOAPIFY_API_KEY:
         lines.append(
             "ℹ️ GEOAPIFY_API_KEY не задан: базовый поиск идёт через Foursquare (без кэша) и Overpass."

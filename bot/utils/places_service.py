@@ -561,7 +561,7 @@ def _base_providers(skip: frozenset[str] = frozenset()) -> list[str]:
         if (
             (name == "geoapify" and settings.GEOAPIFY_API_KEY)
             or (name == "overpass" and settings.OVERPASS_ENABLED)
-            or name == "fsq"
+            or (name == "fsq" and settings.FSQ_API_KEY)
         ):
             out.append(name)
     return out
@@ -646,7 +646,7 @@ async def _load_raw(
 ) -> LoadInfo:
     """Выбирает ОДНОГО провайдера (см. docstring модуля) и возвращает его места как есть."""
     # Если Premium-поля сейчас недоступны (нет кредитов) — это обычный базовый запрос.
-    want_rated = with_ratings and ratings_available()
+    want_rated = with_ratings and bool(settings.FSQ_API_KEY) and ratings_available()
 
     best: LoadInfo | None = None
     attempted = 0

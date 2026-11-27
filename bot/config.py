@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """
     Переменные окружения.
 
-    Для запуска обязательны только BOT_TOKEN и FSQ_API_KEY. Остальное — опционально:
+    Для запуска обязателен только BOT_TOKEN. FSQ_API_KEY нужен для рейтингов и запасного провайдера. Остальное — опционально:
     пустое значение в .env (`MAPBOX_TOKEN=`) трактуется как «не задано».
     """
 
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # --- обязательные ---
     BOT_TOKEN: str
-    FSQ_API_KEY: str  # Foursquare Service Key (Bearer)
+    FSQ_API_KEY: str = ""  # Foursquare Service Key (Bearer); пусто — без рейтингов и без FSQ-провайдера
 
     # --- опциональные ---
     FSQ_API_VERSION: str = "2025-06-17"
@@ -47,8 +47,7 @@ class Settings(BaseSettings):
     OVERPASS_URL: str = (
         "https://overpass-api.de/api/interpreter,"
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter,"
-        "https://overpass.private.coffee/api/interpreter,"
-        "https://overpass.osm.jp/api/interpreter"
+        "https://overpass.private.coffee/api/interpreter"
     )
     ADMIN_ID: int = 0  # Telegram user_id: /feedback и /stats (0 = выключено)
     REDIS_URL: str = "redis://redis:6379/0"
@@ -73,6 +72,7 @@ class Settings(BaseSettings):
     VOTE_REWARD_EVERY: int = 3  # каждые N новых отметок «был здесь» = +1 бонусный поиск (0 = выкл.)
     VOTE_REWARD_DAILY_CAP: int = 3  # максимум таких наград в день
     CLOSED_REPORTS_THRESHOLD: int = 2  # жалоб «закрыто» от разных людей, после которых место скрывается (админ — сразу)
+    CLOSED_DAILY_LIMIT: int = 20  # жалоб «закрыто» от одного пользователя в день (админ — без лимита)
     CLOSED_TTL_DAYS: int = 60  # сколько дней действует скрытие
     SITE_URL: str = ""  # сайт проекта (GitHub Pages), без «/» в конце; пусто — ссылки не добавляются
     CHANNEL_ID: str = ""  # канал для объявлений: @username или -100…; бот — админ канала с правом публикации

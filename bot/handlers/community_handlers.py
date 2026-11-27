@@ -114,6 +114,9 @@ async def closed_report(callback: CallbackQuery, lang_code: str, redis_conn, ana
         await callback.answer()
         return
 
+    if res.limited:
+        await callback.answer(get_string("closed_limit", lang=lang_code), show_alert=True)
+        return
     if res.hidden:
         text = get_string("closed_hidden", lang=lang_code)
     elif res.first:

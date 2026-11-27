@@ -11,16 +11,19 @@
   place:voters:{pid}  — hash uid → "u"/"d" (один голос на пользователя, его можно изменить)
   place:meta:{pid}    — название/координаты/адрес (для будущих топов района)
   place:closed:{pid}  — hash uid → вес жалобы «закрыто» (1; у админа = порог), TTL CLOSED_TTL_DAYS
+  closed:hidden       — zset скрытых жалобами мест (для /closed админа); closed_reports:{uid}:{день} — лимит
   user_votes:{uid}    — сколько мест пользователь отметил впервые
   vote_rewards:{uid}:{день} — выдано наград за отметки сегодня
 """
 
+import time
 from typing import Any, NamedTuple
 
 from bot.config import settings
 from bot.services import quota
 
 _DAY = 86400
+HIDDEN_INDEX = "closed:hidden"
 
 
 class VoteResult(NamedTuple):
@@ -95,20 +98,53 @@ class ClosedResult(NamedTuple):
     hidden: bool  # набран порог: место скрывается из выдачи
     first: bool  # первая жалоба этого пользователя на это место
     rewarded: bool
+    limited: bool = False  # дневной лимит жалоб исчерпан — жалоба не записана
 
 
 async def report_closed(r, uid: int, pid: str, weight: int = 1) -> ClosedResult:
     """Жалоба «место закрыто». Одна на пользователя и место; TTL отсчитывается от последней новой."""
     key = f"place:closed:{pid}"
+    need = settings.CLOSED_REPORTS_THRESHOLD
     first = await r.hget(key, str(uid)) is None
+    before = sum(int(v) for v in (await r.hvals(key)))
+    is_admin = int(weight) >= need  # админ скрывает сразу; лимит на него не распространяется
+    counter = f"closed_reports:{uid}:{quota.local_today().isoformat()}"
+    if first and not is_admin and int(await r.get(counter) or 0) >= settings.CLOSED_DAILY_LIMIT:
+        return ClosedResult(before, before >= need, False, False, limited=True)
     if first:
         async with r.pipeline(transaction=True) as pipe:
             pipe.hset(key, str(uid), max(int(weight), 1))
             pipe.expire(key, settings.CLOSED_TTL_DAYS * _DAY)
+            pipe.incr(counter)
+            pipe.expire(counter, 2 * _DAY)
             await pipe.execute()
     total = sum(int(v) for v in (await r.hvals(key)))
+    if before < need <= total:  # место только что скрыто — запоминаем для админ-просмотра
+        await r.zadd(HIDDEN_INDEX, {pid: time.time()})
     rewarded = await _maybe_reward(r, uid) if first else False
-    return ClosedResult(total, total >= settings.CLOSED_REPORTS_THRESHOLD, first, rewarded)
+    return ClosedResult(total, total >= need, first, rewarded)
+
+
+async def list_hidden(r, limit: int = 10) -> list[tuple[str, int, float]]:
+    """Последние скрытые жалобами места: (place_id, сумма жалоб, когда скрыто). Устаревшие записи
+    (жалобы истекли или сняты) из индекса удаляются."""
+    out: list[tuple[str, int, float]] = []
+    for pid, ts in await r.zrevrange(HIDDEN_INDEX, 0, limit * 3, withscores=True):
+        total = sum(int(v) for v in (await r.hvals(f"place:closed:{pid}")))
+        if total < settings.CLOSED_REPORTS_THRESHOLD:
+            await r.zrem(HIDDEN_INDEX, pid)
+            continue
+        out.append((pid, total, float(ts)))
+        if len(out) >= limit:
+            break
+    return out
+
+
+async def unhide(r, pid: str) -> bool:
+    """Снимает скрытие (админ против накрутки): удаляет жалобы на место. True — что-то было."""
+    removed = await r.delete(f"place:closed:{pid}")
+    await r.zrem(HIDDEN_INDEX, pid)
+    return bool(removed)
 
 
 async def closed_ids(r, pids: list[str | None]) -> set[str]:
