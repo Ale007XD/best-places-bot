@@ -26,6 +26,8 @@ from bot.utils.venue_filter import extract_osm_tags
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_LIMIT = 300  # объектов за запрос (out center N)
+
 _TYPES = {
     "restaurant": "Restaurant",
     "cafe": "Café",
@@ -88,7 +90,7 @@ _KIND_AMENITIES = {
 }
 
 
-def build_query(lat: float, lon: float, radius: int, limit: int = 300, kind: str = "all") -> str:
+def build_query(lat: float, lon: float, radius: int, limit: int = DEFAULT_LIMIT, kind: str = "all") -> str:
     """Узлы и пути отдельно (не nwr): быстрее и без лишних отношений.
 
     Без сортировки Overpass отдаёт объекты по id (сначала узлы, потом пути), поэтому лимит
@@ -118,7 +120,7 @@ async def query_server(url: str, query: str) -> list[dict[str, Any]] | None:
 
 
 async def find_places_overpass(
-    lat: float, lon: float, radius: int, url: str, limit: int = 300, kind: str = "all"
+    lat: float, lon: float, radius: int, url: str, limit: int = DEFAULT_LIMIT, kind: str = "all"
 ) -> list[dict[str, Any]] | None:
     """Заведения вокруг точки. None — сбой (все зеркала на паузе / не ответили), [] — мест нет.
 

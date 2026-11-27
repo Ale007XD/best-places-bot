@@ -163,9 +163,11 @@ async def _search_with_budget(
     return await asyncio.wait_for(asyncio.shield(task), INLINE_BUDGET_SEC)
 
 
-def _matches(place: dict, needles: tuple[str, ...]) -> bool:
-    """Название или категория содержит одно из написаний (без диакритики: «Phở» = «pho»)."""
-    return text_matches(f"{clean(place.get('name'))} {clean(place.get('primary_type'))}", needles)
+def _matches(place: dict, needles: tuple[str, ...], spellings: tuple[str, ...] = ()) -> bool:
+    """Название или категория содержит одно из написаний (без диакритики: «Phở» = «pho»).
+
+    spellings — написания блюда с диакритикой: «Phố» (улица) блюдом не считается."""
+    return text_matches(f"{clean(place.get('name'))} {clean(place.get('primary_type'))}", needles, spellings)
 
 
 @router.inline_query()
@@ -238,7 +240,8 @@ async def on_inline(
     if text:
         hit = specialties.resolve_dish(text, lat, lon) if lat is not None and lon is not None else None
         needles = specialties.venue_needles(hit[1]) if hit else (text,)  # блюдо города → слова из названий заведений
-        places = [p for p in places if _matches(p, needles)]
+        spellings = specialties.venue_spellings(hit[1]) if hit else ()
+        places = [p for p in places if _matches(p, needles, spellings)]
         if not places and len(text) >= 3:
             if not await redis_conn.set(f"throttle:ig:{uid}", 1, nx=True, px=GEOCODE_THROTTLE_MS):
                 await reply([_note(lang_code, "busy")], cache=1)

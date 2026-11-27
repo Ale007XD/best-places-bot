@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_URL = "https://api.geoapify.com/v2/places"
 REVERSE_URL = "https://api.geoapify.com/v1/geocode/reverse"
 _TIMEOUT_SEC = 8.0
+DEFAULT_LIMIT = 100  # обычный поиск нужен только ближайшим местам; поиск блюда берёт больше
 
 # kind → категории Geoapify (через запятую; места могут иметь несколько категорий)
 KIND_CATEGORIES: dict[str, str] = {
@@ -109,7 +110,7 @@ async def find_places_geoapify(
     api_key: str,
     kind: str = "all",
     lang_code: str = "en",
-    limit: int = 100,
+    limit: int = DEFAULT_LIMIT,
     url: str = DEFAULT_URL,
 ) -> list[dict[str, Any]] | None:
     """Заведения вокруг точки, ближайшие первыми.

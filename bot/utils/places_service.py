@@ -39,9 +39,11 @@ from bot.services import community
 from bot.services.translator import get_string
 from bot.utils.foursquare_api import FoursquareError, ratings_available
 from bot.utils.foursquare_api import fetch_places as fsq_fetch
+from bot.utils.geoapify_api import DEFAULT_LIMIT as GEOAPIFY_BASE_LIMIT
 from bot.utils.geoapify_api import find_places_geoapify, reverse_region
 from bot.utils.geospatial import calculate_distance
 from bot.utils.mapbox_api import find_places_mapbox
+from bot.utils.overpass_api import DEFAULT_LIMIT as OVERPASS_LIMIT
 from bot.utils.overpass_api import find_places_overpass
 from bot.utils.querytools import classify_kind, matches_kind
 from bot.utils.textnorm import matches as text_matches
@@ -92,6 +94,7 @@ class SearchResult(NamedTuple):
     radius_asked: int = 0  # радиус, выбранный пользователем
     radius_used: int = 0  # радиус, по которому реально выбраны места (≥ asked при расширении)
     by_accuracy: bool = False  # старт радиуса поднят из-за низкой точности геопозиции
+    truncated: bool = False  # набор провайдера достиг лимита: дальние места могли не попасть
 
 
 class LoadInfo(NamedTuple):
@@ -101,6 +104,22 @@ class LoadInfo(NamedTuple):
     used_osm: bool = False
     rated: bool = False
     provider: str = ""
+    truncated: bool = False  # набор достиг лимита провайдера: дальние места могли не попасть
+
+
+def provider_limit(provider: str, deep: bool = False) -> int:
+    """Сколько мест провайдер отдаёт за один запрос (0 — лимит неизвестен/не применим)."""
+    if provider == "geoapify":
+        return min(max(settings.GEOAPIFY_DISH_LIMIT, GEOAPIFY_BASE_LIMIT), 500) if deep else GEOAPIFY_BASE_LIMIT
+    if provider == "overpass":
+        return OVERPASS_LIMIT
+    return 0
+
+
+def is_truncated(provider: str, count: int, deep: bool = False) -> bool:
+    """Набор упёрся в лимит провайдера (с запасом на отброшенные безымянные/без координат)."""
+    limit = provider_limit(provider, deep)
+    return bool(limit) and count >= limit - 5
 
 
 def fetch_radius(radius: int) -> int:
@@ -429,13 +448,15 @@ def _within_radius(p: dict[str, Any], lat: float, lon: float, radius: int) -> bo
     return d <= radius
 
 
-def _has_dish(p: dict[str, Any], needles: tuple[str, ...]) -> bool:
-    """Гейт «блюдо»: имя или категория заведения содержит одно из написаний (без диакритики)."""
+def _has_dish(p: dict[str, Any], needles: tuple[str, ...], spellings: tuple[str, ...] = ()) -> bool:
+    """Гейт «блюдо»: имя или категория заведения содержит одно из написаний (без диакритики).
+
+    spellings — написания блюда с диакритикой: слово с чужой диакритикой («Phố») не совпадает."""
     if not needles:
         return True
     if p.get("unnamed"):
         return False
-    return text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", needles)
+    return text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", needles, spellings)
 
 
 def select_places(
@@ -446,6 +467,7 @@ def select_places(
     min_rating: float,
     kind: str = "all",
     needles: tuple[str, ...] = (),
+    spellings: tuple[str, ...] = (),
 ) -> SearchResult:
     """Чистая функция: дедуп → радиус → категория → блюдо → фильтр по рейтингу → ранжирование.
 
@@ -457,9 +479,9 @@ def select_places(
     """
     local = [p for p in raw if not p.get("foreign_region") and not _is_unverified_fsq(p)]
     demoted = [p for p in raw if p.get("foreign_region") or _is_unverified_fsq(p)]
-    res = _select(local, lat, lon, radius, min_rating, kind, needles)
+    res = _select(local, lat, lon, radius, min_rating, kind, needles, spellings)
     if demoted and len(res.places) < RESULT_LIMIT:
-        extra = _select(demoted, lat, lon, radius, 0.0, kind, needles)
+        extra = _select(demoted, lat, lon, radius, 0.0, kind, needles, spellings)
         room = RESULT_LIMIT - len(res.places)
         added = extra.places[:room]
         rating_avail = res.rating_available or extra.rating_available
@@ -488,11 +510,12 @@ def _select(
     min_rating: float,
     kind: str,
     needles: tuple[str, ...] = (),
+    spellings: tuple[str, ...] = (),
 ) -> SearchResult:
     places = [
         p
         for p in _deduplicate(raw)
-        if _within_radius(p, lat, lon, radius) and matches_kind(p, kind) and _has_dish(p, needles)
+        if _within_radius(p, lat, lon, radius) and matches_kind(p, kind) and _has_dish(p, needles, spellings)
     ]
 
     def rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -568,14 +591,25 @@ def _base_providers(skip: frozenset[str] = frozenset()) -> list[str]:
 
 
 async def _osm_provider(
-    name: str, lat: float, lon: float, radius: int, lang_code: str, redis_conn, kind: str
+    name: str,
+    lat: float,
+    lon: float,
+    radius: int,
+    lang_code: str,
+    redis_conn,
+    kind: str,
+    deep: bool = False,
 ) -> LoadInfo | None:
-    """Geoapify / Overpass: кэш по ячейке (ODbL разрешает). None — сбой провайдера."""
-    key = _make_cache_key(lat, lon, radius, lang_code, name, kind)
+    """Geoapify / Overpass: кэш по ячейке (ODbL разрешает). None — сбой провайдера.
+
+    deep — поиск блюда: у Geoapify лимит выше (GEOAPIFY_DISH_LIMIT), кэш отдельный: набор из
+    100 мест не должен подменять набор из 300. У Overpass лимит один — ключ общий."""
+    deep = deep and name == "geoapify"
+    key = _make_cache_key(lat, lon, radius, lang_code, f"{name}:deep" if deep else name, kind)
     raw = await _read_cache(redis_conn, key)
     if raw is not None:
         logger.info("CACHE HIT (%s)", name)
-        return LoadInfo(raw, True, True, True, False, name)
+        return LoadInfo(raw, True, True, True, False, name, is_truncated(name, len(raw), deep))
 
     if len(_inflight) > 1000:  # не копим замки бесконечно
         for k in [k for k, lk in _inflight.items() if not lk.locked()]:
@@ -583,7 +617,7 @@ async def _osm_provider(
     async with _inflight.setdefault(key, asyncio.Lock()):
         raw = await _read_cache(redis_conn, key)  # мог заполнить первый
         if raw is not None:
-            return LoadInfo(raw, True, True, True, False, name)
+            return LoadInfo(raw, True, True, True, False, name, is_truncated(name, len(raw), deep))
         clat, clon = _cell(lat, lon)
         frad = fetch_radius(radius)
         if name == "geoapify":
@@ -594,6 +628,7 @@ async def _osm_provider(
                 settings.GEOAPIFY_API_KEY,
                 kind,
                 lang_code,
+                limit=provider_limit(name, deep),
                 url=settings.GEOAPIFY_URL,
             )
         else:
@@ -601,7 +636,7 @@ async def _osm_provider(
         if raw is None:
             return None
         await _write_cache(redis_conn, key, raw)
-        return LoadInfo(raw, False, True, True, False, name)
+        return LoadInfo(raw, False, True, True, False, name, is_truncated(name, len(raw), deep))
 
 
 async def _fsq_provider(
@@ -643,6 +678,7 @@ async def _load_raw(
     redis_conn,
     with_ratings: bool = True,
     kind: str = "all",
+    deep: bool = False,
 ) -> LoadInfo:
     """Выбирает ОДНОГО провайдера (см. docstring модуля) и возвращает его места как есть."""
     # Если Premium-поля сейчас недоступны (нет кредитов) — это обычный базовый запрос.
@@ -677,7 +713,7 @@ async def _load_raw(
             if info is not None:
                 info = info._replace(raw=await _demote_foreign(info.raw, lat, lon, redis_conn))
         else:
-            info = await _osm_provider(name, lat, lon, radius, lang_code, redis_conn, kind)
+            info = await _osm_provider(name, lat, lon, radius, lang_code, redis_conn, kind, deep)
         if info is not None:
             info = info._replace(raw=await _drop_closed(info.raw, redis_conn))
         if (done := consider(info)) is not None:
@@ -724,6 +760,7 @@ async def search_places(
     kind: str = "all",
     accuracy_m: float | None = None,
     dish_tokens: tuple[str, ...] = (),
+    dish_spellings: tuple[str, ...] = (),
 ) -> SearchResult:
     """with_ratings=False — базовая выдача без платных рейтингов/фото (бесплатный уровень).
 
@@ -733,8 +770,10 @@ async def search_places(
     Радиус: если мест меньше TOP_N, он расширяется шагами (100→200→300→500→1000) без нового
     запроса — по уже загруженным данным (OSM-«ведро» 600 м покрывает до 500 м, FSQ — 1000 м).
     accuracy_m — точность геопозиции: радиус меньше неё бессмыслен, старт поднимается.
+    dish_tokens/dish_spellings — поиск блюда: набор грузится «глубоко» (Geoapify — выше лимит),
+    а слово названия с чужой диакритикой («Phố») блюдом не считается.
     """
-    info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings, kind)
+    info = await _load_raw(lat, lon, radius, lang_code, redis_conn, with_ratings, kind, deep=bool(dish_tokens))
     # Отметки пользователей меняются постоянно — к кэшу провайдера не относятся.
     try:
         places = await community.attach_votes(redis_conn, info.raw)
@@ -749,15 +788,16 @@ async def search_places(
         start = max(next((r for r in allowed if r >= accuracy_m), allowed[-1]), radius)
     selected = used = None
     for r in _radius_steps(start, cover):
-        selected, used = select_places(places, lat, lon, r, min_rating, kind, dish_tokens), r
+        selected, used = select_places(places, lat, lon, r, min_rating, kind, dish_tokens, dish_spellings), r
         if _named(selected.places) >= TOP_N:
             break
     assert selected is not None and used is not None
     if dish_tokens:
         logger.info(
-            "DISH search: matches=%s raw=%s provider=%s radius=%s→%s",
+            "DISH search: matches=%s raw=%s truncated=%s provider=%s radius=%s→%s",
             len(selected.places),
             len(places),
+            info.truncated,
             info.provider,
             radius,
             used,
@@ -772,4 +812,5 @@ async def search_places(
         radius_asked=radius,
         radius_used=used,
         by_accuracy=start > radius,
+        truncated=info.truncated,
     )

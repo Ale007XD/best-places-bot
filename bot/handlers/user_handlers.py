@@ -732,6 +732,7 @@ async def _run_search(
     found = specialties.get_dish(dish_ref) if dish_ref else None
     dish_city, dish = found if found else (None, None)
     needles = specialties.venue_needles(dish) if dish else ()
+    spellings = specialties.venue_spellings(dish) if dish else ()
     dish_label = specialties.dish_title(dish, lang_code) if dish else None
 
     data = await state.get_data()
@@ -785,6 +786,7 @@ async def _run_search(
             kind=kind,
             accuracy_m=data.get("accuracy"),
             dish_tokens=needles,
+            dish_spellings=spellings,
         )
     except Exception:
         logger.exception("search failed")

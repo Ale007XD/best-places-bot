@@ -9,8 +9,11 @@
                               вернул провайдер: координаты, его расстояние, адрес.
   • поиск блюда:              python -m bot.diag dish <город:блюдо | слово> [lat lon]  — какие
                               заведения найдёт «Найти блюдо» по написаниям (venue_tokens), сколько
-                              совпадений на каждом радиусе и по каждому написанию; данные кэша
-                              провайдера обрезаны (Geoapify ≤ 100 мест) — см. строку «обрезан».
+                              совпадений на каждом радиусе и по каждому написанию; набор грузится
+                              «глубоко» (Geoapify — GEOAPIFY_DISH_LIMIT мест), если он всё же
+                              упёрся в лимит — см. строку «НАБОР ОБРЕЗАН».
+  • все блюда города:         python -m bot.diag dishes <город> [lat lon]  — по одной строке на блюдо:
+                              совпадения ≤ 200 / ≤ 500 м; набор грузится один раз на весь город.
   • чистка Redis:             python -m bot.diag purge-meta [--apply]  — place:meta:* мест не из
                               OSM/Geoapify (без --apply только считает).
   • категории Foursquare:     python -m bot.diag cats [lat lon]  — выводит категории
@@ -186,24 +189,51 @@ async def dish_probe(
         needles, title = (target,), target
     else:
         return ["Нужно «город:блюдо» (как в словаре) или слово плюс lat lon."]
-    info = await places_service._load_raw(lat, lon, 500, "en", redis_conn, False, "all")
+    spellings = specialties.venue_spellings(found[1]) if found else ()
+    info = await places_service._load_raw(lat, lon, 500, "en", redis_conn, False, "all", deep=True)
     raw = info.raw
-    limit = 300 if info.provider == "overpass" else 100 if info.provider == "geoapify" else 0
     cover = places_service.coverage_m(info.provider, 500)
     lines = [
         f"{title} · точка {lat:.5f},{lon:.5f} · написания: {', '.join(needles)}",
         f"провайдер={info.provider or '—'} мест в наборе={len(raw)} полнота до {cover} м"
-        + (" · НАБОР ОБРЕЗАН (достиг лимита провайдера): дальние совпадения могли не попасть" if limit and len(raw) >= limit - 5 else ""),
+        + (" · НАБОР ОБРЕЗАН (достиг лимита провайдера): дальние совпадения могли не попасть" if info.truncated else ""),
     ]
     for r in (r for r in places_service.EXPAND_STEPS if r <= cover):
-        sel = places_service.select_places(raw, lat, lon, r, 0.0, "all", needles)
+        sel = places_service.select_places(raw, lat, lon, r, 0.0, "all", needles, spellings)
         names = "; ".join(
             f"{p.get('name')!r} {calculate_distance(lat, lon, p['lat'], p['lon'])} м" for p in sel.places[:3]
         )
         lines.append(f"  ≤ {r:>4} м: {len(sel.places)} совпад. {names}")
     for needle in needles:
-        hits = sum(1 for p in raw if text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", (needle,)))
+        hits = sum(
+            1 for p in raw if text_matches(f"{p.get('name') or ''} {p.get('primary_type') or ''}", (needle,), spellings)
+        )
         lines.append(f"  написание {needle!r}: {hits} из {len(raw)}")
+    return lines
+
+
+async def dishes_probe(redis_conn, city_id: str, lat: float | None = None, lon: float | None = None) -> list[str]:
+    """Все блюда города одним запуском: сколько заведений найдёт «Найти блюдо» на 200 и 500 м.
+
+    Набор мест грузится один раз (центр города, глубокий режим) и делится между блюдами."""
+    data = specialties.load()
+    city = data["cities"].get(city_id)
+    if not city:
+        return [f"Нет города {city_id!r}. Есть: {', '.join(data['cities'])}"]
+    lat = city["center"]["lat"] if lat is None else lat
+    lon = city["center"]["lon"] if lon is None else lon
+    info = await places_service._load_raw(lat, lon, 500, "en", redis_conn, False, "all", deep=True)
+    lines = [
+        f"{city['name_ru']} · точка {lat:.5f},{lon:.5f} · провайдер={info.provider or '—'} мест={len(info.raw)}"
+        + (" · НАБОР ОБРЕЗАН" if info.truncated else "")
+    ]
+    for dish in city["specialties"]:
+        needles, spellings = specialties.venue_needles(dish), specialties.venue_spellings(dish)
+        counts = [
+            len(places_service.select_places(info.raw, lat, lon, r, 0.0, "all", needles, spellings).places)
+            for r in (200, 500)
+        ]
+        lines.append(f"  {dish['id']:<40} ≤200 м: {counts[0]:>2}  ≤500 м: {counts[1]:>2}  токены: {', '.join(needles)}")
     return lines
 
 
@@ -274,8 +304,20 @@ async def fsq_categories(lat: float, lon: float) -> list[tuple[int, dict]]:
 
 async def _main() -> None:
     logging.basicConfig(level=logging.WARNING)
-    args = sys.argv[1:]
+    args = [a.rstrip(",") for a in sys.argv[1:]]  # «12.24, 109.19» (с запятой) тоже понимаем
     try:
+        if args[:1] == ["dishes"]:
+            from redis.asyncio import Redis
+
+            if len(args) < 2:
+                sys.exit("python -m bot.diag dishes <город> [lat lon]")
+            conn_all: Any = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            try:
+                point_all = (float(args[2]), float(args[3])) if len(args) >= 4 else (None, None)
+                print("\n".join(await dishes_probe(conn_all, args[1], *point_all)))
+            finally:
+                await conn_all.aclose()
+            return
         if args[:1] == ["raw"]:
             lat, lon = (float(args[1]), float(args[2])) if len(args) >= 3 else HCMC
             radius = int(args[3]) if len(args) >= 4 else 500

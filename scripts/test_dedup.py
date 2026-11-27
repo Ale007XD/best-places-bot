@@ -42,7 +42,7 @@ def _install_stubs() -> None:
     )
     _stub("bot.utils.geospatial", calculate_distance=_dist)
     _stub("bot.utils.mapbox_api", find_places_mapbox=None)
-    _stub("bot.utils.overpass_api", find_places_overpass=None)
+    _stub("bot.utils.overpass_api", find_places_overpass=None, DEFAULT_LIMIT=300)
 
 
 def _place(name, lat, lon, pid, src="fsq", rating=None) -> dict:

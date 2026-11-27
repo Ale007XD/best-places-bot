@@ -257,6 +257,17 @@ def venue_needles(dish: dict[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(tokens)) or dish_needles(dish)
 
 
+def venue_spellings(dish: dict[str, Any]) -> tuple[str, ...]:
+    """Написания блюда с диакритикой — чтобы «Phố» (улица) не засчитывалось как «Phở» (суп).
+
+    Нужны только textnorm.matches: слово названия заведения с чужой диакритикой — другое слово."""
+    raw = [
+        *dish.get("venue_tokens", []), *dish["search_tokens"],
+        dish["title_local"], dish["title_ascii"], dish.get("title_en", ""),
+    ]  # fmt: skip
+    return tuple(dict.fromkeys(x for x in raw if isinstance(x, str) and x.strip()))
+
+
 def resolve_dish(
     text: str, lat: float, lon: float, show_unverified: bool | None = None
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
